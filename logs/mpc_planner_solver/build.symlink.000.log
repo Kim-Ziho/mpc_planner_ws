@@ -1,0 +1,4 @@
+Symlinking /workspace/devel/lib/libmpc_planner_solver.so
+Symlinking /workspace/devel/lib/pkgconfig/mpc_planner_solver.pc
+Symlinking /workspace/devel/share/mpc_planner_solver/cmake/mpc_planner_solverConfig-version.cmake
+Symlinking /workspace/devel/share/mpc_planner_solver/cmake/mpc_planner_solverConfig.cmake

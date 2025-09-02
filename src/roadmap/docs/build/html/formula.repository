@@ -1,0 +1,19 @@
+\_form#0=291x31:\[ C(x) = \int_0^x \cos\left(\frac{\pi}{2}t^2\right) dt, \qquad S(x) = \int_0^x \sin\left(\frac{\pi}{2}t^2\right) dt \]
+\_form#1=24x14:$ S(x) $
+\_form#2=25x14:$ C(x) $
+\_form#3=28x14:$ S'(x) $
+\_form#4=30x14:$ S''(x) $
+\_form#5=29x14:$ C'(x) $
+\_form#6=31x14:$ C''(x) $
+\_form#7=326x33:\[ \int_0^1 t^k \cos\left(a\frac{t^2}{2} + b t + c\right) dt,\qquad \int_0^1 t^k \sin\left(a\frac{t^2}{2} + b t + c\right) dt \]
+\_form#8=6x6:$ a $
+\_form#9=5x10:$ b $
+\_form#10=5x6:$ c $
+\_form#11=13x9:$ x_0 $
+\_form#12=13x9:$ y_0 $
+\_form#13=10x13:$ \theta_0 $
+\_form#14=13x9:$ x_1 $
+\_form#15=11x9:$ y_1 $
+\_form#16=10x13:$ \theta_1 $
+\_form#17=11x10:$ K $
+\_form#18=15x10:$ K' $

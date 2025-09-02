@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /workspace/devel/.private/mpc_planner_types/setup.sh

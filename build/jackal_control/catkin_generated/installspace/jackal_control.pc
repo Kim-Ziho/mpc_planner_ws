@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: jackal_control
+Description: Description of jackal_control
+Version: 0.6.2
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

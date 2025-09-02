@@ -1,0 +1,13 @@
+Symlinking /workspace/devel/lib/libguidance_planner_homotopy.so
+Symlinking /workspace/devel/lib/libguidance_planner.so
+Symlinking /workspace/devel/lib/guidance_planner/example
+Symlinking /workspace/devel/lib/pkgconfig/guidance_planner.pc
+Symlinking /workspace/devel/lib/python3/dist-packages/guidance_planner/__init__.py
+Symlinking /workspace/devel/lib/python3/dist-packages/guidance_planner/cfg/GuidancePlannerReconfigureConfig.py
+Symlinking /workspace/devel/lib/python3/dist-packages/guidance_planner/cfg/__init__.py
+Symlinking /workspace/devel/share/guidance_planner/cmake/guidance_plannerConfig.cmake
+Symlinking /workspace/devel/share/guidance_planner/cmake/guidance_plannerConfig-version.cmake
+Symlinking /workspace/devel/share/guidance_planner/docs/GuidancePlannerReconfigureConfig-usage.dox
+Symlinking /workspace/devel/share/guidance_planner/docs/GuidancePlannerReconfigureConfig.dox
+Symlinking /workspace/devel/share/guidance_planner/docs/GuidancePlannerReconfigureConfig.wikidoc
+Symlinking /workspace/devel/include/guidance_planner/GuidancePlannerReconfigureConfig.h

@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/mpc_planner_types
+
+Name: mpc_planner_types
+Description: Description of mpc_planner_types
+Version: 0.0.0
+Cflags: -I/workspace/src/mpc_planner/mpc_planner_types/include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -lmpc_planner_types
+Requires: 

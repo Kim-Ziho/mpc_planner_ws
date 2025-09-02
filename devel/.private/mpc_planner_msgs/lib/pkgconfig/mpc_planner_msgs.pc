@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/mpc_planner_msgs
+
+Name: mpc_planner_msgs
+Description: Description of mpc_planner_msgs
+Version: 0.0.0
+Cflags: -I/workspace/devel/.private/mpc_planner_msgs/include
+Libs: -L${prefix}/lib 
+Requires: nav_msgs std_msgs geometry_msgs

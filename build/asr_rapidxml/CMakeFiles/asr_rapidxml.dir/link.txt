@@ -1,0 +1,2 @@
+/usr/bin/ar qc /workspace/devel/.private/asr_rapidxml/lib/libasr_rapidxml.a  
+/usr/bin/ranlib /workspace/devel/.private/asr_rapidxml/lib/libasr_rapidxml.a

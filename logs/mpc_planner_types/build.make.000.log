@@ -1,0 +1,6 @@
+[35m[1mScanning dependencies of target _catkin_empty_exported_target[0m
+[  0%] Built target _catkin_empty_exported_target
+[35m[1mScanning dependencies of target mpc_planner_types[0m
+[ 50%] [32mBuilding CXX object CMakeFiles/mpc_planner_types.dir/src/data_types.cpp.o[0m
+[100%] [32m[1mLinking CXX shared library /workspace/devel/.private/mpc_planner_types/lib/libmpc_planner_types.so[0m
+[100%] Built target mpc_planner_types

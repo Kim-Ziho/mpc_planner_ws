@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /workspace/devel/.private/ros_tools/setup.sh

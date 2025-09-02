@@ -1,0 +1,8 @@
+prefix=/workspace/devel
+
+Name: decomp_util
+Description: Description of decomp_util
+Version: 1.0.0
+Cflags: -I${prefix}/include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -ldecomp_util
+Requires: ros_tools

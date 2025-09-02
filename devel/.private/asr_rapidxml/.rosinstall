@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /workspace/devel/.private/asr_rapidxml/setup.sh

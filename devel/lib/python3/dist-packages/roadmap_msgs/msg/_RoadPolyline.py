@@ -1,0 +1,1 @@
+/workspace/devel/.private/roadmap_msgs/lib/python3/dist-packages/roadmap_msgs/msg/_RoadPolyline.py

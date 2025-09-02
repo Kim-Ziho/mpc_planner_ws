@@ -1,0 +1,12 @@
+Symlinking /workspace/devel/lib/libmpc_planner_rosnavigation.so
+Symlinking /workspace/devel/lib/pkgconfig/mpc_planner_rosnavigation.pc
+Symlinking /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/__init__.py
+Symlinking /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/__init__.py
+Symlinking /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/rosnavigationConfig.py
+Symlinking /workspace/devel/lib/mpc_planner_rosnavigation/goal_publisher.py
+Symlinking /workspace/devel/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig-version.cmake
+Symlinking /workspace/devel/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig.cmake
+Symlinking /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig-usage.dox
+Symlinking /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.wikidoc
+Symlinking /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.dox
+Symlinking /workspace/devel/include/mpc_planner_rosnavigation/rosnavigationConfig.h

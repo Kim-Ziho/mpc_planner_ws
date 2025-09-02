@@ -1,0 +1,4 @@
+jackal_simulator/jackal_description
+/workspace/devel/.private/jackal_description/lib/pkgconfig/jackal_description.pc /workspace/devel/lib/pkgconfig/jackal_description.pc
+/workspace/devel/.private/jackal_description/share/jackal_description/cmake/jackal_descriptionConfig-version.cmake /workspace/devel/share/jackal_description/cmake/jackal_descriptionConfig-version.cmake
+/workspace/devel/.private/jackal_description/share/jackal_description/cmake/jackal_descriptionConfig.cmake /workspace/devel/share/jackal_description/cmake/jackal_descriptionConfig.cmake

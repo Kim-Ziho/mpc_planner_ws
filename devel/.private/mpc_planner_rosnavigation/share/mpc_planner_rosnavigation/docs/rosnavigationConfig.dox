@@ -1,0 +1,14 @@
+\subsubsection parameters ROS parameters
+
+Reads and maintains the following parameters on the ROS server
+
+- \b "~acceleration" : \b [double] acceleration min: 0.0, default: 1.0, max: 100.0
+- \b "~angular_velocity" : \b [double] angular_velocity min: 0.0, default: 1.0, max: 100.0
+- \b "~slack" : \b [double] slack min: 0.0, default: 1.0, max: 100.0
+- \b "~velocity" : \b [double] velocity min: 0.0, default: 1.0, max: 100.0
+- \b "~reference_velocity" : \b [double] reference_velocity min: 0.0, default: 1.0, max: 100.0
+- \b "~contour" : \b [double] contour min: 0.0, default: 1.0, max: 100.0
+- \b "~lag" : \b [double] lag min: 0.0, default: 1.0, max: 100.0
+- \b "~terminal_angle" : \b [double] terminal_angle min: 0.0, default: 1.0, max: 100.0
+- \b "~terminal_contouring" : \b [double] terminal_contouring min: 0.0, default: 1.0, max: 100.0
+

@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/guidance_planner
+
+Name: guidance_planner
+Description: Description of guidance_planner
+Version: 0.0.0
+Cflags: -I/workspace/devel/.private/guidance_planner/include -I/workspace/src/guidance_planner/include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -lguidance_planner -lguidance_planner_homotopy -lgsl -lgslcblas -lm
+Requires: roscpp std_msgs ros_tools dynamic_reconfigure

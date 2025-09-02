@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /workspace/devel/.private/pedsim_original/setup.sh

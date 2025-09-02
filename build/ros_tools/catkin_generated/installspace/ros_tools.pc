@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: ros_tools
+Description: Description of ros_tools
+Version: 1.0.0
+Cflags: -I${prefix}/include -I/usr/include/eigen3
+Libs: -L${prefix}/lib -lros_tools
+Requires: roscpp roslib tf std_msgs geometry_msgs visualization_msgs

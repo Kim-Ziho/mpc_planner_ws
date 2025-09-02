@@ -1,0 +1,1 @@
+/workspace/devel/.private/mpc_planner_solver/lib/pkgconfig/mpc_planner_solver.pc

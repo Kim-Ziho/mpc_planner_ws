@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/mpc_planner_util
+
+Name: mpc_planner_util
+Description: Description of mpc_planner_util
+Version: 0.0.0
+Cflags: -I/workspace/src/mpc_planner/mpc_planner_util/include -I/workspace/src/mpc_planner/mpc_planner_util/include/mpc_planner_util
+Libs: -L${prefix}/lib -lmpc_planner_util /usr/lib/x86_64-linux-gnu/libyaml-cpp.so.0.6.2
+Requires: mpc_planner_types ros_tools roscpp

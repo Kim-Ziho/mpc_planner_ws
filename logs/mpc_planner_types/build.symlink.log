@@ -1,0 +1,4 @@
+Symlinking /workspace/devel/lib/libmpc_planner_types.so
+Symlinking /workspace/devel/lib/pkgconfig/mpc_planner_types.pc
+Symlinking /workspace/devel/share/mpc_planner_types/cmake/mpc_planner_typesConfig.cmake
+Symlinking /workspace/devel/share/mpc_planner_types/cmake/mpc_planner_typesConfig-version.cmake

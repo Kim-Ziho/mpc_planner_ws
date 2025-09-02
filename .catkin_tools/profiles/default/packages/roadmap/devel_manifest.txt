@@ -1,0 +1,6 @@
+roadmap/roadmap
+/workspace/devel/.private/roadmap/lib/libroadmap.so /workspace/devel/lib/libroadmap.so
+/workspace/devel/.private/roadmap/lib/roadmap/roadmap_node /workspace/devel/lib/roadmap/roadmap_node
+/workspace/devel/.private/roadmap/lib/pkgconfig/roadmap.pc /workspace/devel/lib/pkgconfig/roadmap.pc
+/workspace/devel/.private/roadmap/share/roadmap/cmake/roadmapConfig.cmake /workspace/devel/share/roadmap/cmake/roadmapConfig.cmake
+/workspace/devel/.private/roadmap/share/roadmap/cmake/roadmapConfig-version.cmake /workspace/devel/share/roadmap/cmake/roadmapConfig-version.cmake

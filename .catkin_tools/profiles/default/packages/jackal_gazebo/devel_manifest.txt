@@ -1,0 +1,4 @@
+jackal_simulator/jackal_simulator/jackal_gazebo
+/workspace/devel/.private/jackal_gazebo/lib/pkgconfig/jackal_gazebo.pc /workspace/devel/lib/pkgconfig/jackal_gazebo.pc
+/workspace/devel/.private/jackal_gazebo/share/jackal_gazebo/cmake/jackal_gazeboConfig-version.cmake /workspace/devel/share/jackal_gazebo/cmake/jackal_gazeboConfig-version.cmake
+/workspace/devel/.private/jackal_gazebo/share/jackal_gazebo/cmake/jackal_gazeboConfig.cmake /workspace/devel/share/jackal_gazebo/cmake/jackal_gazeboConfig.cmake

@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /workspace/devel/.private/mobile_robot_state_publisher/setup.sh

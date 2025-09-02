@@ -1,0 +1,5 @@
+asr_rapidxml
+/workspace/devel/.private/asr_rapidxml/lib/libasr_rapidxml.a /workspace/devel/lib/libasr_rapidxml.a
+/workspace/devel/.private/asr_rapidxml/lib/pkgconfig/asr_rapidxml.pc /workspace/devel/lib/pkgconfig/asr_rapidxml.pc
+/workspace/devel/.private/asr_rapidxml/share/asr_rapidxml/cmake/asr_rapidxmlConfig-version.cmake /workspace/devel/share/asr_rapidxml/cmake/asr_rapidxmlConfig-version.cmake
+/workspace/devel/.private/asr_rapidxml/share/asr_rapidxml/cmake/asr_rapidxmlConfig.cmake /workspace/devel/share/asr_rapidxml/cmake/asr_rapidxmlConfig.cmake

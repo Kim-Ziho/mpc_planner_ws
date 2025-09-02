@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -fopenmp -O2 -g -DNDEBUG  -shared -Wl,-soname,libgtest_main.so -o ../lib/libgtest_main.so CMakeFiles/gtest_main.dir/src/gtest_main.cc.o  -Wl,-rpath,/workspace/build/mpc_planner_modules/gtest/lib ../lib/libgtest.so 

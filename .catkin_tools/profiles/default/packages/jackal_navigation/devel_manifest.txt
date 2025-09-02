@@ -1,0 +1,4 @@
+jackal_simulator/jackal_navigation
+/workspace/devel/.private/jackal_navigation/lib/pkgconfig/jackal_navigation.pc /workspace/devel/lib/pkgconfig/jackal_navigation.pc
+/workspace/devel/.private/jackal_navigation/share/jackal_navigation/cmake/jackal_navigationConfig.cmake /workspace/devel/share/jackal_navigation/cmake/jackal_navigationConfig.cmake
+/workspace/devel/.private/jackal_navigation/share/jackal_navigation/cmake/jackal_navigationConfig-version.cmake /workspace/devel/share/jackal_navigation/cmake/jackal_navigationConfig-version.cmake

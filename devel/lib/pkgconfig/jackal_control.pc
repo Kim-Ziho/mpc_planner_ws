@@ -1,0 +1,1 @@
+/workspace/devel/.private/jackal_control/lib/pkgconfig/jackal_control.pc

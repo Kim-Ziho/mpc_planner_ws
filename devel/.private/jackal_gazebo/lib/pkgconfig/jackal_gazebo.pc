@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/jackal_gazebo
+
+Name: jackal_gazebo
+Description: Description of jackal_gazebo
+Version: 0.3.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

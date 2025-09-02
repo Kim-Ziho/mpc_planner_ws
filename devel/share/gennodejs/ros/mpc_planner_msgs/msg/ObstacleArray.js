@@ -1,0 +1,1 @@
+/workspace/devel/.private/mpc_planner_msgs/share/gennodejs/ros/mpc_planner_msgs/msg/ObstacleArray.js

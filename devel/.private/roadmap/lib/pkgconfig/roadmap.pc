@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/roadmap
+
+Name: roadmap
+Description: Description of roadmap
+Version: 0.0.0
+Cflags: -I/workspace/src/roadmap/roadmap/include -I/workspace/src/roadmap/roadmap/include/roadmap -I/workspace/src/roadmap/roadmap/include/spline
+Libs: -L${prefix}/lib -lroadmap
+Requires: geometry_msgs roslib roscpp std_msgs asr_rapidxml roadmap_msgs ros_tools

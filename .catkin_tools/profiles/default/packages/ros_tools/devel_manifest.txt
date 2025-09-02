@@ -1,0 +1,5 @@
+ros_tools
+/workspace/devel/.private/ros_tools/lib/libros_tools.so /workspace/devel/lib/libros_tools.so
+/workspace/devel/.private/ros_tools/lib/pkgconfig/ros_tools.pc /workspace/devel/lib/pkgconfig/ros_tools.pc
+/workspace/devel/.private/ros_tools/share/ros_tools/cmake/ros_toolsConfig.cmake /workspace/devel/share/ros_tools/cmake/ros_toolsConfig.cmake
+/workspace/devel/.private/ros_tools/share/ros_tools/cmake/ros_toolsConfig-version.cmake /workspace/devel/share/ros_tools/cmake/ros_toolsConfig-version.cmake

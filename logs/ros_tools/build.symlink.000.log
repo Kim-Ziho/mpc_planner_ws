@@ -1,0 +1,4 @@
+Symlinking /workspace/devel/lib/libros_tools.so
+Symlinking /workspace/devel/lib/pkgconfig/ros_tools.pc
+Symlinking /workspace/devel/share/ros_tools/cmake/ros_toolsConfig.cmake
+Symlinking /workspace/devel/share/ros_tools/cmake/ros_toolsConfig-version.cmake

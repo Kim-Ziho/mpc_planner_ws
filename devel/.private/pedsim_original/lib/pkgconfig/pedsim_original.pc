@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/pedsim_original
+
+Name: pedsim_original
+Description: Description of pedsim_original
+Version: 0.2.0
+Cflags: -I/workspace/src/pedsim_original/include/
+Libs: -L${prefix}/lib -lpedsim_original
+Requires: roscpp

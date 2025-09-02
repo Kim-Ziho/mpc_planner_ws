@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: mpc_planner_solver
+Description: Description of mpc_planner_solver
+Version: 0.0.0
+Cflags: -I${prefix}/include -I/workspace/acados/lib/../include -I/workspace/acados/lib/../include/blasfeo/include -I/workspace/acados/lib/../include/hpipm/include
+Libs: -L${prefix}/lib -lmpc_planner_solver /workspace/src/mpc_planner/mpc_planner_solver/acados/Solver/libacados_ocp_solver_Solver.so /workspace/acados/lib/libacados.so /workspace/acados/lib/libblasfeo.so /workspace/acados/lib/libhpipm.so
+Requires: mpc_planner_util

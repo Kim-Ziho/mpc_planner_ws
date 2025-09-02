@@ -1,0 +1,15 @@
+\subsubsection usage Usage
+\verbatim
+<node name="mpc_planner_rosnavigation" pkg="mpc_planner_rosnavigation" type="mpc_planner_rosnavigation">
+  <param name="acceleration" type="double" value="1.0" />
+  <param name="angular_velocity" type="double" value="1.0" />
+  <param name="slack" type="double" value="1.0" />
+  <param name="velocity" type="double" value="1.0" />
+  <param name="reference_velocity" type="double" value="1.0" />
+  <param name="contour" type="double" value="1.0" />
+  <param name="lag" type="double" value="1.0" />
+  <param name="terminal_angle" type="double" value="1.0" />
+  <param name="terminal_contouring" type="double" value="1.0" />
+</node>
+\endverbatim
+

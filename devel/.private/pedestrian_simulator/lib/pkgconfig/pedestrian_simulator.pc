@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/pedestrian_simulator
+
+Name: pedestrian_simulator
+Description: Description of pedestrian_simulator
+Version: 0.0.0
+Cflags: -I/workspace/src/pedestrian_simulator/include -I/workspace/src/pedestrian_simulator/include/pedestrian_simulator
+Libs: -L${prefix}/lib -lpedestrian_simulator
+Requires: geometry_msgs roscpp std_msgs ros_tools pedsim_original mpc_planner_msgs asr_rapidxml roslib std_srvs message_filters

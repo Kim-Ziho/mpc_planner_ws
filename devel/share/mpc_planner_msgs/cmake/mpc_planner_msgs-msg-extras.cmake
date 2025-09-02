@@ -1,0 +1,1 @@
+/workspace/devel/.private/mpc_planner_msgs/share/mpc_planner_msgs/cmake/mpc_planner_msgs-msg-extras.cmake

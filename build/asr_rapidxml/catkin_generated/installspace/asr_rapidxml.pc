@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: asr_rapidxml
+Description: Description of asr_rapidxml
+Version: 1.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib -lasr_rapidxml
+Requires: 

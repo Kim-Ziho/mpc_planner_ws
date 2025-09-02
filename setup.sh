@@ -94,5 +94,5 @@ echo "Done."
 
 # Install dependencies
 sudo apt-get update -y
-rosdep update
+rosdep update --rosdistro $ROS_DISTRO
 rosdep install -y -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO

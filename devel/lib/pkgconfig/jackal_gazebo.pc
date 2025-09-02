@@ -1,0 +1,1 @@
+/workspace/devel/.private/jackal_gazebo/lib/pkgconfig/jackal_gazebo.pc

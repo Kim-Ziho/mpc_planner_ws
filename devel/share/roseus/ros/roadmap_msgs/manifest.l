@@ -1,0 +1,1 @@
+/workspace/devel/.private/roadmap_msgs/share/roseus/ros/roadmap_msgs/manifest.l

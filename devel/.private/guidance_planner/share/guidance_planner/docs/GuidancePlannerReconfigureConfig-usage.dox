@@ -1,0 +1,12 @@
+\subsubsection usage Usage
+\verbatim
+<node name="guidance_planner" pkg="guidance_planner" type="guidance_planner">
+  <param name="replan" type="bool" value="False" />
+  <param name="debug" type="bool" value="False" />
+  <param name="visualize_samples" type="bool" value="False" />
+  <param name="n_samples" type="int" value="30" />
+  <param name="n_paths" type="int" value="4" />
+  <param name="use_learning" type="bool" value="False" />
+</node>
+\endverbatim
+

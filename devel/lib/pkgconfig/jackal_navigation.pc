@@ -1,0 +1,1 @@
+/workspace/devel/.private/jackal_navigation/lib/pkgconfig/jackal_navigation.pc

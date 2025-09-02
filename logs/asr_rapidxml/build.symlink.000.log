@@ -1,0 +1,4 @@
+Symlinking /workspace/devel/lib/libasr_rapidxml.a
+Symlinking /workspace/devel/lib/pkgconfig/asr_rapidxml.pc
+Symlinking /workspace/devel/share/asr_rapidxml/cmake/asr_rapidxmlConfig-version.cmake
+Symlinking /workspace/devel/share/asr_rapidxml/cmake/asr_rapidxmlConfig.cmake

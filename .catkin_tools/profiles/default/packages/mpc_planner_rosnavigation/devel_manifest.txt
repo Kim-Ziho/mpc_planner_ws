@@ -1,0 +1,13 @@
+mpc_planner/mpc_planner_rosnavigation
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/libmpc_planner_rosnavigation.so /workspace/devel/lib/libmpc_planner_rosnavigation.so
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/pkgconfig/mpc_planner_rosnavigation.pc /workspace/devel/lib/pkgconfig/mpc_planner_rosnavigation.pc
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/python3/dist-packages/mpc_planner_rosnavigation/__init__.py /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/__init__.py
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/__init__.py /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/__init__.py
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/rosnavigationConfig.py /workspace/devel/lib/python3/dist-packages/mpc_planner_rosnavigation/cfg/rosnavigationConfig.py
+/workspace/devel/.private/mpc_planner_rosnavigation/lib/mpc_planner_rosnavigation/goal_publisher.py /workspace/devel/lib/mpc_planner_rosnavigation/goal_publisher.py
+/workspace/devel/.private/mpc_planner_rosnavigation/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig-version.cmake /workspace/devel/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig-version.cmake
+/workspace/devel/.private/mpc_planner_rosnavigation/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig.cmake /workspace/devel/share/mpc_planner_rosnavigation/cmake/mpc_planner_rosnavigationConfig.cmake
+/workspace/devel/.private/mpc_planner_rosnavigation/share/mpc_planner_rosnavigation/docs/rosnavigationConfig-usage.dox /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig-usage.dox
+/workspace/devel/.private/mpc_planner_rosnavigation/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.wikidoc /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.wikidoc
+/workspace/devel/.private/mpc_planner_rosnavigation/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.dox /workspace/devel/share/mpc_planner_rosnavigation/docs/rosnavigationConfig.dox
+/workspace/devel/.private/mpc_planner_rosnavigation/include/mpc_planner_rosnavigation/rosnavigationConfig.h /workspace/devel/include/mpc_planner_rosnavigation/rosnavigationConfig.h

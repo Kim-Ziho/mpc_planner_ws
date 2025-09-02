@@ -1,0 +1,50 @@
+In file included from [01m[K/opt/ros/noetic/include/costmap_2d/layered_costmap.h:42[m[K,
+                 from [01m[K/opt/ros/noetic/include/costmap_2d/costmap_2d_ros.h:41[m[K,
+                 from [01m[K/workspace/src/mpc_planner/mpc_planner_modules/src/decomp_constraints.cpp:3[m[K:
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:[m[K In member function ‘[01m[Kvirtual void costmap_2d::Layer::updateBounds(double, double, double, double*, double*, double*, double*)[m[K’:
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:64:36:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Krobot_x[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   64 |   virtual void updateBounds([01;35m[Kdouble robot_x[m[K, double robot_y, double robot_yaw, double* min_x, double* min_y,
+      |                             [01;35m[K~~~~~~~^~~~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:64:52:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Krobot_y[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   64 |   virtual void updateBounds(double robot_x, [01;35m[Kdouble robot_y[m[K, double robot_yaw, double* min_x, double* min_y,
+      |                                             [01;35m[K~~~~~~~^~~~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:64:68:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Krobot_yaw[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   64 |   virtual void updateBounds(double robot_x, double robot_y, [01;35m[Kdouble robot_yaw[m[K, double* min_x, double* min_y,
+      |                                                             [01;35m[K~~~~~~~^~~~~~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:64:87:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmin_x[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   64 |   virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, [01;35m[Kdouble* min_x[m[K, double* min_y,
+      |                                                                               [01;35m[K~~~~~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:64:102:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmin_y[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   64 |   virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, [01;35m[Kdouble* min_y[m[K,
+      |                                                                                              [01;35m[K~~~~~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:65:37:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmax_x[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   65 |                             [01;35m[Kdouble* max_x[m[K, double* max_y) {}
+      |                             [01;35m[K~~~~~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:65:52:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmax_y[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   65 |                             double* max_x, [01;35m[Kdouble* max_y[m[K) {}
+      |                                            [01;35m[K~~~~~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:[m[K In member function ‘[01m[Kvirtual void costmap_2d::Layer::updateCosts(costmap_2d::Costmap2D&, int, int, int, int)[m[K’:
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:71:39:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmaster_grid[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   71 |   virtual void updateCosts([01;35m[KCostmap2D& master_grid[m[K, int min_i, int min_j, int max_i, int max_j) {}
+      |                            [01;35m[K~~~~~~~~~~~^~~~~~~~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:71:56:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmin_i[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   71 |   virtual void updateCosts(Costmap2D& master_grid, [01;35m[Kint min_i[m[K, int min_j, int max_i, int max_j) {}
+      |                                                    [01;35m[K~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:71:67:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmin_j[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   71 |   virtual void updateCosts(Costmap2D& master_grid, int min_i, [01;35m[Kint min_j[m[K, int max_i, int max_j) {}
+      |                                                               [01;35m[K~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:71:78:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmax_i[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   71 |   virtual void updateCosts(Costmap2D& master_grid, int min_i, int min_j, [01;35m[Kint max_i[m[K, int max_j) {}
+      |                                                                          [01;35m[K~~~~^~~~~[m[K
+[01m[K/opt/ros/noetic/include/costmap_2d/layer.h:71:89:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kmax_j[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   71 |   virtual void updateCosts(Costmap2D& master_grid, int min_i, int min_j, int max_i, [01;35m[Kint max_j[m[K) {}
+      |                                                                                     [01;35m[K~~~~^~~~~[m[K
+In file included from [01m[K/workspace/devel/include/decomp_util/line_segment.h:8[m[K,
+                 from [01m[K/workspace/devel/include/decomp_util/ellipsoid_decomp.h:10[m[K,
+                 from [01m[K/workspace/src/mpc_planner/mpc_planner_modules/include/mpc_planner_modules/decomp_constraints.h:6[m[K,
+                 from [01m[K/workspace/src/mpc_planner/mpc_planner_modules/src/decomp_constraints.cpp:1[m[K:
+/workspace/devel/include/decomp_util/decomp_base.h: In instantiation of ‘[01m[Kvoid DecompBase<Dim>::shrink(double) [with int Dim = 2][m[K’:
+[01m[K/workspace/devel/include/decomp_util/decomp_base.h:84:18:[m[K   required from here
+[01m[K/workspace/devel/include/decomp_util/decomp_base.h:84:32:[m[K [01;35m[Kwarning: [m[Kunused parameter ‘[01m[Kshrink_distance[m[K’ [[01;35m[K-Wunused-parameter[m[K]
+   84 |     virtual void shrink([01;35m[Kdouble shrink_distance[m[K) {}
+      |                         [01;35m[K~~~~~~~^~~~~~~~~~~~~~~[m[K

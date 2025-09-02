@@ -1,0 +1,27 @@
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:[m[K In function ‘[01m[Kvoid Clothoid::evalXYaLarge(int, Clothoid::valueType, Clothoid::valueType, Clothoid::valueType*, Clothoid::valueType*)[m[K’:
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:391:19:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KCl[m[K’ [[01;35m[K-Wvla[m[K]
+  391 |         valueType [01;35m[KCl[m[K[nk], Sl[nk], Cz[nk], Sz[nk];
+      |                   [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:391:27:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KSl[m[K’ [[01;35m[K-Wvla[m[K]
+  391 |         valueType Cl[nk], [01;35m[KSl[m[K[nk], Cz[nk], Sz[nk];
+      |                           [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:391:35:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KCz[m[K’ [[01;35m[K-Wvla[m[K]
+  391 |         valueType Cl[nk], Sl[nk], [01;35m[KCz[m[K[nk], Sz[nk];
+      |                                   [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:391:43:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KSz[m[K’ [[01;35m[K-Wvla[m[K]
+  391 |         valueType Cl[nk], Sl[nk], Cz[nk], [01;35m[KSz[m[K[nk];
+      |                                           [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:[m[K In function ‘[01m[Kvoid Clothoid::evalXYaSmall(Clothoid::valueType, Clothoid::valueType, int, Clothoid::valueType&, Clothoid::valueType&)[m[K’:
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:496:19:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KX0[m[K’ [[01;35m[K-Wvla[m[K]
+  496 |         valueType [01;35m[KX0[m[K[nkk], Y0[nkk];
+      |                   [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:496:28:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KY0[m[K’ [[01;35m[K-Wvla[m[K]
+  496 |         valueType X0[nkk], [01;35m[KY0[m[K[nkk];
+      |                            [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:[m[K In function ‘[01m[Kvoid Clothoid::evalXYaSmall(int, Clothoid::valueType, Clothoid::valueType, int, Clothoid::valueType*, Clothoid::valueType*)[m[K’:
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:531:19:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KX0[m[K’ [[01;35m[K-Wvla[m[K]
+  531 |         valueType [01;35m[KX0[m[K[nkk], Y0[nkk];
+      |                   [01;35m[K^~[m[K
+[01m[K/workspace/src/roadmap/roadmap/src/spline/Clothoid.cpp:531:28:[m[K [01;35m[Kwarning: [m[KISO C++ forbids variable length array ‘[01m[KY0[m[K’ [[01;35m[K-Wvla[m[K]
+  531 |         valueType X0[nkk], [01;35m[KY0[m[K[nkk];
+      |                            [01;35m[K^~[m[K

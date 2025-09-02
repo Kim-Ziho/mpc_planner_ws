@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: mpc_planner_msgs
+Description: Description of mpc_planner_msgs
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: nav_msgs std_msgs geometry_msgs

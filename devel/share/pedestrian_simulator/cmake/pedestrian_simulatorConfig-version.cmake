@@ -1,0 +1,1 @@
+/workspace/devel/.private/pedestrian_simulator/share/pedestrian_simulator/cmake/pedestrian_simulatorConfig-version.cmake

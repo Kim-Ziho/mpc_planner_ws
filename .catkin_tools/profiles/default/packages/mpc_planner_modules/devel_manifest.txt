@@ -1,0 +1,5 @@
+mpc_planner/mpc_planner_modules
+/workspace/devel/.private/mpc_planner_modules/lib/libmpc_planner_modules.so /workspace/devel/lib/libmpc_planner_modules.so
+/workspace/devel/.private/mpc_planner_modules/lib/pkgconfig/mpc_planner_modules.pc /workspace/devel/lib/pkgconfig/mpc_planner_modules.pc
+/workspace/devel/.private/mpc_planner_modules/share/mpc_planner_modules/cmake/mpc_planner_modulesConfig.cmake /workspace/devel/share/mpc_planner_modules/cmake/mpc_planner_modulesConfig.cmake
+/workspace/devel/.private/mpc_planner_modules/share/mpc_planner_modules/cmake/mpc_planner_modulesConfig-version.cmake /workspace/devel/share/mpc_planner_modules/cmake/mpc_planner_modulesConfig-version.cmake

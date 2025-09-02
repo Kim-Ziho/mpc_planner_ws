@@ -1,0 +1,1 @@
+/workspace/devel/.private/guidance_planner/lib/pkgconfig/guidance_planner.pc

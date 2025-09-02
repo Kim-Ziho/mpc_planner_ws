@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/jackal_navigation
+
+Name: jackal_navigation
+Description: Description of jackal_navigation
+Version: 0.6.2
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

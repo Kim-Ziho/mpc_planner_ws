@@ -1,0 +1,8 @@
+prefix=/workspace/devel/.private/roadmap_msgs
+
+Name: roadmap_msgs
+Description: Description of roadmap_msgs
+Version: 0.0.0
+Cflags: -I/workspace/devel/.private/roadmap_msgs/include
+Libs: -L${prefix}/lib 
+Requires: std_msgs geometry_msgs

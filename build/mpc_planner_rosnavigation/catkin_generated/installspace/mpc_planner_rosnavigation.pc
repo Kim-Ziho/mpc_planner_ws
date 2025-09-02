@@ -1,0 +1,8 @@
+prefix=/workspace/install
+
+Name: mpc_planner_rosnavigation
+Description: Description of mpc_planner_rosnavigation
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: base_local_planner costmap_2d costmap_converter roscpp mpc_planner mpc_planner_msgs mpc_planner_modules mpc_planner_solver mpc_planner_util mpc_planner_types nav_core ros_tools nav_msgs dynamic_reconfigure tf2_ros
