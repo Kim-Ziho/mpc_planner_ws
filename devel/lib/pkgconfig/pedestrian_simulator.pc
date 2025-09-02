@@ -1,1 +1,0 @@
-/workspace/devel/.private/pedestrian_simulator/lib/pkgconfig/pedestrian_simulator.pc

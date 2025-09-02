@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_rosnavigation/lib/mpc_planner_rosnavigation/goal_publisher.py

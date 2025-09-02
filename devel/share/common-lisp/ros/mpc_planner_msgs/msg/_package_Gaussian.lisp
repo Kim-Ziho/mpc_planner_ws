@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_msgs/share/common-lisp/ros/mpc_planner_msgs/msg/_package_Gaussian.lisp

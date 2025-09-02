@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_msgs/include/mpc_planner_msgs/ObstacleGMM.h

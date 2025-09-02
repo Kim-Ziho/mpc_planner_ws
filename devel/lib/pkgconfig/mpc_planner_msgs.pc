@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_msgs/lib/pkgconfig/mpc_planner_msgs.pc

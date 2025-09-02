@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_rosnavigation/lib/pkgconfig/mpc_planner_rosnavigation.pc

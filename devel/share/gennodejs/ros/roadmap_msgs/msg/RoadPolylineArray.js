@@ -1,1 +1,0 @@
-/workspace/devel/.private/roadmap_msgs/share/gennodejs/ros/roadmap_msgs/msg/RoadPolylineArray.js

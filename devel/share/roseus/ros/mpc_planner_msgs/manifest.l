@@ -1,1 +1,0 @@
-/workspace/devel/.private/mpc_planner_msgs/share/roseus/ros/mpc_planner_msgs/manifest.l

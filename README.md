@@ -56,9 +56,7 @@ Clone this repository. In VSCode: `open_folder` -> open `mpc_planner_ws`. It wil
 Then, in the VSCode terminal run:
 
 ```bash
-chmod +x setup.sh
-chmod +x build.sh
-./setup.sh
+./setup_poetry.sh
 ```
 
 Required repositories and dependencies will be installed.

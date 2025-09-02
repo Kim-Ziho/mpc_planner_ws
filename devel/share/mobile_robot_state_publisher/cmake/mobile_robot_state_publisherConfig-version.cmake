@@ -1,1 +1,0 @@
-/workspace/devel/.private/mobile_robot_state_publisher/share/mobile_robot_state_publisher/cmake/mobile_robot_state_publisherConfig-version.cmake

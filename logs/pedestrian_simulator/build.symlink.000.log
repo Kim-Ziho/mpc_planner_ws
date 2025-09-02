@@ -1,6 +1,0 @@
-Symlinking /workspace/devel/lib/libpedestrian_simulator.a
-Symlinking /workspace/devel/lib/pedestrian_simulator/collision_checker_node
-Symlinking /workspace/devel/lib/pedestrian_simulator/pedestrian_simulator_node
-Symlinking /workspace/devel/lib/pkgconfig/pedestrian_simulator.pc
-Symlinking /workspace/devel/share/pedestrian_simulator/cmake/pedestrian_simulatorConfig.cmake
-Symlinking /workspace/devel/share/pedestrian_simulator/cmake/pedestrian_simulatorConfig-version.cmake
