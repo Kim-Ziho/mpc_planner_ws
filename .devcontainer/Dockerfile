@@ -1,7 +1,7 @@
 # catkin_ws/.devcontainer/Dockerfile
 FROM osrf/ros:noetic-desktop-full
 
-ARG USERNAME=ros
+ARG USERNAME=r1noetic
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
@@ -28,10 +28,14 @@ RUN apt-get update && apt-get install -y \
     python3-catkin-tools \
     python3.8-venv \
     iproute2 \
-    && rm -rf /var/lib/apt/lists/*
+    vim \
+    gdb \
+    gdbserver
 
 # Setup ROS environment
-RUN echo "source /opt/ros/noetic/setup.bash" >> /home/ros/.bashrc
+RUN echo "source /opt/ros/noetic/setup.bash" >> /home/$USERNAME/.bashrc
+RUN echo "alias vb='vi ~/.bashrc' " >> /home/$USERNAME/.bashrc
+RUN echo "alias sb='source ~/.bashrc' " >> /home/$USERNAME/.bashrc
 
 ENV SHELL /bin/bash
 

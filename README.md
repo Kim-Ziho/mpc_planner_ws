@@ -1,6 +1,12 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![CI](https://github.com/tud-amr/mpc_planner_ws/actions/workflows/main.yml/badge.svg)
 
+# Simple Start
+1. Dev Containers: Rebuild and Reopen in Container
+2. `source setup_poetry.sh`
+3. task(Ctrl+Shift+B): ROS Navigation: Generate Solver
+4. task(Ctrl+Shift+B): ROS Navigation: Build
+5. task(Ctrl+Shift+B): ROS Navigation: Run Simulator
 
 # MPC Planner Workspace (VSCode Docker)
 This repository provides a complete VSCode docker environment for running MPC planner `mpc_planner` (see https://github.com/tud-amr/mpc_planner) and global guidance planner `guidance_planner` (see https://github.com/tud-amr/guidance_planner) that together make up **Topology-Driven MPC** (**T-MPC++**). 

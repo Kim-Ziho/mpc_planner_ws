@@ -157,5 +157,20 @@
                 // "close": true
             }
         },
+        {
+            "label": "Guidance: Run example",
+            "command": "source devel/setup.bash && source fix_console.sh && roslaunch guidance_planner ros1_example.launch",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true,
+                // "close": true
+            }
+        },
     ]
 }
