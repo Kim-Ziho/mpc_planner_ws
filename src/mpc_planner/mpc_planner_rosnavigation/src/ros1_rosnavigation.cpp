@@ -15,6 +15,15 @@
 #include <ros_tools/data_saver.h>
 #include <ros_tools/spline.h>
 
+#include <geometry_msgs/Point.h>
+#include <costmap_2d/cost_values.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <map>
+#include <vector>
+
 #include <std_msgs/Empty.h>
 #include <ros_tools/profiling.h>
 
@@ -67,6 +76,9 @@ namespace local_planner
             startEnvironment();
 
             _reconfigure = std::make_unique<RosnavigationReconfigure>();
+
+            updateSpatioTemporalMap();   // 초기 시공간 맵 구성
+            publishSpatioTemporalMap();  // 초기 시각화
 
             _timeout_timer.setDuration(60.);
             _timeout_timer.start();
@@ -262,7 +274,7 @@ namespace local_planner
             angle_diff -= 2 * M_PI;
 
         geometry_msgs::Twist cmd;
-        if (std::abs(angle_diff) > M_PI / 4.)
+        if (std::abs(angle_diff) > M_PI / 8.)
         {
             cmd_vel.linear.x = 0.0;
             if (_enable_output)
@@ -504,7 +516,268 @@ namespace local_planner
         if (CONFIG["probabilistic"]["propagate_uncertainty"].as<bool>())
             propagatePredictionUncertainty(_data.dynamic_obstacles);
 
+        updateSpatioTemporalMap();  // 예측 기반 시공간 맵 갱신
+        publishSpatioTemporalMap(); // RViz 갱신
+
         _planner->onDataReceived(_data, "dynamic obstacles");
+    }
+
+    void ROSNavigationPlanner::updateSpatioTemporalMap()
+    {
+        if (_data.costmap == nullptr)
+            return;
+
+        const unsigned int size_x = _data.costmap->getSizeInCellsX();
+        const unsigned int size_y = _data.costmap->getSizeInCellsY();
+        const int horizon = CONFIG["N"].as<int>();
+
+        if (size_x == 0 || size_y == 0 || horizon <= 0)
+            return;
+
+        const unsigned int time_steps = static_cast<unsigned int>(horizon);
+        const double resolution_xy = _data.costmap->getResolution();
+        const double resolution_t = CONFIG["integrator_step"].as<double>();
+        const double origin_x = _data.costmap->getOriginX();
+        const double origin_y = _data.costmap->getOriginY();
+        const double robot_radius = CONFIG["robot_radius"].as<double>();
+
+        constexpr unsigned int spatial_downsample = 2;
+        const double coarse_resolution_xy = resolution_xy * static_cast<double>(spatial_downsample);
+        const unsigned int coarse_full_x = (size_x + spatial_downsample - 1) / spatial_downsample;
+        const unsigned int coarse_full_y = (size_y + spatial_downsample - 1) / spatial_downsample;
+
+        double window_radius_m = 15.0;
+        double forward_offset_m = 0.0;
+        if (CONFIG["spatio_temporal"])
+        {
+            if (CONFIG["spatio_temporal"]["window_radius"])
+                window_radius_m = CONFIG["spatio_temporal"]["window_radius"].as<double>();
+            if (CONFIG["spatio_temporal"]["forward_offset"])
+                forward_offset_m = CONFIG["spatio_temporal"]["forward_offset"].as<double>();
+        }
+        const unsigned int window_radius_cells = std::max(1u, static_cast<unsigned int>(std::ceil(window_radius_m / coarse_resolution_xy)));
+
+        unsigned int robot_mx = size_x / 2;
+        unsigned int robot_my = size_y / 2;
+        if (!_data.costmap->worldToMap(_state.get("x"), _state.get("y"), robot_mx, robot_my))
+        {
+            robot_mx = size_x / 2;
+            robot_my = size_y / 2;
+        }
+
+        double psi = _state.get("psi");
+        int shift_map_cells_x = static_cast<int>(std::round((forward_offset_m * std::cos(psi)) / resolution_xy));
+        int shift_map_cells_y = static_cast<int>(std::round((forward_offset_m * std::sin(psi)) / resolution_xy));
+
+        int shifted_robot_mx = std::clamp(static_cast<int>(robot_mx) + shift_map_cells_x, 0, static_cast<int>(size_x) - 1);
+        int shifted_robot_my = std::clamp(static_cast<int>(robot_my) + shift_map_cells_y, 0, static_cast<int>(size_y) - 1);
+
+        unsigned int coarse_robot_x = std::min(coarse_full_x - 1, static_cast<unsigned int>(shifted_robot_mx) / spatial_downsample);
+        unsigned int coarse_robot_y = std::min(coarse_full_y - 1, static_cast<unsigned int>(shifted_robot_my) / spatial_downsample);
+
+        const unsigned int min_coarse_x = (coarse_robot_x > window_radius_cells) ? (coarse_robot_x - window_radius_cells) : 0;
+        const unsigned int min_coarse_y = (coarse_robot_y > window_radius_cells) ? (coarse_robot_y - window_radius_cells) : 0;
+        const unsigned int max_coarse_x = std::min(coarse_full_x - 1, coarse_robot_x + window_radius_cells);
+        const unsigned int max_coarse_y = std::min(coarse_full_y - 1, coarse_robot_y + window_radius_cells);
+
+        const unsigned int coarse_size_x = max_coarse_x - min_coarse_x + 1;
+        const unsigned int coarse_size_y = max_coarse_y - min_coarse_y + 1;
+
+        auto &map = _data.spatio_temporal_map;
+        map.configure(coarse_resolution_xy, resolution_t,
+                      origin_x + static_cast<double>(min_coarse_x) * coarse_resolution_xy,
+                      origin_y + static_cast<double>(min_coarse_y) * coarse_resolution_xy,
+                      0.0, coarse_size_x, coarse_size_y, time_steps);
+        map.clear(0.f);
+
+        const float static_value = 1.0f;
+        const float dynamic_value = 1.0f;
+        const int static_padding_cells = std::max(0, static_cast<int>(std::ceil(robot_radius / coarse_resolution_xy)));
+
+        static std::vector<uint8_t> coarse_static;
+        coarse_static.assign(static_cast<size_t>(map.cells_x) * map.cells_y, 0);
+
+        const unsigned int min_x_cell = min_coarse_x * spatial_downsample;
+        const unsigned int max_x_cell = std::min(size_x, (max_coarse_x + 1) * spatial_downsample);
+        const unsigned int min_y_cell = min_coarse_y * spatial_downsample;
+        const unsigned int max_y_cell = std::min(size_y, (max_coarse_y + 1) * spatial_downsample);
+
+        for (unsigned int y = min_y_cell; y < max_y_cell; ++y)
+        {
+            const unsigned int coarse_y_total = y / spatial_downsample;
+            const unsigned int coarse_y = coarse_y_total - min_coarse_y;
+            for (unsigned int x = min_x_cell; x < max_x_cell; ++x)
+            {
+                const unsigned int coarse_x_total = x / spatial_downsample;
+                const unsigned int coarse_x = coarse_x_total - min_coarse_x;
+                const unsigned char cost = _data.costmap->getCost(x, y);
+                if (cost < costmap_2d::LETHAL_OBSTACLE)
+                    continue;
+
+                const size_t idx = static_cast<size_t>(coarse_y) * map.cells_x + coarse_x;
+                coarse_static[idx] = 1;
+            }
+        }
+
+        auto markStatic = [&](unsigned int cx, unsigned int cy) {
+            for (int dx = -static_padding_cells; dx <= static_padding_cells; ++dx)
+            {
+                int nx = static_cast<int>(cx) + dx;
+                if (nx < 0 || nx >= static_cast<int>(map.cells_x))
+                    continue;
+
+                for (int dy = -static_padding_cells; dy <= static_padding_cells; ++dy)
+                {
+                    int ny = static_cast<int>(cy) + dy;
+                    if (ny < 0 || ny >= static_cast<int>(map.cells_y))
+                        continue;
+
+                    double dist = std::hypot(dx * coarse_resolution_xy, dy * coarse_resolution_xy);
+                    if (dist > robot_radius)
+                        continue;
+
+                    for (unsigned int t = 0; t < time_steps; ++t)
+                    {
+                        const unsigned int ux = static_cast<unsigned int>(nx);
+                        const unsigned int uy = static_cast<unsigned int>(ny);
+                        if (!map.contains(ux, uy, t))
+                            continue;
+
+                        auto &cell = map.at(ux, uy, t);
+                        cell = std::max(cell, static_value);
+                    }
+                }
+            }
+        };
+
+        for (unsigned int cy = 0; cy < map.cells_y; ++cy)
+        {
+            for (unsigned int cx = 0; cx < map.cells_x; ++cx)
+            {
+                const size_t idx = static_cast<size_t>(cy) * map.cells_x + cx;
+                if (!coarse_static[idx])
+                    continue;
+
+                markStatic(cx, cy);
+            }
+        }
+
+        // 동적 장애물은 예측 위치마다 로봇 반경과 장애물 반경을 더해 확장하여 누적한다.
+        for (const auto &obstacle : _data.dynamic_obstacles)
+        {
+            std::vector<Eigen::Vector2d> samples;
+            samples.reserve(time_steps);
+            samples.push_back(obstacle.position);
+
+            if (!obstacle.prediction.empty() && !obstacle.prediction.modes.empty())
+            {
+                const auto &mode = obstacle.prediction.modes.front();
+                for (size_t idx = 0; idx < mode.size() && samples.size() < time_steps; ++idx)
+                    samples.push_back(mode[idx].position);
+            }
+
+            const size_t usable_samples = std::min(samples.size(), static_cast<size_t>(time_steps));
+            const double obstacle_radius = std::max(0.0, obstacle.radius) + robot_radius;
+            const int dynamic_padding_cells = std::max(0, static_cast<int>(std::ceil(obstacle_radius / coarse_resolution_xy)));
+
+            for (size_t step = 0; step < usable_samples; ++step)
+            {
+                unsigned int mx = 0;
+                unsigned int my = 0;
+                if (!_data.costmap->worldToMap(samples[step].x(), samples[step].y(), mx, my))
+                    continue;
+
+                const unsigned int coarse_total_x = mx / spatial_downsample;
+                const unsigned int coarse_total_y = my / spatial_downsample;
+                if (coarse_total_x < min_coarse_x || coarse_total_x > max_coarse_x ||
+                    coarse_total_y < min_coarse_y || coarse_total_y > max_coarse_y)
+                    continue;
+
+                const unsigned int coarse_cx = coarse_total_x - min_coarse_x;
+                const unsigned int coarse_cy = coarse_total_y - min_coarse_y;
+
+                for (int dx = -dynamic_padding_cells; dx <= dynamic_padding_cells; ++dx)
+                {
+                    int nx = static_cast<int>(coarse_cx) + dx;
+                    if (nx < 0 || nx >= static_cast<int>(map.cells_x))
+                        continue;
+
+                    for (int dy = -dynamic_padding_cells; dy <= dynamic_padding_cells; ++dy)
+                    {
+                        int ny = static_cast<int>(coarse_cy) + dy;
+                        if (ny < 0 || ny >= static_cast<int>(map.cells_y))
+                            continue;
+
+                        double dist = std::hypot(dx * coarse_resolution_xy, dy * coarse_resolution_xy);
+                        if (dist > obstacle_radius)
+                            continue;
+
+                        const unsigned int ux = static_cast<unsigned int>(nx);
+                        const unsigned int uy = static_cast<unsigned int>(ny);
+                        const unsigned int ut = static_cast<unsigned int>(step);
+                        if (!map.contains(ux, uy, ut))
+                            continue;
+
+                        auto &cell = map.at(ux, uy, ut);
+                        cell = dynamic_value;
+                    }
+                }
+            }
+        }
+    }
+
+    void ROSNavigationPlanner::publishSpatioTemporalMap()
+    {
+        auto &publisher = VISUALS.getPublisher("spatio_temporal_map");
+        auto &map = _data.spatio_temporal_map;
+
+        if (map.empty())
+        {
+            publisher.publish();
+            return;
+        }
+
+        // 확률값(0~1)에 따라 색상의 알파를 다르게 표현하기 위해 버킷을 만든다.
+        std::map<float, std::vector<geometry_msgs::Point>> buckets;
+
+        for (unsigned int t = 0; t < map.time_steps; ++t)
+        {
+            const double z = map.origin_t + (static_cast<double>(t) + 0.5) * map.resolution_t;
+            for (unsigned int y = 0; y < map.cells_y; ++y)
+            {
+                for (unsigned int x = 0; x < map.cells_x; ++x)
+                {
+                    const float value = map.at(x, y, t);
+                    if (value <= 0.f)
+                        continue;
+
+                    geometry_msgs::Point p;
+                    p.x = map.origin_x + (static_cast<double>(x) + 0.5) * map.resolution_xy;
+                    p.y = map.origin_y + (static_cast<double>(y) + 0.5) * map.resolution_xy;
+                    p.z = z;
+
+                    buckets[value].push_back(p);
+                }
+            }
+        }
+
+        const double cube_z = std::max(map.resolution_t, map.resolution_xy);
+
+        for (auto &entry : buckets)
+        {
+            auto &cubes = publisher.getNewMultiplePointMarker("CUBE");
+            const double alpha = std::max(0.0f, std::min(1.0f, entry.first)) * 0.5; // 확률 1.0을 50% 투명도로 매핑
+            cubes.setColor(1.0, 1.0, 0.0, alpha);                                  // 모든 영역을 노란색으로 표현
+
+            cubes.setScale(map.resolution_xy, map.resolution_xy, cube_z);
+
+            for (const auto &point : entry.second)
+                cubes.addPointMarker(point);
+
+            cubes.finishPoints();
+        }
+
+        publisher.publish();
     }
 
     void ROSNavigationPlanner::visualize()
@@ -534,6 +807,9 @@ namespace local_planner
 
         _planner->reset(_state, _data, success);
         _data.costmap = costmap_;
+
+        updateSpatioTemporalMap();   // 리셋 직후 시공간 정보 갱신
+        publishSpatioTemporalMap();  // RViz 갱신
 
         ros::Duration(1.0 / CONFIG["control_frequency"].as<double>()).sleep();
 

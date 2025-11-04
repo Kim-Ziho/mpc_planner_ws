@@ -141,6 +141,8 @@ namespace local_planner
         bool isPathTheSame(const nav_msgs::Path::ConstPtr &path);
 
         void visualize();
+        void updateSpatioTemporalMap();   // 시공간 맵 구성
+        void publishSpatioTemporalMap();  // RViz 시각화
     };
 } // namespace local_planner
 #endif // __ROS1_ROSNAVIGATION_PLANNER_H__

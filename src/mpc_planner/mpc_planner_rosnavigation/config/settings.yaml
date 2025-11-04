@@ -74,6 +74,10 @@ probabilistic:
   risk: 0.05
   propagate_uncertainty: true
 
+spatio_temporal:
+  window_radius: 15.0
+  forward_offset: 15.0
+
 weights:
   goal: 10.
   velocity: 0.55

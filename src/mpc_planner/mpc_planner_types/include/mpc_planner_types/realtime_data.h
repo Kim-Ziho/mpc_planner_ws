@@ -22,6 +22,7 @@ namespace MPCPlanner
         std::vector<DynamicObstacle> dynamic_obstacles;
 
         costmap_2d::Costmap2D *costmap{nullptr}; // Costmap for static obstacles
+        SpatioTemporalMap spatio_temporal_map;   // 시공간 확률 맵
 
         ReferencePath reference_path;
         Boundary left_bound, right_bound;

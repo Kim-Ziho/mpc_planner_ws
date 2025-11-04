@@ -63,15 +63,56 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "csetjmp": "cpp",
+        "csignal": "cpp",
+        "any": "cpp",
+        "strstream": "cpp",
+        "cfenv": "cpp",
+        "charconv": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "coroutine": "cpp",
+        "cuchar": "cpp",
+        "forward_list": "cpp",
+        "unordered_set": "cpp",
+        "regex": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "rope": "cpp",
+        "slist": "cpp",
+        "future": "cpp",
+        "numbers": "cpp",
+        "ranges": "cpp",
+        "scoped_allocator": "cpp",
+        "shared_mutex": "cpp",
+        "span": "cpp",
+        "stop_token": "cpp",
+        "valarray": "cpp"
     },
     "ros.distro": "noetic",
     "python.autoComplete.extraPaths": [
         "/workspace/devel/lib/python3/dist-packages",
-        "/opt/ros/noetic/lib/python3/dist-packages"
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/workspace/src",
+        "/workspace/acados/interfaces/acados_template",
+        "/workspace/src/mpc_planner/solver_generator",
+        "/workspace/src/mpc_planner/mpc_planner_modules/scripts",
+        "/workspace/src/mpc_planner/mpc_planner_solver/scripts",
     ],
     "python.analysis.extraPaths": [
         "/workspace/devel/lib/python3/dist-packages",
-        "/opt/ros/noetic/lib/python3/dist-packages"
-    ]
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/workspace/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/workspace/src",
+        "/workspace/acados/interfaces/acados_template",
+        "/workspace/src/mpc_planner/solver_generator",
+        "/workspace/src/mpc_planner/mpc_planner_modules/scripts",
+        "/workspace/src/mpc_planner/mpc_planner_solver/scripts",
+    ],
+    "workbench.colorCustomizations": {
+        "terminal.findMatchHighlightBackground": "#ff79c680",
+        "terminal.findMatchHighlightBorder": "#ff79c6"
+    }
 }

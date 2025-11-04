@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 
 #include <vector>
+#include <cstddef>
 
 /** Basic high-level data types for motion planning */
 
@@ -88,6 +89,38 @@ namespace MPCPlanner
         Prediction prediction;
 
         DynamicObstacle(int _index, const Eigen::Vector2d &_position, double _angle, double _radius, ObstacleType _type = ObstacleType::DYNAMIC);
+    };
+
+    // 시간과 공간을 함께 표현하는 장애물 확률 격자
+    struct SpatioTemporalMap
+    {
+        double resolution_xy{0.0};
+        double resolution_t{0.0};
+        double origin_x{0.0};
+        double origin_y{0.0};
+        double origin_t{0.0};
+
+        unsigned int cells_x{0};
+        unsigned int cells_y{0};
+        unsigned int time_steps{0};
+
+        std::vector<float> data;
+
+        void configure(double resolution_xy_in, double resolution_t_in,
+                       double origin_x_in, double origin_y_in, double origin_t_in,
+                       unsigned int cells_x_in, unsigned int cells_y_in, unsigned int time_steps_in);
+        void clear(float value = 0.f);
+        bool empty() const { return data.empty(); }
+        bool contains(unsigned int x, unsigned int y, unsigned int t) const
+        {
+            return x < cells_x && y < cells_y && t < time_steps;
+        }
+
+        float &at(unsigned int x, unsigned int y, unsigned int t);
+        const float &at(unsigned int x, unsigned int y, unsigned int t) const;
+
+    private:
+        size_t index(unsigned int x, unsigned int y, unsigned int t) const;
     };
 
     struct ReferencePath

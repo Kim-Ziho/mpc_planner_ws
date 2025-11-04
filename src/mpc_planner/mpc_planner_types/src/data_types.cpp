@@ -1,5 +1,9 @@
 #include "mpc_planner_types/data_types.h"
 
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
+
 /** Basic high-level data types for motion planning */
 
 namespace MPCPlanner
@@ -56,6 +60,48 @@ namespace MPCPlanner
         type = _type;
     }
 
+    void SpatioTemporalMap::configure(double resolution_xy_in, double resolution_t_in,
+                                      double origin_x_in, double origin_y_in, double origin_t_in,
+                                      unsigned int cells_x_in, unsigned int cells_y_in, unsigned int time_steps_in)
+    {
+        resolution_xy = resolution_xy_in;
+        resolution_t = resolution_t_in;
+        origin_x = origin_x_in;
+        origin_y = origin_y_in;
+        origin_t = origin_t_in;
+
+        cells_x = cells_x_in;
+        cells_y = cells_y_in;
+        time_steps = time_steps_in;
+
+        const size_t required_size = static_cast<size_t>(cells_x) * cells_y * time_steps;
+        if (data.size() != required_size)
+            data.resize(required_size);
+    }
+
+    void SpatioTemporalMap::clear(float value)
+    {
+        std::fill(data.begin(), data.end(), value);
+    }
+
+    float &SpatioTemporalMap::at(unsigned int x, unsigned int y, unsigned int t)
+    {
+        return data[index(x, y, t)];
+    }
+
+    const float &SpatioTemporalMap::at(unsigned int x, unsigned int y, unsigned int t) const
+    {
+        return data[index(x, y, t)];
+    }
+
+    size_t SpatioTemporalMap::index(unsigned int x, unsigned int y, unsigned int t) const
+    {
+        if (x >= cells_x || y >= cells_y || t >= time_steps)
+            throw std::out_of_range("SpatioTemporalMap index out of range");
+
+        return (static_cast<size_t>(t) * cells_y + y) * cells_x + x;
+    }
+
     ReferencePath::ReferencePath(int length)
     {
         x.reserve(length);
@@ -102,7 +148,13 @@ namespace MPCPlanner
 
     void FixedSizeTrajectory::add(const Eigen::Vector2d &p)
     {
-        // On jump, erase the trajectory
+        if (positions.empty())
+        {
+            positions.push_back(p);
+            return;
+        }
+
+        // 큰 점프가 있으면 버퍼를 초기화한다.
         if (std::sqrt((p - positions.back()).transpose() * (p - positions.back())) > 5.0)
         {
             positions.clear();

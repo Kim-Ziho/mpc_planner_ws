@@ -1,8 +1,8 @@
 global_costmap:
   global_frame: map #odom
   robot_base_frame: base_link
-  update_frequency: 20
-  publish_frequency: 5
+  update_frequency: 20 #20
+  publish_frequency: 20 #5
   width: 160.0 #40.0
   height: 160.0 #40.0
   resolution: 0.2
