@@ -2,8 +2,10 @@
 #define MPC_REALTIME_DATA_TYPES_H
 
 #include <mpc_planner_types/data_types.h>
+#include <mpc_planner_types/spatio_temporal_map.h>
 
 #include <chrono>
+#include <memory>
 
 namespace costmap_2d
 {
@@ -33,6 +35,8 @@ namespace MPCPlanner
         double intrusion;
 
         std::chrono::system_clock::time_point planning_start_time;
+
+        std::shared_ptr<const SpatioTemporalMapSnapshot> spatio_temporal_map;
 
         RealTimeData() = default;
 

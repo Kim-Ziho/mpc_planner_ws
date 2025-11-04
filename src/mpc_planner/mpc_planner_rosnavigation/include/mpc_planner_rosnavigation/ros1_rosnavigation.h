@@ -10,6 +10,7 @@
 #include <mpc_planner_rosnavigation/rosnavigation_reconfigure.h>
 #include <mpc_planner_solver/solver_interface.h>
 #include <mpc_planner_types/realtime_data.h>
+#include <mpc_planner_rosnavigation/spatio_temporal_map_builder.h>
 
 #include <mpc_planner_msgs/ObstacleArray.h> /** @Todo: Replace! */
 
@@ -125,6 +126,8 @@ namespace local_planner
 
         ros::Publisher _cmd_pub;
         ros::Publisher _pose_pub;
+        ros::Publisher _spatio_temporal_map_pub;
+        std::string _spatio_temporal_map_topic;
 
         tf2_ros::TransformBroadcaster _camera_pub;
         ros::Time _prev_stamp;
@@ -141,6 +144,8 @@ namespace local_planner
         bool isPathTheSame(const nav_msgs::Path::ConstPtr &path);
 
         void visualize();
+
+        std::unique_ptr<SpatioTemporalMapBuilder> _spatio_temporal_map_builder;
     };
 } // namespace local_planner
 #endif // __ROS1_ROSNAVIGATION_PLANNER_H__

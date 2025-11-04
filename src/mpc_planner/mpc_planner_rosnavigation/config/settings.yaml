@@ -41,6 +41,19 @@ robot:
   com_to_back: 0.0
 obstacle_radius: 0.4
 
+spatio_temporal_map:
+  enabled: true
+  topic: "/output/spatio_temporal_map"
+  frame_id: "base_link"
+  marker_namespace: "spatio_temporal_map"
+  length_ratio: 1.0
+  width_ratio: 1.0
+  x_resolution_ratio: 3
+  y_resolution_ratio: 3
+  heading_offset_ratio: 0.5
+  time_step: 0.2
+  static_cost_threshold: -1.0
+
 linearized_constraints:
   add_halfspaces: 0  # (solver)
 

@@ -6,10 +6,10 @@ from geometry_msgs.msg import PoseStamped
 import random
 
 # Define the bounds for the random goal generation
-X_MIN = 10.0
-X_MAX = 28.0
-Y_MIN = 10.0
-Y_MAX = 28.0
+X_MIN = 15.0
+X_MAX = 16.0
+Y_MIN = 23.0
+Y_MAX = 24.0
 
 
 class RandomGoalPublisher:

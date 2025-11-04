@@ -14,9 +14,11 @@
 #include <ros_tools/math.h>
 #include <ros_tools/data_saver.h>
 #include <ros_tools/spline.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <std_msgs/Empty.h>
 #include <ros_tools/profiling.h>
+#include <Eigen/Core>
 
 using namespace MPCPlanner;
 
@@ -57,6 +59,30 @@ namespace local_planner
             Configuration::getInstance().initialize(SYSTEM_CONFIG_PATH(__FILE__, "settings"));
 
             _data.robot_area = {Disc(0., CONFIG["robot_radius"].as<double>())};
+
+            _spatio_temporal_map_builder = std::make_unique<SpatioTemporalMapBuilder>();
+            SpatioTemporalMapParams map_params;
+            if (CONFIG["spatio_temporal_map"])
+            {
+                auto map_config = CONFIG["spatio_temporal_map"];
+                map_params.enabled = map_config["enabled"].as<bool>(true);
+                map_params.length_ratio = map_config["length_ratio"].as<double>(1.0);
+                map_params.width_ratio = map_config["width_ratio"].as<double>(1.0);
+                map_params.resolution_ratio_x = map_config["x_resolution_ratio"].as<double>(1.0 / 3.0);
+                map_params.resolution_ratio_y = map_config["y_resolution_ratio"].as<double>(1.0 / 3.0);
+                map_params.heading_offset_ratio = map_config["heading_offset_ratio"].as<double>(0.5);
+                map_params.time_step = map_config["time_step"].as<double>(CONFIG["integrator_step"].as<double>());
+                map_params.static_cost_threshold = map_config["static_cost_threshold"].as<double>(-1.0);
+                map_params.frame_id = map_config["frame_id"].as<std::string>("base_link");
+                map_params.marker_namespace = map_config["marker_namespace"].as<std::string>("spatio_temporal_map");
+                _spatio_temporal_map_topic = map_config["topic"].as<std::string>("/output/spatio_temporal_map");
+            }
+            else
+            {
+                _spatio_temporal_map_topic = "/output/spatio_temporal_map";
+            }
+            _spatio_temporal_map_builder->setParams(map_params);
+            _spatio_temporal_map_builder->setCostmap(costmap_);
 
             // Initialize the planner
             _planner = std::make_unique<Planner>();
@@ -161,6 +187,10 @@ namespace local_planner
 
         _pose_pub = nh.advertise<geometry_msgs::PoseStamped>(
             "/output/pose", 1);
+        if (_spatio_temporal_map_topic.empty())
+            _spatio_temporal_map_topic = "/output/spatio_temporal_map";
+        _spatio_temporal_map_pub = nh.advertise<visualization_msgs::MarkerArray>(
+            _spatio_temporal_map_topic, 1);
 
         _collisions_sub = nh.subscribe<std_msgs::Float64>(
             "/feedback/collisions", 1,
@@ -262,7 +292,7 @@ namespace local_planner
             angle_diff -= 2 * M_PI;
 
         geometry_msgs::Twist cmd;
-        if (std::abs(angle_diff) > M_PI / 4.)
+        if (std::abs(angle_diff) > M_PI / 8.)
         {
             cmd_vel.linear.x = 0.0;
             if (_enable_output)
@@ -285,6 +315,29 @@ namespace local_planner
         State state = _state;
 
         data.planning_start_time = std::chrono::system_clock::now();
+
+        if (_spatio_temporal_map_builder)
+        {
+            const Eigen::Vector2d robot_position(state.get("x"), state.get("y"));
+            const double robot_yaw = state.get("psi");
+            const double robot_radius = CONFIG["robot_radius"].as<double>();
+            const int horizon_steps = CONFIG["N"].as<int>();
+
+            _spatio_temporal_map_builder->update(robot_position,
+                                                 robot_yaw,
+                                                 data.dynamic_obstacles,
+                                                 robot_radius,
+                                                 horizon_steps);
+            data.spatio_temporal_map = _spatio_temporal_map_builder->getSnapshot();
+            _data.spatio_temporal_map = data.spatio_temporal_map;
+
+            if (_spatio_temporal_map_pub && data.spatio_temporal_map)
+            {
+                auto markers = _spatio_temporal_map_builder->buildVisualization();
+                if (!markers.markers.empty())
+                    _spatio_temporal_map_pub.publish(markers);
+            }
+        }
 
         LOG_MARK("============= Loop =============");
 
