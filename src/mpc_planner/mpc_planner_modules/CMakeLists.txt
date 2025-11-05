@@ -22,6 +22,7 @@ set(DEPENDENCIES
   mpc_planner_util
   mpc_planner_solver
   ros_tools
+  mpc_planner_stepmap
 )
 
 include(modules.cmake)

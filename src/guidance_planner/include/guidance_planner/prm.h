@@ -19,9 +19,16 @@
 
 #include <ros_tools/random_generator.h>
 
+#include <memory>
+
 namespace RosTools
 {
   class DataSaver;
+}
+
+namespace MPCPlannerStepMap
+{
+  class StepMap;
 }
 
 namespace GuidancePlanner
@@ -48,6 +55,8 @@ namespace GuidancePlanner
      * @return Graph&
      */
     Graph &Update();
+
+    void SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map);
 
     /**
      * @brief Load input data for the PRM algorithm

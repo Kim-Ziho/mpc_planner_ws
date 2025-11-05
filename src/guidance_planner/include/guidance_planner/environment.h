@@ -15,7 +15,13 @@
 
 #include <Eigen/Dense>
 
+#include <memory>
 #include <vector>
+
+namespace MPCPlannerStepMap
+{
+  class StepMap;
+}
 
 namespace GuidancePlanner
 {
@@ -36,6 +42,7 @@ namespace GuidancePlanner
     virtual void Init();
 
   public:
+    virtual void SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map);
     virtual void LoadObstacles(const std::vector<Obstacle> &dynamic_obstacles, const std::vector<Halfspace> &static_obstacles);
     virtual void SetPosition(const Eigen::Vector2d &pos) { (void)pos; };
 
@@ -58,6 +65,7 @@ namespace GuidancePlanner
   protected:
     std::vector<Obstacle> dynamic_obstacles_;
     std::vector<Halfspace> static_obstacles_;
+    std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
 
     /** @brief Various implementations of visibility checks */
     virtual bool IsVisibleRayCast(const SpaceTimePoint &point_one, const SpaceTimePoint &point_two); // Fast for constant velocity prediction

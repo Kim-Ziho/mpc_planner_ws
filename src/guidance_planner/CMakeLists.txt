@@ -24,6 +24,7 @@ set(DEPENDENCIES
   std_msgs
   ros_tools
   dynamic_reconfigure
+  mpc_planner_stepmap
 )
 
 find_package(catkin REQUIRED COMPONENTS

@@ -19,6 +19,10 @@
 #include <mpc_planner_modules/controller_module.h>
 #include <mpc_planner_solver/solver_interface.h>
 
+#include <mpc_planner_stepmap/step_map_builder.h>
+
+#include <memory>
+
 #include <unordered_map>
 
 namespace GuidancePlanner
@@ -112,6 +116,9 @@ namespace MPCPlanner
         std::shared_ptr<GuidancePlanner::GlobalGuidance> global_guidance_;
 
         std::unordered_map<int, int> _map_homotopy_class_to_planner;
+
+        std::shared_ptr<MPCPlannerStepMap::StepMapBuilder> step_map_builder_;
+        std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
 
         // Configuration parameters
         bool _use_tmpcpp{true}, _enable_constraints{true};

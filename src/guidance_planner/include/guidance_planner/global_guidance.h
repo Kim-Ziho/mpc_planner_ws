@@ -7,6 +7,13 @@
 
 #include <guidance_planner/types/types.h>
 
+#include <memory>
+
+namespace MPCPlannerStepMap
+{
+  class StepMap;
+}
+
 namespace RosTools
 {
   class DataSaver;
@@ -58,6 +65,7 @@ namespace GuidancePlanner
     void SetTrackOnlyTheSelectedHomology() { config_->track_selected_homology_only_ = true; }
     void SetPlanningFrequency(double f) { config_->CONTROL_DT = 1. / f; }
     void DoNotPropagateNodes() { prm_.DoNotPropagateNodes(); }
+    void SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map);
 
     /**
      * @brief Compute Guidance trajectories
@@ -174,6 +182,8 @@ namespace GuidancePlanner
 
     std::vector<int> sorted_indices_;
     std::unique_ptr<ColorManager> color_manager_;
+
+    std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
 
     // Real-time data
     std::vector<Obstacle> obstacles_;

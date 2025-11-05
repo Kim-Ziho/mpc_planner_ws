@@ -25,6 +25,7 @@
   <depend>ros_tools</depend>
   <depend>dynamic_reconfigure</depend>
   <depend>eigen</depend>
+  <depend>mpc_planner_stepmap</depend>
 
   <export>
     <build_type>catkin</build_type>

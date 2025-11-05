@@ -14,6 +14,8 @@
 #include <ros_tools/visuals.h>
 #include <ros_tools/logging.h>
 
+#include <mpc_planner_stepmap/step_map.h>
+
 #include <omp.h>
 
 namespace GuidancePlanner
@@ -92,6 +94,12 @@ namespace GuidancePlanner
 
     Reset();
     gsl_set_error_handler(&IntegrationExceptionHandler);
+  }
+
+  void GlobalGuidance::SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map)
+  {
+    step_map_ = step_map;
+    prm_.SetStepMap(step_map_);
   }
 
   void GlobalGuidance::LoadObstacles(const std::vector<Obstacle> &obstacles, const std::vector<Halfspace> &static_obstacles)
@@ -262,6 +270,7 @@ namespace GuidancePlanner
       PRM_LOG("======== Visibility-PRM ==========");
 
       prm_benchmarker.start();
+      prm_.SetStepMap(step_map_);
       prm_.LoadData(obstacles_, static_obstacles_, start_, orientation_, start_velocity_, goals_);
       Graph &graph = prm_.Update(); // Construct a graph using visibility PRM
       prm_benchmarker.stop();

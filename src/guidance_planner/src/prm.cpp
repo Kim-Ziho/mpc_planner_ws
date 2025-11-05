@@ -5,6 +5,8 @@
 #include <guidance_planner/environment.h>
 #include <guidance_planner/sampler.h>
 
+#include <mpc_planner_stepmap/step_map.h>
+
 #include <guidance_planner/homotopy_comparison/homology.h>
 #include <guidance_planner/homotopy_comparison/uvd.h>
 #include <guidance_planner/homotopy_comparison/winding_angle.h>
@@ -66,6 +68,12 @@ namespace GuidancePlanner
     }
 
     done_ = false;
+  }
+
+  void PRM::SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map)
+  {
+    if (environment_)
+      environment_->SetStepMap(step_map);
   }
 
   void PRM::LoadData(const std::vector<Obstacle> &obstacles, const std::vector<Halfspace> &static_obstacles, const Eigen::Vector2d &start, const double orientation,

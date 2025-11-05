@@ -4,11 +4,15 @@
 #include <mpc_planner_util/data_visualization.h>
 
 #include <guidance_planner/global_guidance.h>
+#include <guidance_planner/config.h>
 
 #include <ros_tools/visuals.h>
 #include <ros_tools/profiling.h>
 #include <ros_tools/data_saver.h>
 #include <ros_tools/math.h>
+
+#include <ros/ros.h>
+#include <algorithm>
 
 #include <omp.h>
 
@@ -57,6 +61,9 @@ namespace MPCPlanner
         }
 
         LOG_INITIALIZED();
+
+        ros::NodeHandle private_nh("~");
+        step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
     }
 
     void GuidanceConstraints::update(State &state, const RealTimeData &data, ModuleData &module_data)
@@ -69,6 +76,25 @@ namespace MPCPlanner
         {
             LOG_MARK("Path data not yet available");
             return;
+        }
+
+        if (step_map_builder_ == nullptr)
+        {
+            ros::NodeHandle private_nh("~");
+            step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
+        }
+
+        if (step_map_builder_ != nullptr)
+        {
+            step_map_ = step_map_builder_->update(data.costmap,
+                                                  state.getPos(),
+                                                  state.get("psi"),
+                                                  data.dynamic_obstacles,
+                                                  data.robot_area,
+                                                  global_guidance_->GetConfig()->N,
+                                                  GuidancePlanner::Config::DT);
+            if (step_map_ && step_map_->valid())
+                global_guidance_->SetStepMap(step_map_);
         }
 
         // Convert static obstacles
@@ -181,6 +207,21 @@ namespace MPCPlanner
 
                 if (GuidancePlanner::SpaceTimePoint::numStates() == 3)
                     result(2) = angle;
+
+                // 목표 셀이 STEP 맵에서 막히면 건너뛴다
+                bool goal_blocked = false;
+                if (step_map_ && step_map_->valid())
+                {
+                    int goal_layer = std::max(0, global_guidance_->GetConfig()->N - 1);
+                    goal_blocked = step_map_->isOccupiedWorld(res, goal_layer);
+                }
+
+                if (goal_blocked)
+                {
+                    if (!(i == 0 && j == middle_lat))
+                        continue;
+                    goal_blocked = false;
+                }
 
                 goals.emplace_back(result, long_cost + lat_cost); // Add the goal
             }
