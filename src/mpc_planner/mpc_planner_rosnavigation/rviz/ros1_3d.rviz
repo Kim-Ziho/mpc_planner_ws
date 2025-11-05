@@ -466,7 +466,7 @@ Visualization Manager:
       Unreliable: false
       Use Timestamp: false
       Value: true
-    - Alpha: 0.699999988079071
+    - Alpha: 1
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false

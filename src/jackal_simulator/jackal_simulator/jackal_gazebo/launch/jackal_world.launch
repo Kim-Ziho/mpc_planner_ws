@@ -34,7 +34,7 @@
     <arg name="x" value="0" />
     <arg name="y" value="0" />
     <arg name="z" value="1.0" />
-    <arg name="yaw" value="0" />
+    <arg name="yaw" value="0.7854" />
     <arg name="config" value="$(arg config)" />
     <arg name="joystick" value="$(arg joystick)" />
   </include>
