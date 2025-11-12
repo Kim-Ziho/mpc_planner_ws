@@ -765,7 +765,7 @@ namespace GuidancePlanner
   void GlobalGuidance::Visualize(bool highlight_selected, int only_path_nr)
   {
     PROFILE_SCOPE("GlobalGuidance::Visualize");
-    PRM_LOG("======== Visualization ==========");
+    // PRM_LOG("======== Visualization ==========");
     VisualizeObstacles();
     prm_.Visualize();
     VisualizeTrajectories(highlight_selected, only_path_nr);
@@ -776,7 +776,7 @@ namespace GuidancePlanner
       VisualizeSplinePoints();
       VisualizeDebug();
     }
-    PRM_LOG("=================================");
+    // PRM_LOG("=================================");
   }
 
   /** @brief Helper function*/

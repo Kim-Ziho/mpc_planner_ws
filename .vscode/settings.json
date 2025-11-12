@@ -63,7 +63,23 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp",
-        "core": "cpp"
+        "core": "cpp",
+        "forward_list": "cpp",
+        "slist": "cpp",
+        "regex": "cpp",
+        "csetjmp": "cpp",
+        "csignal": "cpp",
+        "strstream": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "unordered_set": "cpp",
+        "netfwd": "cpp",
+        "rope": "cpp",
+        "future": "cpp",
+        "ranges": "cpp",
+        "scoped_allocator": "cpp",
+        "cfenv": "cpp",
+        "valarray": "cpp"
     },
     "ros.distro": "noetic",
     "python.autoComplete.extraPaths": [
@@ -73,5 +89,9 @@
     "python.analysis.extraPaths": [
         "/workspace/devel/lib/python3/dist-packages",
         "/opt/ros/noetic/lib/python3/dist-packages"
-    ]
+    ],
+    "workbench.colorCustomizations": {
+        "terminal.findMatchHighlightBackground": "#ff79c680",
+        "terminal.findMatchHighlightBorder": "#ff79c6"
+    }
 }

@@ -164,7 +164,18 @@ namespace GuidancePlanner
     graph_->Initialize(start_, goals_);
 
     SampleNewPoints(); // Draw random samples
-    PRM_LOG("New candidate nodes ready. Inserting them into the Visibility-PRM graph");
+
+    int success_samples = 0;
+    for (int i = 0; i < config_->n_samples_; ++i)
+    {
+      if (sampler_->GetSample(i).success)
+        ++success_samples;
+    }
+
+    PRM_LOG("New candidate nodes ready (" << config_->n_samples_ << " samples, "
+                                          << success_samples << " successful, "
+                                          << previous_nodes_.size() << " previous). "
+                                          << "Inserting them into the Visibility-PRM graph");
 
     // Then add them to the graph
     for (int i = 0; i < config_->n_samples_; i++)
@@ -258,7 +269,17 @@ namespace GuidancePlanner
       }
     }
 
-    PRM_LOG("Visibility-PRM Graph Done.");
+    int guard_count = 0;
+    int connector_count = 0;
+    for (const auto &node : graph_->nodes_)
+    {
+      if (node.type_ == NodeType::GUARD)
+        ++guard_count;
+      else if (node.type_ == NodeType::CONNECTOR)
+        ++connector_count;
+    }
+
+    PRM_LOG("Visibility-PRM Graph Done. Guards: " << guard_count << ", Connectors: " << connector_count);
 
     done_ = true;
     return *graph_;

@@ -103,21 +103,82 @@ namespace MPCPlannerStepMap
     if (!valid())
       return false;
 
+    auto clipToGrid = [&](const Eigen::Vector3d &start, const Eigen::Vector3d &end,
+                          Eigen::Vector3d &clipped_start, Eigen::Vector3d &clipped_end) -> bool {
+      constexpr double eps = 1e-6;
+      const Eigen::Vector3d min_bounds = Eigen::Vector3d::Zero();
+      const Eigen::Vector3d max_bounds(static_cast<double>(cells_x_) - eps,
+                                       static_cast<double>(cells_y_) - eps,
+                                       static_cast<double>(cells_t_) - eps);
+
+      double u_enter = 0.0;
+      double u_exit = 1.0;
+      Eigen::Vector3d delta_local = end - start;
+
+      for (int axis = 0; axis < 3; ++axis)
+      {
+        const double origin = start[axis];
+        const double direction = delta_local[axis];
+        const double min_bound = min_bounds[axis];
+        const double max_bound = max_bounds[axis];
+
+        if (std::abs(direction) < 1e-9)
+        {
+          if (origin < min_bound || origin > max_bound)
+            return false;
+          continue;
+        }
+
+        double inv_dir = 1.0 / direction;
+        double t0 = (min_bound - origin) * inv_dir;
+        double t1 = (max_bound - origin) * inv_dir;
+        if (t0 > t1)
+          std::swap(t0, t1);
+
+        u_enter = std::max(u_enter, t0);
+        u_exit = std::min(u_exit, t1);
+
+        if (u_enter > u_exit)
+          return false;
+      }
+
+      u_enter = std::clamp(u_enter, 0.0, 1.0);
+      u_exit = std::clamp(u_exit, 0.0, 1.0);
+
+      clipped_start = start + u_enter * delta_local;
+      clipped_end = start + u_exit * delta_local;
+      return true;
+    };
+
     Eigen::Vector3d start_coord = gridCoordinateFromWorld(start_world, start_time);
     Eigen::Vector3d end_coord = gridCoordinateFromWorld(end_world, end_time);
+    Eigen::Vector3d clipped_start;
+    Eigen::Vector3d clipped_end;
 
-    int start_x = static_cast<int>(std::floor(start_coord.x()));
-    int start_y = static_cast<int>(std::floor(start_coord.y()));
-    int start_t = static_cast<int>(std::floor(start_coord.z()));
+    if (!clipToGrid(start_coord, end_coord, clipped_start, clipped_end))
+      return false;
 
-    int end_x = static_cast<int>(std::floor(end_coord.x()));
-    int end_y = static_cast<int>(std::floor(end_coord.y()));
-    int end_t = static_cast<int>(std::floor(end_coord.z()));
+    start_coord = clipped_start;
+    end_coord = clipped_end;
 
-    if (!insideGrid(start_x, start_y, start_t) || !insideGrid(end_x, end_y, end_t))
-      return true;
+    auto clampedIndex = [](double coord, int max_cells) {
+      int idx = static_cast<int>(std::floor(coord));
+      return std::clamp(idx, 0, max_cells - 1);
+    };
 
-    if (occupiedIndex(start_x, start_y, start_t) || occupiedIndex(end_x, end_y, end_t))
+    int start_x = clampedIndex(start_coord.x(), cells_x_);
+    int start_y = clampedIndex(start_coord.y(), cells_y_);
+    int start_t = clampedIndex(start_coord.z(), cells_t_);
+
+    int end_x = clampedIndex(end_coord.x(), cells_x_);
+    int end_y = clampedIndex(end_coord.y(), cells_y_);
+    int end_t = clampedIndex(end_coord.z(), cells_t_);
+
+    auto isCellOccupied = [&](int gx, int gy, int gt) {
+      return insideGrid(gx, gy, gt) && occupancy_[idx(gx, gy, gt)] > 0;
+    };
+
+    if (isCellOccupied(start_x, start_y, start_t) || isCellOccupied(end_x, end_y, end_t))
       return true;
 
     Eigen::Vector3d delta = end_coord - start_coord;
@@ -134,9 +195,9 @@ namespace MPCPlannerStepMap
     double inv_dy = (step_y == 0) ? std::numeric_limits<double>::infinity() : std::abs(1.0 / dir_y);
     double inv_dt = (step_t == 0) ? std::numeric_limits<double>::infinity() : std::abs(1.0 / dir_t);
 
-    double boundary_x = start_x + (step_x > 0 ? 1.0 : 0.0);
-    double boundary_y = start_y + (step_y > 0 ? 1.0 : 0.0);
-    double boundary_t = start_t + (step_t > 0 ? 1.0 : 0.0);
+    double boundary_x = static_cast<double>(start_x) + (step_x > 0 ? 1.0 : 0.0);
+    double boundary_y = static_cast<double>(start_y) + (step_y > 0 ? 1.0 : 0.0);
+    double boundary_t = static_cast<double>(start_t) + (step_t > 0 ? 1.0 : 0.0);
 
     double t_max_x = (step_x == 0) ? std::numeric_limits<double>::infinity()
                                    : (boundary_x - start_coord.x()) / dir_x;
@@ -157,7 +218,7 @@ namespace MPCPlannerStepMap
 
     while (safety_guard-- > 0)
     {
-      if (occupiedIndex(gx, gy, gt))
+      if (isCellOccupied(gx, gy, gt))
         return true;
 
       if (gx == end_x && gy == end_y && gt == end_t)
@@ -167,21 +228,21 @@ namespace MPCPlannerStepMap
       {
         gx += step_x;
         if (!insideGrid(gx, gy, gt))
-          return true;
+          return false;
         t_max_x += t_delta_x;
       }
       else if (t_max_y <= t_max_x && t_max_y <= t_max_t)
       {
         gy += step_y;
         if (!insideGrid(gx, gy, gt))
-          return true;
+          return false;
         t_max_y += t_delta_y;
       }
       else
       {
         gt += step_t;
         if (!insideGrid(gx, gy, gt))
-          return true;
+          return false;
         t_max_t += t_delta_t;
       }
     }

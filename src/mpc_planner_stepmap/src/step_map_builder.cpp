@@ -57,8 +57,8 @@ namespace MPCPlannerStepMap
       return map_;
     }
 
-    double costmap_resolution = costmap->getResolution();
-    resolution_ = std::max(costmap_resolution * params_.resolution_ratio, kMinResolution);
+    double costmap_resolution = costmap->getResolution(); //0.1m/cell
+    resolution_ = std::max(costmap_resolution * params_.resolution_ratio, kMinResolution); //0.2m/cell
     inverse_ratio_ = costmap_resolution / resolution_;
 
     double costmap_length = static_cast<double>(costmap->getSizeInCellsX()) * costmap_resolution;

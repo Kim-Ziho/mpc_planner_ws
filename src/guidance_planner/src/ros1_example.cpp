@@ -189,7 +189,7 @@ int main(int argc, char **argv)
                 replan_ = true;
 
             ros::spinOnce();
-            rate.sleep();
+            // rate.sleep();
         }
     }
 
