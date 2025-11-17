@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+
+<launch>
+  <arg name="gui" default="true" />
+  <arg name="project_name" default="" />
+  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test.world" />
+
+  <include file="$(find jackal_gazebo)/launch/jackal_world.launch">
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="config" value="front_laser"/>
+    <arg name="world_name" value="$(arg world_name)"/>
+  </include>
+
+  <include file="$(find mobile_robot_state_publisher)/launch/mobile_robot_publisher.launch"/>
+
+  <!-- teleop_twist_keyboard -->
+  <node pkg="teleop_twist_keyboard"
+      type="teleop_twist_keyboard.py"
+      name="teleop_twist_keyboard"
+      output="screen">
+    <remap from="/cmd_vel" to="/jackal_velocity_controller/cmd_vel"/>
+  </node>
+
+  <!-- Gmapping SLAM -->
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping"
+        output="screen" launch-prefix="bash -c 'sleep 5; $0 $@'">
+    <remap from="/scan" to="/front/scan"/>
+    <param name="base_frame" value="base_link"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="map_update_interval" value="1.0"/>
+    <param name="delta" value="0.2"/>
+  </node>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d /workspace/data/rviz/map_generator.rviz" output="screen"/>
+  <!-- rosrun map_server map_saver -f /workspace/data/maps/test_world_map _resolution:=0.2-->
+</launch>

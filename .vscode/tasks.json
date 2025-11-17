@@ -172,5 +172,19 @@
                 // "close": true
             }
         },
+        {
+            "label": "Experiments: Set the next 5 iterations",
+            "command": "python3 /workspace/data/experiments/set_next_iterations.py",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true
+            }
+        },
     ]
 }

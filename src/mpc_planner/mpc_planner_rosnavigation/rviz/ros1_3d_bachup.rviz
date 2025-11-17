@@ -27,6 +27,7 @@ Panels:
   - Class: rviz/Views
     Expanded:
       - /Current View1
+      - /Current View1/Position1
     Name: Views
     Splitter Ratio: 0.5
   - Class: rviz/Time
@@ -486,13 +487,13 @@ Visualization Manager:
       Queue Size: 100
       Value: false
     - Class: rviz/Marker
-      Enabled: false
+      Enabled: true
       Marker Topic: /move_base/step_map/guidance_planner/step_map
       Name: Marker
       Namespaces:
-        {}
+        step_map: true
       Queue Size: 100
-      Value: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 238; 238; 236
@@ -520,26 +521,25 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 35.67444610595703
+      Class: rviz/FrameAligned
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Field of View: 0.699999988079071
-      Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
-      Focal Shape Fixed Size: false
-      Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
+      Lock Camera: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 0.5
+      Point towards: arbitrary
+      Position:
+        X: -15
+        Y: 0
+        Z: 10
+      Roll: 0
       Target Frame: base_link
-      Yaw: 3.140000104904175
+      Yaw: 0
     Saved: ~
 Window Geometry:
   Displays:

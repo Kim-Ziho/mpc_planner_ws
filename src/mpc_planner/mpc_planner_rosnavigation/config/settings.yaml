@@ -20,11 +20,11 @@ solver_settings:
   tolstat: 1e-3
 
 recording:
-  enable: false
-  folder: "/home/r2c1/Documents/publications/multi-mpc-2023/results/data"
-  file: none #experiment_method
-  timestamp: false
-  num_experiments: 26
+  enable: true
+  folder: "/workspace/data/experiments"
+  file: exp1-97 #experiment_method
+  timestamp: true
+  num_experiments: 5
 
 debug_output: false
 debug_limits: false

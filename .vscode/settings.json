@@ -79,7 +79,8 @@
         "ranges": "cpp",
         "scoped_allocator": "cpp",
         "cfenv": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "dense": "cpp"
     },
     "ros.distro": "noetic",
     "python.autoComplete.extraPaths": [
