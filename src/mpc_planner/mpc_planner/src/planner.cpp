@@ -6,6 +6,7 @@
 #include <mpc_planner_modules/modules.h>
 
 #include <mpc_planner_types/realtime_data.h>
+#include <mpc_planner/data_preparation.h>
 #include <mpc_planner_solver/solver_interface.h>
 
 #include <mpc_planner_util/load_yaml.hpp>
@@ -39,6 +40,8 @@ namespace MPCPlanner
         LOG_MARK("Planner::solveMPC");
         bool was_feasible = _output.success;
         _output = PlannerOutput(_solver->dt, _solver->N);
+
+        ensureObstacleSize(data.dynamic_obstacles, state);
 
         _module_data = ModuleData(); // Reset module data
 

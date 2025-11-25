@@ -18,7 +18,7 @@ namespace MPCPlanner
     _n_discs = CONFIG["n_discs"].as<int>(); // Is overwritten to 1 for topology constraints
 
     _n_other_halfspaces = CONFIG["linearized_constraints"]["add_halfspaces"].as<int>();
-    _max_obstacles = CONFIG["max_obstacles"].as<int>();
+    _max_obstacles = CONFIG["max_obstacles"].as<unsigned int>();
     int n_constraints = _max_obstacles + _n_other_halfspaces;
     _a1.resize(CONFIG["n_discs"].as<int>());
     _a2.resize(CONFIG["n_discs"].as<int>());
@@ -190,9 +190,9 @@ namespace MPCPlanner
 
   bool LinearizedConstraints::isDataReady(const RealTimeData &data, std::string &missing_data)
   {
-    if ((int)data.dynamic_obstacles.size() != _max_obstacles)
+    if (data.dynamic_obstacles.size() != _max_obstacles)
     {
-      missing_data += "Obstacles ";
+      missing_data += "Obstacles LinearizedConstraints";
       return false;
     }
 

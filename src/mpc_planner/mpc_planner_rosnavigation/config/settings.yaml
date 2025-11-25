@@ -22,9 +22,12 @@ solver_settings:
 recording:
   enable: true
   folder: "/workspace/data/experiments"
-  file: exp1-97 #experiment_method
+  file: exp3-18 #experiment_method
   timestamp: true
-  num_experiments: 5
+  num_experiments: 3
+
+step_map:
+  enable: true
 
 debug_output: false
 debug_limits: false

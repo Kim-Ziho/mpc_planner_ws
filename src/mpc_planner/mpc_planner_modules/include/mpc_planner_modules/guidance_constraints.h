@@ -121,7 +121,7 @@ namespace MPCPlanner
         std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
 
         // Configuration parameters
-        bool _use_tmpcpp{true}, _enable_constraints{true};
+        bool _use_tmpcpp{true}, _enable_constraints{true}, _enable_step_map{false};
         double _control_frequency{20.};
         double _planning_time;
 

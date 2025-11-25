@@ -6,11 +6,11 @@ pedestrian_simulator:
     scenario: random_social/8_corridor.xml
     update_frequency: 50
     prediction_step: 0.2
-    horizon: 50
+    horizon: 20
     use_path_origin: false
   pedestrians:
     seed: 1 # > 0,  -1 = random!
-    single_scenario: 97 # > 0 = run the scenario with this index | -1 = not a single scenario
+    single_scenario: 18 # > 0 = run the scenario with this index | -1 = not a single scenario
     type: gaussian # Only used if it is not in the scenario file
     # process_noise:  [.8, .8] # Excessive
     # process_noise: [.3, .3] # Safe-Horizon

@@ -186,5 +186,37 @@
                 "focus": true
             }
         },
+        {
+            "label": "ROS Navigation: Run Gazebo",
+            "command": "source devel/setup.bash && source fix_console.sh && roslaunch jackal_gazebo jackal_world.launch",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true,
+            }
+        },
+        {
+            "label": "ROS Navigation: Run RViz",
+            "type": "shell",
+            "command": "rviz",
+            "args": [
+                "-d",
+                "src/mpc_planner/mpc_planner_rosnavigation/rviz/ros1_3d_bachup.rviz"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true,
+            }
+        }
     ]
 }

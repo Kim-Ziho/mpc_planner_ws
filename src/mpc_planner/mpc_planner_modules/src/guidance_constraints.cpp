@@ -42,6 +42,8 @@ namespace MPCPlanner
         _enable_constraints = CONFIG["t-mpc"]["enable_constraints"].as<bool>();
         _control_frequency = CONFIG["control_frequency"].as<double>();
         _planning_time = 1. / _control_frequency;
+        if (CONFIG["step_map"] && CONFIG["step_map"]["enable"])
+            _enable_step_map = CONFIG["step_map"]["enable"].as<bool>();
 
         // Initialize the constraint modules
         int n_solvers = global_guidance_->GetConfig()->n_paths_; // + 1 for the main lmpcc solver?
@@ -62,14 +64,18 @@ namespace MPCPlanner
 
         LOG_INITIALIZED();
 
-        ros::NodeHandle private_nh("~");
-        step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
+        if (_enable_step_map)
+        {
+            if (step_map_builder_ == nullptr)
+            {
+                ros::NodeHandle private_nh("~");
+                step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
+            }
+        }
     }
 
     void GuidanceConstraints::update(State &state, const RealTimeData &data, ModuleData &module_data)
     {
-        (void)data;
-        (void)module_data;
         LOG_MARK("Guidance Constraints: Update");
 
         if (module_data.path == nullptr)
@@ -78,23 +84,33 @@ namespace MPCPlanner
             return;
         }
 
-        if (step_map_builder_ == nullptr)
+        if (_enable_step_map)
         {
-            ros::NodeHandle private_nh("~");
-            step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
-        }
+            if (step_map_builder_ == nullptr)
+            {
+                ros::NodeHandle private_nh("~");
+                step_map_builder_ = std::make_shared<MPCPlannerStepMap::StepMapBuilder>(private_nh);
+            }
 
-        if (step_map_builder_ != nullptr)
+            if (step_map_builder_ != nullptr)
+            {
+                step_map_ = step_map_builder_->update(data.costmap,
+                                                      state.getPos(),
+                                                      state.get("psi"),
+                                                      data.dynamic_obstacles,
+                                                      data.robot_area,
+                                                      global_guidance_->GetConfig()->N,
+                                                      GuidancePlanner::Config::DT);
+                if (step_map_ && step_map_->valid())
+                    global_guidance_->SetStepMap(step_map_);
+                else
+                    global_guidance_->SetStepMap(nullptr);
+            }
+        }
+        else
         {
-            step_map_ = step_map_builder_->update(data.costmap,
-                                                  state.getPos(),
-                                                  state.get("psi"),
-                                                  data.dynamic_obstacles,
-                                                  data.robot_area,
-                                                  global_guidance_->GetConfig()->N,
-                                                  GuidancePlanner::Config::DT);
-            if (step_map_ && step_map_->valid())
-                global_guidance_->SetStepMap(step_map_);
+            step_map_.reset();
+            global_guidance_->SetStepMap(nullptr);
         }
 
         // Convert static obstacles
@@ -208,9 +224,8 @@ namespace MPCPlanner
                 if (GuidancePlanner::SpaceTimePoint::numStates() == 3)
                     result(2) = angle;
 
-                // 목표 셀이 STEP 맵에서 막히면 건너뛴다
                 bool goal_blocked = false;
-                if (step_map_ && step_map_->valid())
+                if (_enable_step_map && step_map_ && step_map_->valid())
                 {
                     int goal_layer = std::max(0, global_guidance_->GetConfig()->N - 1);
                     goal_blocked = step_map_->isOccupiedWorld(res, goal_layer);

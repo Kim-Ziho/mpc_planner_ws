@@ -3,7 +3,7 @@
 <launch>
   <arg name="gui" default="true" />
   <arg name="project_name" default="" />
-  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test.world" />
+  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test3.world" />
 
   <include file="$(find jackal_gazebo)/launch/jackal_world.launch">
     <arg name="gui" value="$(arg gui)" />
@@ -32,5 +32,5 @@
   </node>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d /workspace/data/rviz/map_generator.rviz" output="screen"/>
-  <!-- rosrun map_server map_saver -f /workspace/data/maps/test_world_map _resolution:=0.2-->
+  <!-- rosrun map_server map_saver -f /workspace/data/maps/test_world_map-->
 </launch>

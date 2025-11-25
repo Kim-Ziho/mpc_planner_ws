@@ -79,6 +79,8 @@ namespace local_planner
             RosTools::Instrumentor::Get().BeginSession("mpc_planner_rosnavigation");
 
             LOG_DIVIDER();
+            _reset_ekf_client.call(_reset_pose_msg);
+            _reset_simulation_client.call(_reset_msg);
         }
     }
 
@@ -279,7 +281,6 @@ namespace local_planner
 
     void ROSNavigationPlanner::loop(geometry_msgs::Twist &cmd_vel)
     {
-
         // Copy data for thread safety
         RealTimeData data = _data;
         State state = _state;
@@ -463,6 +464,9 @@ namespace local_planner
 
         for (auto &obstacle : msg->obstacles)
         {
+            if (obstacle.probabilities.size() == 0) // No Predictions!
+                continue;
+
             // Save the obstacle
             _data.dynamic_obstacles.emplace_back(
                 obstacle.id,
@@ -470,9 +474,6 @@ namespace local_planner
                 RosTools::quaternionToAngle(obstacle.pose),
                 CONFIG["obstacle_radius"].as<double>());
             auto &dynamic_obstacle = _data.dynamic_obstacles.back();
-
-            if (obstacle.probabilities.size() == 0) // No Predictions!
-                continue;
 
             // Save the prediction
             if (obstacle.probabilities.size() == 1) // One mode
@@ -536,6 +537,7 @@ namespace local_planner
         _data.costmap = costmap_;
 
         ros::Duration(1.0 / CONFIG["control_frequency"].as<double>()).sleep();
+        // ros::Duration(1.0).sleep();
 
         done_ = false;
         _rotate_to_goal = false;

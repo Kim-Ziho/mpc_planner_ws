@@ -80,7 +80,8 @@
         "scoped_allocator": "cpp",
         "cfenv": "cpp",
         "valarray": "cpp",
-        "dense": "cpp"
+        "dense": "cpp",
+        "shared_mutex": "cpp"
     },
     "ros.distro": "noetic",
     "python.autoComplete.extraPaths": [

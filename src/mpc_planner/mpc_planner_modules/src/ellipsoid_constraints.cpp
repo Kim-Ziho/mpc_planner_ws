@@ -99,7 +99,7 @@ namespace MPCPlanner
 
     if (data.dynamic_obstacles.size() != CONFIG["max_obstacles"].as<unsigned int>())
     {
-      missing_data += "Obstacles ";
+      missing_data += "Obstacles EllipsoidConstraints";
       return false;
     }
 
