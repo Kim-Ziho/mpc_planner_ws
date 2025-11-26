@@ -20,7 +20,7 @@ namespace MPCPlannerStepMap
     half_length_ = 0.5 * resolution_ * static_cast<double>(cells_x_);
     half_width_ = 0.5 * resolution_ * static_cast<double>(cells_y_);
 
-    occupancy_.assign(static_cast<size_t>(cells_x_) * static_cast<size_t>(cells_y_) * static_cast<size_t>(cells_t_), 0);
+    occupancy_.assign(static_cast<size_t>(cells_x_) * static_cast<size_t>(cells_y_) * static_cast<size_t>(cells_t_), 0.0);
   }
 
   void StepMap::setPose(const Eigen::Vector2d &center_world, double heading)
@@ -38,7 +38,7 @@ namespace MPCPlannerStepMap
 
   void StepMap::clear()
   {
-    std::fill(occupancy_.begin(), occupancy_.end(), 0);
+    std::fill(occupancy_.begin(), occupancy_.end(), 0.0);
   }
 
   void StepMap::markStaticWorld(const Eigen::Vector2d &world_point)
@@ -82,6 +82,20 @@ namespace MPCPlannerStepMap
         }
       }
     }
+  }
+
+  void StepMap::addCostWorld(const Eigen::Vector2d &world_point, int time_index, double cost)
+  {
+    if (!valid())
+      return;
+
+    Eigen::Vector2d local_point = localFromWorld(world_point);
+    int gx, gy;
+    if (!cellFromLocal(local_point, gx, gy))
+      return;
+    int gt = std::clamp(time_index, 0, cells_t_ - 1);
+
+    addCostCell(gx, gy, gt, cost);
   }
 
   bool StepMap::isOccupiedWorld(const Eigen::Vector2d &world_point, int time_index) const
@@ -175,7 +189,7 @@ namespace MPCPlannerStepMap
     int end_t = clampedIndex(end_coord.z(), cells_t_);
 
     auto isCellOccupied = [&](int gx, int gy, int gt) {
-      return insideGrid(gx, gy, gt) && occupancy_[idx(gx, gy, gt)] > 0;
+      return insideGrid(gx, gy, gt) && occupancy_[idx(gx, gy, gt)] >= occupancy_threshold_;
     };
 
     if (isCellOccupied(start_x, start_y, start_t) || isCellOccupied(end_x, end_y, end_t))
@@ -268,7 +282,7 @@ namespace MPCPlannerStepMap
 
     for (int gt = 0; gt < cells_t_; ++gt)
     {
-      occupancy_[idx(gx, gy, gt)] = 1;
+      occupancy_[idx(gx, gy, gt)] = 1.0;
     }
   }
 
@@ -276,21 +290,37 @@ namespace MPCPlannerStepMap
   {
     if (!insideGrid(gx, gy, gt))
       return;
-    occupancy_[idx(gx, gy, gt)] = 1;
+    occupancy_[idx(gx, gy, gt)] = 1.0;
+  }
+
+  void StepMap::addCostCell(int gx, int gy, int gt, double cost)
+  {
+    if (!insideGrid(gx, gy, gt))
+      return;
+
+    size_t index = idx(gx, gy, gt);
+    occupancy_[index] = std::clamp(occupancy_[index] + cost, 0.0, 1.0);
   }
 
   bool StepMap::occupiedIndex(int gx, int gy, int gt) const
   {
     if (!insideGrid(gx, gy, gt))
       return true;
-    return occupancy_[idx(gx, gy, gt)] > 0;
+    return occupancy_[idx(gx, gy, gt)] >= occupancy_threshold_;
   }
 
   bool StepMap::cellOccupied(int gx, int gy, int gt) const
   {
     if (!insideGrid(gx, gy, gt))
       return true;
-    return occupancy_[idx(gx, gy, gt)] > 0;
+    return occupancy_[idx(gx, gy, gt)] >= occupancy_threshold_;
+  }
+
+  double StepMap::cellCost(int gx, int gy, int gt) const
+  {
+    if (!insideGrid(gx, gy, gt))
+      return 0.0;
+    return occupancy_[idx(gx, gy, gt)];
   }
 
   bool StepMap::insideGrid(int gx, int gy, int gt) const

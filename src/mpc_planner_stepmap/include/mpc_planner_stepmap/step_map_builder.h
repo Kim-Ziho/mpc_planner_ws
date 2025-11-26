@@ -21,6 +21,10 @@ namespace MPCPlannerStepMap
     double forward_offset_ratio{0.25};
     double max_alpha{0.3};
     double z_scale{0.5};
+    int gaussian_samples{1000};
+    double gaussian_sample_value{0.2};
+    double occupancy_threshold{0.4};
+    bool visualize_use_threshold{false};
     bool publish{true};
     std::string topic{"guidance_planner/step_map"};
     std::string frame_id{"map"};

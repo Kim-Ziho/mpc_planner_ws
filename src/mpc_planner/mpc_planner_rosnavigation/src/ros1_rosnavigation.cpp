@@ -483,14 +483,17 @@ namespace local_planner
                 const auto &mode = obstacle.gaussians[0];
                 for (size_t k = 0; k < mode.mean.poses.size(); k++)
                 {
+                    // const double major_radius = static_cast<double>(k + 1);       // 1, 2, 3, ...
+                    // const double minor_radius = 0.5 * static_cast<double>(k + 1); // 0.5, 1.0, 1.5, ...
+
                     dynamic_obstacle.prediction.modes[0].emplace_back(
                         Eigen::Vector2d(mode.mean.poses[k].pose.position.x, mode.mean.poses[k].pose.position.y),
                         RosTools::quaternionToAngle(mode.mean.poses[k].pose.orientation),
-                        mode.major_semiaxis[k],
-                        mode.minor_semiaxis[k]);
+                        1.0,
+                        0.5); // Linearly increasing covariance radii
                 }
 
-                if (mode.major_semiaxis.back() == 0. || !CONFIG["probabilistic"]["enable"].as<bool>())
+                if (!CONFIG["probabilistic"]["enable"].as<bool>())
                     dynamic_obstacle.prediction.type = PredictionType::DETERMINISTIC;
                 else
                     dynamic_obstacle.prediction.type = PredictionType::GAUSSIAN;

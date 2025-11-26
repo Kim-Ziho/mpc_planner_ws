@@ -3,6 +3,7 @@
 #include <geometry_msgs/Point.h>
 #include <std_msgs/ColorRGBA.h>
 
+#include <algorithm>
 namespace MPCPlannerStepMap
 {
   StepMapVisualizer::StepMapVisualizer(ros::NodeHandle &nh, const StepMapParameters &params)
@@ -46,7 +47,10 @@ namespace MPCPlannerStepMap
       {
         for (int gt = 0; gt < map.cellsT(); ++gt)
         {
-          if (!map.cellOccupied(gx, gy, gt))
+          double cost = map.cellCost(gx, gy, gt);
+          if (params_.visualize_use_threshold && cost < params_.occupancy_threshold)
+            continue;
+          if (cost <= 0.0)
             continue;
 
           Eigen::Vector2d world_point = map.worldFromCell(gx, gy);
@@ -60,7 +64,7 @@ namespace MPCPlannerStepMap
           color.r = 189.0 / 255.0;
           color.g = 147.0 / 255.0;
           color.b = 249.0 / 255.0;
-          color.a = params_.max_alpha;
+          color.a = params_.max_alpha * std::clamp(cost, 0.0, 1.0);
 
           points_buffer_.push_back(marker_point);
           colors_buffer_.push_back(color);

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 namespace MPCPlannerStepMap
 {
@@ -57,8 +58,8 @@ namespace MPCPlannerStepMap
       return map_;
     }
 
-    double costmap_resolution = costmap->getResolution(); //0.1m/cell
-    resolution_ = std::max(costmap_resolution * params_.resolution_ratio, kMinResolution); //0.2m/cell
+    double costmap_resolution = costmap->getResolution();                                  // 0.1m/cell
+    resolution_ = std::max(costmap_resolution * params_.resolution_ratio, kMinResolution); // 0.2m/cell
     inverse_ratio_ = costmap_resolution / resolution_;
 
     double costmap_length = static_cast<double>(costmap->getSizeInCellsX()) * costmap_resolution;
@@ -71,6 +72,7 @@ namespace MPCPlannerStepMap
     int cells_y = static_cast<int>(std::ceil(target_width / resolution_));
 
     map_->configure(cells_x, cells_y, horizon_steps, resolution_, time_scale);
+    map_->setOccupancyThreshold(params_.occupancy_threshold);
 
     forward_offset_ = params_.forward_offset_ratio * static_cast<double>(cells_x) * resolution_;
 
@@ -97,6 +99,10 @@ namespace MPCPlannerStepMap
     global_nh.param("forward_offset_ratio", params_.forward_offset_ratio, params_.forward_offset_ratio);
     global_nh.param("max_alpha", params_.max_alpha, params_.max_alpha);
     global_nh.param("z_scale", params_.z_scale, params_.z_scale);
+    global_nh.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
+    global_nh.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
+    global_nh.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
+    global_nh.param("visualize_use_threshold", params_.visualize_use_threshold, params_.visualize_use_threshold);
     global_nh.param("publish", params_.publish, params_.publish);
     global_nh.param("topic", params_.topic, params_.topic);
     global_nh.param("frame_id", params_.frame_id, params_.frame_id);
@@ -107,6 +113,10 @@ namespace MPCPlannerStepMap
     nh_.param("forward_offset_ratio", params_.forward_offset_ratio, params_.forward_offset_ratio);
     nh_.param("max_alpha", params_.max_alpha, params_.max_alpha);
     nh_.param("z_scale", params_.z_scale, params_.z_scale);
+    nh_.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
+    nh_.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
+    nh_.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
+    nh_.param("visualize_use_threshold", params_.visualize_use_threshold, params_.visualize_use_threshold);
     nh_.param("publish", params_.publish, params_.publish);
     nh_.param("topic", params_.topic, params_.topic);
     nh_.param("frame_id", params_.frame_id, params_.frame_id);
@@ -153,8 +163,52 @@ namespace MPCPlannerStepMap
   void StepMapBuilder::copyDynamicObstacles(const std::vector<MPCPlanner::DynamicObstacle> &dynamic_obstacles,
                                             double robot_radius, int horizon_steps)
   {
+    static thread_local std::mt19937 rng(std::random_device{}());
+
+    auto sampleGaussianStep = [&](const Eigen::Vector2d &mean, double sigma_x, double sigma_y, int step_index) {
+      if (params_.gaussian_samples <= 0 || params_.gaussian_sample_value <= 0.0)
+        return;
+
+      const double std_x = std::max(sigma_x, 1e-6);
+      const double std_y = std::max(sigma_y, 1e-6);
+      std::normal_distribution<double> dist_x(mean.x(), std_x);
+      std::normal_distribution<double> dist_y(mean.y(), std_y);
+
+      for (int i = 0; i < params_.gaussian_samples; ++i)
+      {
+        Eigen::Vector2d sample(dist_x(rng), dist_y(rng));
+        map_->addCostWorld(sample, step_index, params_.gaussian_sample_value);
+      }
+    };
+
     for (const auto &obstacle : dynamic_obstacles)
     {
+      bool has_gaussian_prediction = obstacle.prediction.type == MPCPlanner::PredictionType::GAUSSIAN &&
+                                     !obstacle.prediction.modes.empty() && !obstacle.prediction.modes.front().empty();
+
+      if (has_gaussian_prediction)
+      {
+        const auto &mode = obstacle.prediction.modes.front();
+        int limit = std::min(static_cast<int>(mode.size()), horizon_steps);
+
+        for (int step = 0; step < limit; ++step)
+        {
+          const auto &prediction = mode[step];
+          sampleGaussianStep(prediction.position, prediction.major_radius, prediction.minor_radius, step);
+        }
+
+        if (limit < horizon_steps)
+        {
+          const auto &final_prediction = mode.back();
+          for (int step = limit; step < horizon_steps; ++step)
+          {
+            sampleGaussianStep(final_prediction.position, final_prediction.major_radius, final_prediction.minor_radius, step);
+          }
+        }
+        continue;
+      }
+
+      // Fallback for non-Gaussian predictions: use deterministic discs as before.
       double combined_radius = obstacle.radius + robot_radius;
       if (combined_radius <= 0.0)
         continue;

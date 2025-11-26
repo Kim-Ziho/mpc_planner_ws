@@ -17,10 +17,12 @@ namespace MPCPlannerStepMap
 
     void configure(int cells_x, int cells_y, int cells_t, double resolution, double time_scale);
     void setPose(const Eigen::Vector2d &center_world, double heading);
+    void setOccupancyThreshold(double threshold) { occupancy_threshold_ = threshold; }
     void clear();
 
     void markStaticWorld(const Eigen::Vector2d &world_point);
     void markDynamicCircleWorld(const Eigen::Vector2d &world_point, int time_index, double radius);
+    void addCostWorld(const Eigen::Vector2d &world_point, int time_index, double cost);
 
     bool isOccupiedWorld(const Eigen::Vector2d &world_point, int time_index) const;
     bool isSegmentOccupiedWorld(const Eigen::Vector2d &start_world, double start_time,
@@ -39,11 +41,13 @@ namespace MPCPlannerStepMap
 
     Eigen::Vector2d worldFromCell(int gx, int gy) const;
     Eigen::Vector2d localFromWorld(const Eigen::Vector2d &world_point) const;
+    double cellCost(int gx, int gy, int gt) const;
     bool cellOccupied(int gx, int gy, int gt) const;
 
   private:
     void markStaticCell(int gx, int gy);
     void markDynamicCell(int gx, int gy, int gt);
+    void addCostCell(int gx, int gy, int gt, double cost);
 
     bool occupiedIndex(int gx, int gy, int gt) const;
     bool insideGrid(int gx, int gy, int gt) const;
@@ -63,13 +67,14 @@ namespace MPCPlannerStepMap
     double half_length_{0.0};
     double half_width_{0.0};
     double time_scale_{1.0};
+    double occupancy_threshold_{0.4};
 
     Eigen::Vector2d center_world_{Eigen::Vector2d::Zero()};
     Eigen::Matrix2d rot_world_from_local_{Eigen::Matrix2d::Identity()};
     Eigen::Matrix2d rot_local_from_world_{Eigen::Matrix2d::Identity()};
     double heading_{0.0};
 
-    std::vector<uint8_t> occupancy_;
+    std::vector<double> occupancy_;
   };
 } // namespace MPCPlannerStepMap
 

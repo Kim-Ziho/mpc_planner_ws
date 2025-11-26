@@ -206,7 +206,8 @@
             "command": "rviz",
             "args": [
                 "-d",
-                "src/mpc_planner/mpc_planner_rosnavigation/rviz/ros1_3d_bachup.rviz"
+                "src/mpc_planner/mpc_planner_rosnavigation/rviz/ros1_3d.rviz",
+                // "src/mpc_planner/mpc_planner_rosnavigation/rviz/ros1_3d_bachup.rviz",
             ],
             "group": {
                 "kind": "build",
