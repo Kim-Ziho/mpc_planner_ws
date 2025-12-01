@@ -69,20 +69,24 @@ namespace MPCPlanner
       setSolverParameterEllipsoidObstPsi(k, _solver->_params, mode[k - 1].angle, i);
       setSolverParameterEllipsoidObstR(k, _solver->_params, obstacle.radius, i);
 
-      if (obstacle.prediction.type == PredictionType::DETERMINISTIC)
-      {
-        setSolverParameterEllipsoidObstMajor(k, _solver->_params, 0., i);
-        setSolverParameterEllipsoidObstMinor(k, _solver->_params, 0., i);
-        setSolverParameterEllipsoidObstChi(k, _solver->_params, 1., i);
-      }
-      else if (obstacle.prediction.type == PredictionType::GAUSSIAN)
-      {
-        double chi = RosTools::ExponentialQuantile(0.5, 1.0 - _risk);
+      setSolverParameterEllipsoidObstMajor(k, _solver->_params, 0., i);
+      setSolverParameterEllipsoidObstMinor(k, _solver->_params, 0., i);
+      setSolverParameterEllipsoidObstChi(k, _solver->_params, 1., i);
 
-        setSolverParameterEllipsoidObstMajor(k, _solver->_params, mode[k - 1].major_radius, i);
-        setSolverParameterEllipsoidObstMinor(k, _solver->_params, mode[k - 1].minor_radius, i);
-        setSolverParameterEllipsoidObstChi(k, _solver->_params, chi, i);
-      }
+      // if (obstacle.prediction.type == PredictionType::DETERMINISTIC)
+      // {
+      //   setSolverParameterEllipsoidObstMajor(k, _solver->_params, 0., i);
+      //   setSolverParameterEllipsoidObstMinor(k, _solver->_params, 0., i);
+      //   setSolverParameterEllipsoidObstChi(k, _solver->_params, 1., i);
+      // }
+      // else if (obstacle.prediction.type == PredictionType::GAUSSIAN)
+      // {
+      //   double chi = RosTools::ExponentialQuantile(0.5, 1.0 - _risk);
+
+      //   setSolverParameterEllipsoidObstMajor(k, _solver->_params, mode[k - 1].major_radius, i);
+      //   setSolverParameterEllipsoidObstMinor(k, _solver->_params, mode[k - 1].minor_radius, i);
+      //   setSolverParameterEllipsoidObstChi(k, _solver->_params, chi, i);
+      // }
     }
 
     if (k == 1)

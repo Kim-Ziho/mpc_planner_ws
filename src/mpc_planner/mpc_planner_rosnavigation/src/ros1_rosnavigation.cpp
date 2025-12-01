@@ -481,16 +481,21 @@ namespace local_planner
                 dynamic_obstacle.prediction = Prediction(PredictionType::GAUSSIAN);
 
                 const auto &mode = obstacle.gaussians[0];
+                const auto &step_cfg = CONFIG["step_map"];
+                const double slope_major = step_cfg["gaussian_major_slope"].as<double>(0.2);
+                const double slope_minor = step_cfg["gaussian_minor_slope"].as<double>(0.2);
                 for (size_t k = 0; k < mode.mean.poses.size(); k++)
                 {
-                    // const double major_radius = static_cast<double>(k + 1);       // 1, 2, 3, ...
-                    // const double minor_radius = 0.5 * static_cast<double>(k + 1); // 0.5, 1.0, 1.5, ...
-
+                    const double major_radius = slope_major * static_cast<double>(k + 1);
+                    const double minor_radius = slope_minor * static_cast<double>(k + 1);
                     dynamic_obstacle.prediction.modes[0].emplace_back(
                         Eigen::Vector2d(mode.mean.poses[k].pose.position.x, mode.mean.poses[k].pose.position.y),
                         RosTools::quaternionToAngle(mode.mean.poses[k].pose.orientation),
-                        1.0,
-                        0.5); // Linearly increasing covariance radii
+                        // mode.major_semiaxis[k],
+                        // mode.minor_semiaxis[k]);
+                        major_radius,
+                        minor_radius);
+                    // Dummy values for the covariances
                 }
 
                 if (!CONFIG["probabilistic"]["enable"].as<bool>())

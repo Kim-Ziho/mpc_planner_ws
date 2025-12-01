@@ -22,7 +22,7 @@ solver_settings:
 recording:
   enable: true
   folder: "/workspace/data/experiments"
-  file: exp3-18 #experiment_method
+  file: expTMPC4-41 #experiment_method
   timestamp: true
   num_experiments: 3
 
@@ -75,7 +75,7 @@ decomp:
 probabilistic:
   enable: true
   risk: 0.05
-  propagate_uncertainty: true
+  propagate_uncertainty: false
 
 weights:
   goal: 10.

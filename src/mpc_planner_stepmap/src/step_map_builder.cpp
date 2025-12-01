@@ -165,18 +165,19 @@ namespace MPCPlannerStepMap
   {
     static thread_local std::mt19937 rng(std::random_device{}());
 
-    auto sampleGaussianStep = [&](const Eigen::Vector2d &mean, double sigma_x, double sigma_y, int step_index) {
+    auto sampleGaussianStep = [&](const Eigen::Vector2d &mean, double sigma_major, double sigma_minor, double heading, int step_index) {
       if (params_.gaussian_samples <= 0 || params_.gaussian_sample_value <= 0.0)
         return;
 
-      const double std_x = std::max(sigma_x, 1e-6);
-      const double std_y = std::max(sigma_y, 1e-6);
-      std::normal_distribution<double> dist_x(mean.x(), std_x);
-      std::normal_distribution<double> dist_y(mean.y(), std_y);
+      const double std_major = std::max(sigma_major, 1e-6);
+      const double std_minor = std::max(sigma_minor, 1e-6);
+      std::normal_distribution<double> dist01(0.0, 1.0);
+      Eigen::Matrix2d rot = rotationMatrix(heading);
 
       for (int i = 0; i < params_.gaussian_samples; ++i)
       {
-        Eigen::Vector2d sample(dist_x(rng), dist_y(rng));
+        Eigen::Vector2d local_sample(dist01(rng) * std_major, dist01(rng) * std_minor);
+        Eigen::Vector2d sample = mean + rot * local_sample;
         map_->addCostWorld(sample, step_index, params_.gaussian_sample_value);
       }
     };
@@ -194,7 +195,7 @@ namespace MPCPlannerStepMap
         for (int step = 0; step < limit; ++step)
         {
           const auto &prediction = mode[step];
-          sampleGaussianStep(prediction.position, prediction.major_radius, prediction.minor_radius, step);
+          sampleGaussianStep(prediction.position, prediction.major_radius, prediction.minor_radius, prediction.angle, step);
         }
 
         if (limit < horizon_steps)
@@ -202,7 +203,7 @@ namespace MPCPlannerStepMap
           const auto &final_prediction = mode.back();
           for (int step = limit; step < horizon_steps; ++step)
           {
-            sampleGaussianStep(final_prediction.position, final_prediction.major_radius, final_prediction.minor_radius, step);
+            sampleGaussianStep(final_prediction.position, final_prediction.major_radius, final_prediction.minor_radius, final_prediction.angle, step);
           }
         }
         continue;

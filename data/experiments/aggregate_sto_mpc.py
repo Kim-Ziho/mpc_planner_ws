@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent
 # 각 방법별 파일명 접두사. 필요에 따라 값을 수정하세요.
 METHOD_PREFIXES = [
     ("LMPCC", "expLMPCC3"),
-    ("T-MPC++", "expTMPC3"),
+    ("T-MPC++", "expTMPC4"),
     ("STO-MPC(ours)", "exp3"),
 ]
 
@@ -45,6 +45,14 @@ RUNTIME_METRICS: list[RuntimeMetric] = [
     RuntimeMetric("processing_runtime", "Processing Runtime[ms]", "processing"),
     RuntimeMetric("prm_runtime", "PRM Runtime[ms]", "prm"),
     RuntimeMetric("homotopy_comparison_runtime", "Homotopy Runtime[ms]", "homotopy"),
+]
+
+# 터미널 표시에 포함할 런타임 메트릭(Processing/PRM/Homotopy는 제외)
+DISPLAY_RUNTIME_METRICS: list[RuntimeMetric] = [
+    metric
+    for metric in RUNTIME_METRICS
+    if metric.table_label
+    not in {"Processing Runtime[ms]", "PRM Runtime[ms]", "Homotopy Runtime[ms]"}
 ]
 
 GUIDANCE_OBJECTIVE_KEYS = [f"objective_{idx}" for idx in range(4)]
@@ -322,7 +330,7 @@ def main() -> None:
             f"Dur.[s]={row['Dur.[s]']}",
             f"Safe(%)={row['Safe(%)']}",
         ]
-        for metric in RUNTIME_METRICS:
+        for metric in DISPLAY_RUNTIME_METRICS:
             details.append(f"{metric.table_label}={row.get(metric.table_label, '')}")
         details.append(f"Guidance Traj Count={row.get('Guidance Traj Count', '')}")
         details.append(f"Guidance vs Orig (%)={row.get('Guidance vs Orig (%)', '')}")
@@ -334,7 +342,7 @@ def main() -> None:
         ("Dur.[s]", 16),
         ("Safe(%)", 7),
     ]
-    for metric in RUNTIME_METRICS:
+    for metric in DISPLAY_RUNTIME_METRICS:
         width = max(len(metric.table_label), 21)
         table_columns.append((metric.table_label, width))
     table_columns.append(("Guidance Traj Count", 21))

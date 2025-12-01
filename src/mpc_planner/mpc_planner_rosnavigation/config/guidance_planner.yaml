@@ -74,6 +74,8 @@ guidance_planner:
     topic: guidance_planner/step_map
     frame_id: map
     gaussian_samples: 1000         # 가우시안 샘플 수
-    gaussian_sample_value: 0.0     # 샘플당 코스트 누적 값
+    gaussian_sample_value: 0.05     # 샘플당 코스트 누적 값
     occupancy_threshold: 0.5       # 코스트가 이 값 이상이면 점유로 판단
     visualize_use_threshold: false # true면 threshold 이상만 시각화
+    gaussian_major_slope: 0.1      # k 증가 시 major 표준편차 기울기
+    gaussian_minor_slope: 0.05      # k 증가 시 minor 표준편차 기울기
