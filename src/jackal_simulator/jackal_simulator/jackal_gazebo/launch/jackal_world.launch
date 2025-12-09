@@ -1,6 +1,6 @@
 <launch>
   <arg name="gui" default="false" />
-  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test3.world" />
+  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test.world" />
 
   <arg name="use_sim_time" default="true" />
   <!-- <arg name="gui" default="false" /> -->

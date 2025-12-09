@@ -4,7 +4,7 @@
 
   <arg name="gui" default="false" />
   <arg name="project_name" default="" />
-  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test3.world" />
+  <arg name="world_name" default="$(find mpc_planner_rosnavigation)/worlds/test.world" />
   
   <!-- <arg name="pedestrian_scenario" default="static/8_corridor.xml" /> -->
   <arg name="pedestrian_scenario" default="open_space/24.xml" />
@@ -12,7 +12,7 @@
   <rosparam command="load" file="$(find mpc_planner_rosnavigation)/config/guidance_planner.yaml"/>
   <!-- <rosparam command="load" file="$(find scenario_module)/config/params.yaml"/> -->
 
-  <node pkg="map_server" type="map_server" args="/workspace/data/maps/test_world_map.yaml" name="map_server" output="screen"/>
+  <!-- <node pkg="map_server" type="map_server" args="/workspace/data/maps/test_world_map.yaml" name="map_server" output="screen"/> -->
 
   <include file="$(find mpc_planner_rosnavigation)/launch/odom_navigation_demo.launch"/>
 
