@@ -25,6 +25,7 @@ set(DEPENDENCIES
   ros_tools
   dynamic_reconfigure
   mpc_planner_stepmap
+  costmap_2d
 )
 
 find_package(catkin REQUIRED COMPONENTS
@@ -96,6 +97,28 @@ add_executable(example
 )
 add_dependencies(example ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 target_link_libraries(example
+  ${PROJECT_NAME}_homotopy
+  ${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+)
+
+# StepMap gym (정적 장애물 costmap 기반 StepMap 검증)
+add_executable(stepmap_example
+  src/stepmap_example.cpp
+)
+add_dependencies(stepmap_example ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+target_link_libraries(stepmap_example
+  ${PROJECT_NAME}_homotopy
+  ${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+)
+
+# Gym C++ (Gazebo 2D LiDAR → Costmap2DROS → StepMap → GlobalGuidance)
+add_executable(gym_cpp
+  src/gym_cpp.cpp
+)
+add_dependencies(gym_cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+target_link_libraries(gym_cpp
   ${PROJECT_NAME}_homotopy
   ${PROJECT_NAME}
   ${catkin_LIBRARIES}

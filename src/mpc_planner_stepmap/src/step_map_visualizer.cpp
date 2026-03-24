@@ -15,6 +15,7 @@ namespace MPCPlannerStepMap
     marker_.type = visualization_msgs::Marker::CUBE_LIST;
     marker_.action = visualization_msgs::Marker::ADD;
     marker_.pose.orientation.w = 1.0;
+    marker_.color.a = 1.0; // fallback when per-point colors are not set
   }
 
   void StepMapVisualizer::publish(const StepMap &map)
@@ -23,6 +24,9 @@ namespace MPCPlannerStepMap
       return;
 
     prepareMarker(map);
+    if (marker_.points.empty())
+      return;
+
     marker_.header.frame_id = params_.frame_id;
     marker_.header.stamp = ros::Time::now();
     publisher_.publish(marker_);

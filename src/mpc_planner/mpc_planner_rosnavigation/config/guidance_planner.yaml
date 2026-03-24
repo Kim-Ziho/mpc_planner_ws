@@ -65,9 +65,9 @@ guidance_planner:
     continuous_replanning: true         # When using the test nodes: keep planning continuously?
 
   step_map:
-    resolution_ratio: 2.0   # costmap 해상도 대비 배수
+    resolution_ratio: 1.0   # costmap 해상도 대비 배수
     size_scale: 1.0         # costmap 크기 배율
-    forward_offset_ratio: 0.25  # 진행 방향 중심 오프셋 비율
+    forward_offset_ratio: 0.5  # 진행 방향 중심 오프셋 비율
     max_alpha: 0.05         # RViz alpha 최대값 (cost=1일 때)
     z_scale: 0.2            # RViz z 축 스케일
     publish: true           # STEP 맵 표시 여부

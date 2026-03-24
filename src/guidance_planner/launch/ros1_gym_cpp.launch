@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<!--
+  ros1_gym_cpp.launch
+  Gazebo 2D LiDAR costmap_2d 기반 Guidance Planner C++ gym 환경.
+
+  - jackal_world.launch + test.world (GUI 없음)
+  - SICK LMS1xx front_laser → /front/scan → Costmap2DROS
+  - GlobalGuidance + StepMapBuilder 로 경로 계획
+  - RViz 시각화 (LaserScan + Costmap + Guidance trajectories)
+-->
+
+<launch>
+
+  <!-- ================================================================
+       글로벌 파라미터 로드
+  ================================================================ -->
+  <rosparam command="load" file="$(find guidance_planner)/config/params.yaml"/>
+  <param name="clock_frequency" value="20"/>
+
+  <!-- ================================================================
+       Gazebo: Jackal + SICK LMS1xx front_laser + test.world (GUI 꺼짐)
+  ================================================================ -->
+  <include file="$(find jackal_gazebo)/launch/jackal_world.launch">
+    <arg name="config"     value="front_laser"/>
+    <arg name="gui"        value="false"/>
+    <arg name="world_name" value="$(find guidance_planner)/worlds/test.world"/>
+    <arg name="yaw"        value="0.0"/>
+  </include>
+
+  <!-- ================================================================
+       TF 트리: map → odom → base_link → front_laser
+       (mobile_robot_state_publisher 가 odom 브로드캐스트,
+        gym_cpp 노드가 /robot_state 콜백에서 map → base_link 발행)
+  ================================================================ -->
+  <include file="$(find mobile_robot_state_publisher)/launch/mobile_robot_publisher.launch"/>
+
+  <!-- ================================================================
+       Gym C++ 노드: costmap → StepMap → GlobalGuidance
+       Costmap 파라미터를 노드 태그 안에 로드해야 /gym_cpp/local_costmap/*
+       네임스페이스에 저장되어 Costmap2DROS("local_costmap") 와 일치함
+  ================================================================ -->
+  <node pkg="guidance_planner"
+        type="gym_cpp"
+        name="gym_cpp"
+        respawn="false"
+        output="screen">
+    <!-- Costmap 공통 파라미터 → /gym_cpp/local_costmap/* -->
+    <rosparam command="load"
+              file="$(find mpc_planner_rosnavigation)/config/costmap_common_params.yaml"
+              ns="local_costmap"/>
+    <!-- Costmap 로컬 파라미터 → /gym_cpp/local_costmap/* -->
+    <rosparam command="load"
+              file="$(find guidance_planner)/config/local_costmap_params.yaml"/>
+  </node>
+
+  <!-- ================================================================
+       Dynamic reconfigure (파라미터 실시간 조정)
+  ================================================================ -->
+  <node pkg="rqt_reconfigure"
+        type="rqt_reconfigure"
+        name="rqt_reconfigure"
+        respawn="false"
+        output="log"/>
+
+  <!-- ================================================================
+       RViz: LaserScan + Costmap + Guidance trajectories 시각화
+  ================================================================ -->
+  <node name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find guidance_planner)/rviz/ros1_gym_cpp.rviz"
+        output="log"/>
+
+</launch>

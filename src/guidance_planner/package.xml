@@ -26,6 +26,8 @@
   <depend>dynamic_reconfigure</depend>
   <depend>eigen</depend>
   <depend>mpc_planner_stepmap</depend>
+  <depend>tf2_ros</depend>
+  <depend>costmap_2d</depend>
 
   <export>
     <build_type>catkin</build_type>

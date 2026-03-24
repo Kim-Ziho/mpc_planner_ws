@@ -1,6 +1,6 @@
 guidance_planner:
   debug:
-    output: true
+    output: false
     visuals: true
 
   T: 4.0 # Time horizon [s]
