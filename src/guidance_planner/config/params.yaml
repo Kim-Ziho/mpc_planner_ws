@@ -72,4 +72,5 @@ guidance_planner:
     z_scale: 0.2            # RViz z 축 스케일
     publish: true           # STEP 맵 표시 여부
     topic: guidance_planner/step_map
-    frame_id: map  
+    frame_id: map
+    propagate_uncertainty: true  # gaussian_independent에서 불확실성 누적 전파 여부

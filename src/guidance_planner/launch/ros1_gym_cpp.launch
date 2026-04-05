@@ -14,7 +14,8 @@
   <!-- ================================================================
        글로벌 파라미터 로드
   ================================================================ -->
-  <rosparam command="load" file="$(find guidance_planner)/config/params.yaml"/>
+  <rosparam command="load" file="$(find mpc_planner_rosnavigation)/config/guidance_planner.yaml"/>
+  <rosparam command="load" file="$(find pedestrian_simulator)/config/configuration.yaml"/>
   <param name="clock_frequency" value="20"/>
 
   <!-- ================================================================
@@ -56,11 +57,11 @@
   <!-- ================================================================
        Dynamic reconfigure (파라미터 실시간 조정)
   ================================================================ -->
-  <node pkg="rqt_reconfigure"
+  <!-- <node pkg="rqt_reconfigure"
         type="rqt_reconfigure"
         name="rqt_reconfigure"
         respawn="false"
-        output="log"/>
+        output="log"/> -->
 
   <!-- ================================================================
        RViz: LaserScan + Costmap + Guidance trajectories 시각화

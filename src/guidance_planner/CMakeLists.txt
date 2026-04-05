@@ -102,17 +102,6 @@ target_link_libraries(example
   ${catkin_LIBRARIES}
 )
 
-# StepMap gym (정적 장애물 costmap 기반 StepMap 검증)
-add_executable(stepmap_example
-  src/stepmap_example.cpp
-)
-add_dependencies(stepmap_example ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
-target_link_libraries(stepmap_example
-  ${PROJECT_NAME}_homotopy
-  ${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-)
-
 # Gym C++ (Gazebo 2D LiDAR → Costmap2DROS → StepMap → GlobalGuidance)
 add_executable(gym_cpp
   src/gym_cpp.cpp

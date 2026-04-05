@@ -15,7 +15,7 @@
     </physics>
 
     <!-- Left wall -->
-    <model name="wall_left">
+    <!-- <model name="wall_left">
       <static>true</static>
       <pose>5 3 0.5 0 0 0</pose>
       <link name="link">
@@ -27,7 +27,7 @@
           <material><ambient>0.5 0.5 0.5 1</ambient></material>
         </visual>
       </link>
-    </model>
+    </model> -->
 
     <!-- Right wall -->
     <model name="wall_right">
@@ -44,8 +44,12 @@
       </link>
     </model>
 
+<!-- E   D -->
+<!--   C   -->
+<!-- B   A -->
+
     <!-- Box obstacle A -->
-    <model name="box_A">
+    <!-- <model name="box_A">
       <static>true</static>
       <pose>3 1.2 0.5 0 0 0</pose>
       <link name="link">
@@ -57,10 +61,10 @@
           <material><ambient>0.8 0.2 0.2 1</ambient></material>
         </visual>
       </link>
-    </model>
+    </model> -->
 
     <!-- Box obstacle B -->
-    <model name="box_B">
+    <!-- <model name="box_B">
       <static>true</static>
       <pose>3 -1.2 0.5 0 0 0</pose>
       <link name="link">
@@ -72,7 +76,7 @@
           <material><ambient>0.8 0.2 0.2 1</ambient></material>
         </visual>
       </link>
-    </model>
+    </model> -->
 
     <!-- Box obstacle C -->
     <model name="box_C">

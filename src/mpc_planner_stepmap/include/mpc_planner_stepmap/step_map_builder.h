@@ -28,6 +28,13 @@ namespace MPCPlannerStepMap
     bool publish{true};
     std::string topic{"guidance_planner/step_map"};
     std::string frame_id{"map"};
+    // "gaussian_independent": per-step covariance sampling (default)
+    // "gaussian_trajectory":  velocity-noise trajectory sampling
+    std::string dynamic_method{"gaussian_independent"};
+    // gaussian_independent 에서 예측 불확실성을 시간에 따라 누적 전파할지 여부
+    bool propagate_uncertainty{false};
+    // stage 간 추가 z 오프셋 [m] (stage idx * stage_z_offset 만큼 z에 더해짐)
+    double stage_z_offset{0.0};
   };
 
   class StepMapVisualizer;
@@ -65,6 +72,7 @@ namespace MPCPlannerStepMap
     double resolution_{0.1};
     double forward_offset_{0.0};
     double inverse_ratio_{0.5};
+    double time_scale_{0.2};
   };
 } // namespace MPCPlannerStepMap
 

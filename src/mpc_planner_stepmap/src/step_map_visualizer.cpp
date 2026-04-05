@@ -62,7 +62,7 @@ namespace MPCPlannerStepMap
           geometry_msgs::Point marker_point;
           marker_point.x = world_point.x();
           marker_point.y = world_point.y();
-          marker_point.z = map.layerHeight(gt);
+          marker_point.z = map.layerHeight(gt) + static_cast<double>(gt) * params_.stage_z_offset;
 
           std_msgs::ColorRGBA color;
           color.r = 189.0 / 255.0;

@@ -1,7 +1,7 @@
 guidance_planner:
   debug:
     output: false
-    visuals: false
+    visuals: true
 
   T: 4.0 # Time horizon [s]
   N: 20  # Discrete time steps [#]
@@ -34,10 +34,10 @@ guidance_planner:
     velocity: false
     acceleration: false
   selection_weights: # Weights on the spline selection heuristic cost
-    consistency: 0.75 # 0 = consistent, 1 = inconsistent
     length: 5.
     velocity: 0.
     acceleration: 1.
+    consistency: 0.75 # 0 = consistent, 1 = inconsistent
 
   goals: # Only used when `LoadReferencePath` is used to set the goals
     longitudinal: 5 # Number of goals in direction of the path
@@ -62,7 +62,7 @@ guidance_planner:
     project_from_obstacles: false # Project the guidance trajectory from obstacles if enabled (not necessary by default)
 
   test_node:
-    continuous_replanning: true         # When using the test nodes: keep planning continuously?
+    continuous_replanning: false         # When using the test nodes: keep planning continuously?
 
   step_map:
     resolution_ratio: 1.0   # costmap 해상도 대비 배수
@@ -77,5 +77,6 @@ guidance_planner:
     gaussian_sample_value: 0.05     # 샘플당 코스트 누적 값
     occupancy_threshold: 0.5       # 코스트가 이 값 이상이면 점유로 판단
     visualize_use_threshold: false # true면 threshold 이상만 시각화
-    gaussian_major_slope: 0.1      # k 증가 시 major 표준편차 기울기
-    gaussian_minor_slope: 0.05      # k 증가 시 minor 표준편차 기울기
+    dynamic_method: gaussian_independent  # gaussian_independent / gaussian_trajectory / (deterministic: 자동)
+    propagate_uncertainty: false          # gaussian_independent에서 불확실성 누적 전파 여부
+    stage_z_offset: 0.0                  # stage 간 추가 z 오프셋 [m] (0.0 = 오프셋 없음)

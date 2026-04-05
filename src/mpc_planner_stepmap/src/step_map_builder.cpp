@@ -71,6 +71,7 @@ namespace MPCPlannerStepMap
     int cells_x = static_cast<int>(std::ceil(target_length / resolution_));
     int cells_y = static_cast<int>(std::ceil(target_width / resolution_));
 
+    time_scale_ = time_scale;
     map_->configure(cells_x, cells_y, horizon_steps, resolution_, time_scale);
     map_->setOccupancyThreshold(params_.occupancy_threshold);
 
@@ -106,6 +107,9 @@ namespace MPCPlannerStepMap
     global_nh.param("publish", params_.publish, params_.publish);
     global_nh.param("topic", params_.topic, params_.topic);
     global_nh.param("frame_id", params_.frame_id, params_.frame_id);
+    global_nh.param("dynamic_method", params_.dynamic_method, params_.dynamic_method);
+    global_nh.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
+    global_nh.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
 
     nh_ = ros::NodeHandle(parent_nh, "step_map");
     nh_.param("resolution_ratio", params_.resolution_ratio, params_.resolution_ratio);
@@ -120,6 +124,9 @@ namespace MPCPlannerStepMap
     nh_.param("publish", params_.publish, params_.publish);
     nh_.param("topic", params_.topic, params_.topic);
     nh_.param("frame_id", params_.frame_id, params_.frame_id);
+    nh_.param("dynamic_method", params_.dynamic_method, params_.dynamic_method);
+    nh_.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
+    nh_.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
   }
 
   double StepMapBuilder::robotRadius(const std::vector<MPCPlanner::Disc> &robot_discs) const
@@ -164,6 +171,7 @@ namespace MPCPlannerStepMap
                                             double robot_radius, int horizon_steps)
   {
     static thread_local std::mt19937 rng(std::random_device{}());
+    static thread_local std::normal_distribution<double> dist(0.0, 1.0);
 
     auto sampleGaussianStep = [&](const Eigen::Vector2d &mean, double sigma_major, double sigma_minor, double heading, int step_index) {
       if (params_.gaussian_samples <= 0 || params_.gaussian_sample_value <= 0.0)
@@ -171,12 +179,11 @@ namespace MPCPlannerStepMap
 
       const double std_major = std::max(sigma_major, 1e-6);
       const double std_minor = std::max(sigma_minor, 1e-6);
-      std::normal_distribution<double> dist01(0.0, 1.0);
       Eigen::Matrix2d rot = rotationMatrix(heading);
 
       for (int i = 0; i < params_.gaussian_samples; ++i)
       {
-        Eigen::Vector2d local_sample(dist01(rng) * std_major, dist01(rng) * std_minor);
+        Eigen::Vector2d local_sample(dist(rng) * std_major, dist(rng) * std_minor);
         Eigen::Vector2d sample = mean + rot * local_sample;
         map_->addCostWorld(sample, step_index, params_.gaussian_sample_value);
       }
@@ -185,25 +192,76 @@ namespace MPCPlannerStepMap
     for (const auto &obstacle : dynamic_obstacles)
     {
       bool has_gaussian_prediction = obstacle.prediction.type == MPCPlanner::PredictionType::GAUSSIAN &&
-                                     !obstacle.prediction.modes.empty() && !obstacle.prediction.modes.front().empty();
+                                     !obstacle.prediction.modes.empty() && !obstacle.prediction.modes.front().empty() &&
+                                     obstacle.prediction.modes.front().front().major_radius > 0.0;
 
       if (has_gaussian_prediction)
       {
         const auto &mode = obstacle.prediction.modes.front();
         int limit = std::min(static_cast<int>(mode.size()), horizon_steps);
 
-        for (int step = 0; step < limit; ++step)
+        if (params_.dynamic_method == "gaussian_trajectory")
         {
-          const auto &prediction = mode[step];
-          sampleGaussianStep(prediction.position, prediction.major_radius, prediction.minor_radius, prediction.angle, step);
-        }
-
-        if (limit < horizon_steps)
-        {
-          const auto &final_prediction = mode.back();
-          for (int step = limit; step < horizon_steps; ++step)
+          // Trajectory sampling: at each step k, draw a new velocity noise and accumulate it.
+          // This integrates the noise over time (random walk), creating temporal correlation
+          // analogous to ScenarioModule::IntegrateAndTranslateToMeanAndVariance.
+          if (params_.gaussian_samples > 0 && params_.gaussian_sample_value > 0.0)
           {
-            sampleGaussianStep(final_prediction.position, final_prediction.major_radius, final_prediction.minor_radius, final_prediction.angle, step);
+            const double sigma = std::max(mode.front().major_radius, 1e-6);
+
+            for (int i = 0; i < params_.gaussian_samples; ++i)
+            {
+              Eigen::Vector2d accumulated(0.0, 0.0);
+
+              for (int step = 0; step < limit; ++step)
+              {
+                // Draw new noise at each step and accumulate (integrate)
+                accumulated += Eigen::Vector2d(dist(rng) * sigma, dist(rng) * sigma);
+                map_->addCostWorld(mode[step].position + accumulated * time_scale_, step, params_.gaussian_sample_value);
+              }
+
+              if (limit < horizon_steps)
+              {
+                const Eigen::Vector2d final_pos = mode.back().position + accumulated * time_scale_;
+                for (int step = limit; step < horizon_steps; ++step)
+                  map_->addCostWorld(final_pos, step, params_.gaussian_sample_value);
+              }
+            }
+          }
+        }
+        else // "gaussian_independent" (default): per-step independent sampling
+        {
+          // propagate_uncertainty: 각 스텝의 반경을 시간에 따라 누적 전파
+          // r_k = sqrt(r_{k-1}^2 + (r_input * dt)^2)
+          double prop_maj = 0.0, prop_min = 0.0;
+
+          for (int step = 0; step < limit; ++step)
+          {
+            const auto &prediction = mode[step];
+            double maj = prediction.major_radius;
+            double min = prediction.minor_radius;
+            if (params_.propagate_uncertainty)
+            {
+              prop_maj = std::sqrt(prop_maj * prop_maj + (maj * time_scale_) * (maj * time_scale_));
+              prop_min = std::sqrt(prop_min * prop_min + (min * time_scale_) * (min * time_scale_));
+              maj = prop_maj;
+              min = prop_min;
+            }
+            sampleGaussianStep(prediction.position, maj, min, prediction.angle, step);
+          }
+
+          if (limit < horizon_steps)
+          {
+            const auto &final_prediction = mode.back();
+            double maj = final_prediction.major_radius;
+            double min = final_prediction.minor_radius;
+            if (params_.propagate_uncertainty)
+            {
+              maj = prop_maj;
+              min = prop_min;
+            }
+            for (int step = limit; step < horizon_steps; ++step)
+              sampleGaussianStep(final_prediction.position, maj, min, final_prediction.angle, step);
           }
         }
         continue;
@@ -218,11 +276,17 @@ namespace MPCPlannerStepMap
       map_->markDynamicCircleWorld(current_position, 0, combined_radius);
 
       if (obstacle.prediction.modes.empty())
+      {
+        ROS_WARN_STREAM("[StepMapBuilder] Obstacle " << obstacle.index << " has no prediction modes, skipping.");
         continue;
+      }
 
       const auto &mode = obstacle.prediction.modes.front();
       if (mode.empty())
+      {
+        ROS_WARN_STREAM("[StepMapBuilder] Obstacle " << obstacle.index << " has an empty prediction mode, skipping.");
         continue;
+      }
 
       int limit = std::min(static_cast<int>(mode.size()), horizon_steps - 1);
       for (int step = 1; step <= limit; ++step)
