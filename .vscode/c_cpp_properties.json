@@ -30,6 +30,7 @@
         "/workspace/src/roadmap/roadmap/include/**",
         "/workspace/src/ros_tools/include/**",
         "/workspace/src/scenario_module/include/**",
+        "/workspace/src/guidance_planner/include/**",
         "/usr/include/**"
       ],
       "name": "ros1",

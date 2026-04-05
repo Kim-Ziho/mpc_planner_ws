@@ -154,6 +154,9 @@ Key parameters in `settings.yaml` under `step_map:`:
 
 Homotopy comparison is selectable in `params.yaml` (`homotopy/comparison_function`).
 
+For detailed algorithm flow, class relationships, topology comparison methods, spline fitting, and parameter reference, see:
+**[`docs/visibility-prm.md`](docs/visibility-prm.md)**
+
 ### Topic Remapping Conventions
 - `/input/state_pose` — Robot pose
 - `/input/goal` — Goal position

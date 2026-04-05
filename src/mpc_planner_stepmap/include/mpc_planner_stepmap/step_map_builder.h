@@ -24,7 +24,6 @@ namespace MPCPlannerStepMap
     int gaussian_samples{1000};
     double gaussian_sample_value{0.2};
     double occupancy_threshold{0.4};
-    bool visualize_use_threshold{false};
     bool publish{true};
     std::string topic{"guidance_planner/step_map"};
     std::string frame_id{"map"};
@@ -35,6 +34,8 @@ namespace MPCPlannerStepMap
     bool propagate_uncertainty{false};
     // stage 간 추가 z 오프셋 [m] (stage idx * stage_z_offset 만큼 z에 더해짐)
     double stage_z_offset{0.0};
+    // 0 = 전체 시각화, N>0 → start/terminal 포함 N개 스테이지만 시각화
+    int vis_stages{0};
   };
 
   class StepMapVisualizer;

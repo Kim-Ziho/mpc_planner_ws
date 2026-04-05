@@ -103,13 +103,13 @@ namespace MPCPlannerStepMap
     global_nh.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
     global_nh.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
     global_nh.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
-    global_nh.param("visualize_use_threshold", params_.visualize_use_threshold, params_.visualize_use_threshold);
     global_nh.param("publish", params_.publish, params_.publish);
     global_nh.param("topic", params_.topic, params_.topic);
     global_nh.param("frame_id", params_.frame_id, params_.frame_id);
     global_nh.param("dynamic_method", params_.dynamic_method, params_.dynamic_method);
     global_nh.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     global_nh.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
+    global_nh.param("vis_stages", params_.vis_stages, params_.vis_stages);
 
     nh_ = ros::NodeHandle(parent_nh, "step_map");
     nh_.param("resolution_ratio", params_.resolution_ratio, params_.resolution_ratio);
@@ -120,13 +120,13 @@ namespace MPCPlannerStepMap
     nh_.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
     nh_.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
     nh_.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
-    nh_.param("visualize_use_threshold", params_.visualize_use_threshold, params_.visualize_use_threshold);
     nh_.param("publish", params_.publish, params_.publish);
     nh_.param("topic", params_.topic, params_.topic);
     nh_.param("frame_id", params_.frame_id, params_.frame_id);
     nh_.param("dynamic_method", params_.dynamic_method, params_.dynamic_method);
     nh_.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     nh_.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
+    nh_.param("vis_stages", params_.vis_stages, params_.vis_stages);
   }
 
   double StepMapBuilder::robotRadius(const std::vector<MPCPlanner::Disc> &robot_discs) const

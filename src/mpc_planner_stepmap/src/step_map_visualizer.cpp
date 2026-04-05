@@ -37,7 +37,29 @@ namespace MPCPlannerStepMap
     points_buffer_.clear();
     colors_buffer_.clear();
 
-    size_t expected_points = static_cast<size_t>(map.cellsX()) * static_cast<size_t>(map.cellsY()) * static_cast<size_t>(map.cellsT());
+    // vis_stages에 따라 어떤 시간층을 시각화할지 결정 — O(vis_stages) 전처리
+    int cells_t = map.cellsT();
+    std::vector<bool> vis_mask(cells_t, false);
+    int n = params_.vis_stages;
+    if (n <= 0 || n >= cells_t)
+    {
+      std::fill(vis_mask.begin(), vis_mask.end(), true);
+      n = cells_t;
+    }
+    else if (n == 1)
+    {
+      vis_mask[0] = true;
+    }
+    else
+    {
+      for (int i = 0; i < n; ++i)
+      {
+        int idx = static_cast<int>(std::round(i * (cells_t - 1.0) / (n - 1)));
+        vis_mask[idx] = true;
+      }
+    }
+
+    size_t expected_points = static_cast<size_t>(map.cellsX()) * static_cast<size_t>(map.cellsY()) * static_cast<size_t>(n);
     points_buffer_.reserve(expected_points);
     colors_buffer_.reserve(expected_points);
 
@@ -49,11 +71,11 @@ namespace MPCPlannerStepMap
     {
       for (int gy = 0; gy < map.cellsY(); ++gy)
       {
-        for (int gt = 0; gt < map.cellsT(); ++gt)
+        for (int gt = 0; gt < cells_t; ++gt)
         {
-          double cost = map.cellCost(gx, gy, gt);
-          if (params_.visualize_use_threshold && cost < params_.occupancy_threshold)
+          if (!vis_mask[gt])
             continue;
+          double cost = map.cellCost(gx, gy, gt);
           if (cost <= 0.0)
             continue;
 
@@ -64,11 +86,20 @@ namespace MPCPlannerStepMap
           marker_point.y = world_point.y();
           marker_point.z = map.layerHeight(gt) + static_cast<double>(gt) * params_.stage_z_offset;
 
+          // HSV(hue, 1, 1) → RGB: hue 120°(green) → 0°(red) as cost increases
           std_msgs::ColorRGBA color;
-          color.r = 189.0 / 255.0;
-          color.g = 147.0 / 255.0;
-          color.b = 249.0 / 255.0;
-          color.a = params_.max_alpha * std::clamp(cost, 0.0, 1.0);
+          double hue = (1.0 - std::clamp(cost, 0.0, 1.0)) * 120.0;
+          double f = hue / 60.0;
+          if (hue < 60.0) { // red → yellow
+            color.r = 1.0f;
+            color.g = static_cast<float>(f);
+            color.b = 0.0f;
+          } else { // yellow → green
+            color.r = static_cast<float>(2.0 - f);
+            color.g = 1.0f;
+            color.b = 0.0f;
+          }
+          color.a = params_.max_alpha;
 
           points_buffer_.push_back(marker_point);
           colors_buffer_.push_back(color);
