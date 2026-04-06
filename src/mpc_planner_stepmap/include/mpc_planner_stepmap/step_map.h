@@ -43,6 +43,7 @@ namespace MPCPlannerStepMap
     Eigen::Vector2d localFromWorld(const Eigen::Vector2d &world_point) const;
     double cellCost(int gx, int gy, int gt) const;
     bool cellOccupied(int gx, int gy, int gt) const;
+    void setCostCell(int gx, int gy, int gt, double cost);
 
   private:
     void markStaticCell(int gx, int gy);

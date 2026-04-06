@@ -323,6 +323,13 @@ namespace MPCPlannerStepMap
     return occupancy_[idx(gx, gy, gt)];
   }
 
+  void StepMap::setCostCell(int gx, int gy, int gt, double cost)
+  {
+    if (!insideGrid(gx, gy, gt))
+      return;
+    occupancy_[idx(gx, gy, gt)] = std::clamp(cost, 0.0, 1.0);
+  }
+
   bool StepMap::insideGrid(int gx, int gy, int gt) const
   {
     return gx >= 0 && gx < cells_x_ &&

@@ -36,6 +36,8 @@ namespace MPCPlannerStepMap
     double stage_z_offset{0.0};
     // 0 = 전체 시각화, N>0 → start/terminal 포함 N개 스테이지만 시각화
     int vis_stages{0};
+    // Gaussian 샘플 누적 후 box filter inflation 적용 여부
+    bool inflate_dynamic{false};
   };
 
   class StepMapVisualizer;
@@ -63,6 +65,7 @@ namespace MPCPlannerStepMap
     void copyStaticLayer(const costmap_2d::Costmap2D &costmap);
     void copyDynamicObstacles(const std::vector<MPCPlanner::DynamicObstacle> &dynamic_obstacles,
                               double robot_radius, int horizon_steps);
+    void inflateDynamicLayers(int r_cells);
 
   private:
     StepMapParameters params_;

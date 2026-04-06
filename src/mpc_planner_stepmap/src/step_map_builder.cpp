@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <random>
 
 namespace MPCPlannerStepMap
@@ -14,6 +15,32 @@ namespace MPCPlannerStepMap
   namespace
   {
     constexpr double kMinResolution = 1e-4;
+
+    // 양방향 sliding window max (monotone deque)
+    // output[i] = max(input[j]) for j in [i-r, i+r]
+    void bidirectionalSlidingMax1D(const double *input, double *output, int n, int r)
+    {
+      std::deque<int> dq;
+
+      for (int i = 0; i < n + r; ++i)
+      {
+        if (i < n)
+        {
+          while (!dq.empty() && input[dq.back()] <= input[i])
+            dq.pop_back();
+          dq.push_back(i);
+        }
+
+        int out_idx = i - r;
+        if (out_idx >= 0)
+        {
+          while (!dq.empty() && dq.front() < out_idx - r)
+            dq.pop_front();
+
+          output[out_idx] = dq.empty() ? 0.0 : input[dq.front()];
+        }
+      }
+    }
 
     Eigen::Matrix2d rotationMatrix(double heading)
     {
@@ -80,9 +107,22 @@ namespace MPCPlannerStepMap
     updatePose(robot_position, heading);
     map_->clear();
 
-    copyStaticLayer(*costmap);
     double robot_radius = robotRadius(robot_discs);
-    copyDynamicObstacles(dynamic_obstacles, robot_radius, horizon_steps);
+
+    if (params_.inflate_dynamic)
+    {
+      // inflation 모드: 동적 → inflate → 정적 (이중 inflation 방지)
+      copyDynamicObstacles(dynamic_obstacles, robot_radius, horizon_steps);
+      int r_cells = static_cast<int>(std::ceil(robot_radius / resolution_));
+      if (r_cells > 0)
+        inflateDynamicLayers(r_cells);
+      copyStaticLayer(*costmap);
+    }
+    else
+    {
+      copyStaticLayer(*costmap);
+      copyDynamicObstacles(dynamic_obstacles, robot_radius, horizon_steps);
+    }
 
     if (visualizer_)
     {
@@ -110,6 +150,7 @@ namespace MPCPlannerStepMap
     global_nh.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     global_nh.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     global_nh.param("vis_stages", params_.vis_stages, params_.vis_stages);
+    global_nh.param("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
 
     nh_ = ros::NodeHandle(parent_nh, "step_map");
     nh_.param("resolution_ratio", params_.resolution_ratio, params_.resolution_ratio);
@@ -127,6 +168,7 @@ namespace MPCPlannerStepMap
     nh_.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     nh_.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     nh_.param("vis_stages", params_.vis_stages, params_.vis_stages);
+    nh_.param("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
   }
 
   double StepMapBuilder::robotRadius(const std::vector<MPCPlanner::Disc> &robot_discs) const
@@ -303,6 +345,46 @@ namespace MPCPlannerStepMap
         {
           map_->markDynamicCircleWorld(final_prediction, step, combined_radius);
         }
+      }
+    }
+  }
+
+  void StepMapBuilder::inflateDynamicLayers(int r_cells)
+  {
+    const int cx = map_->cellsX();
+    const int cy = map_->cellsY();
+    const int ct = map_->cellsT();
+
+    // 임시 버퍼: 1개 시간층 크기
+    std::vector<double> temp(static_cast<size_t>(cx) * static_cast<size_t>(cy), 0.0);
+    // 1D 입출력 버퍼 (행/열 단위)
+    const int max_dim = std::max(cx, cy);
+    std::vector<double> row_in(max_dim), row_out(max_dim);
+
+    for (int gt = 0; gt < ct; ++gt)
+    {
+      // Pass 1: 수평 (행 방향) sliding window max
+      for (int gy = 0; gy < cy; ++gy)
+      {
+        for (int gx = 0; gx < cx; ++gx)
+          row_in[gx] = map_->cellCost(gx, gy, gt);
+
+        bidirectionalSlidingMax1D(row_in.data(), row_out.data(), cx, r_cells);
+
+        for (int gx = 0; gx < cx; ++gx)
+          temp[static_cast<size_t>(gy) * cx + gx] = row_out[gx];
+      }
+
+      // Pass 2: 수직 (열 방향) sliding window max
+      for (int gx = 0; gx < cx; ++gx)
+      {
+        for (int gy = 0; gy < cy; ++gy)
+          row_in[gy] = temp[static_cast<size_t>(gy) * cx + gx];
+
+        bidirectionalSlidingMax1D(row_in.data(), row_out.data(), cy, r_cells);
+
+        for (int gy = 0; gy < cy; ++gy)
+          map_->setCostCell(gx, gy, gt, row_out[gy]);
       }
     }
   }
