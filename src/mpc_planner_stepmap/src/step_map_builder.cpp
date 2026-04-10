@@ -109,13 +109,29 @@ namespace MPCPlannerStepMap
 
     double robot_radius = robotRadius(robot_discs);
 
-    if (params_.inflate_dynamic)
+    bool do_inflate = (params_.inflate_dynamic == "box" ||
+                       params_.inflate_dynamic == "circle_max" ||
+                       params_.inflate_dynamic == "circle_sum");
+    if (do_inflate)
     {
       // inflation 모드: 동적 → inflate → 정적 (이중 inflation 방지)
       copyDynamicObstacles(dynamic_obstacles, robot_radius, horizon_steps);
-      int r_cells = static_cast<int>(std::ceil(robot_radius / resolution_));
+      double obstacle_radius = 0.0;
+      if (params_.inflate_include_obstacle_radius)
+      {
+        for (const auto &obs : dynamic_obstacles)
+          obstacle_radius = std::max(obstacle_radius, obs.radius);
+      }
+      int r_cells = static_cast<int>(std::ceil((robot_radius + obstacle_radius) / resolution_));
       if (r_cells > 0)
-        inflateDynamicLayers(r_cells);
+      {
+        if (params_.inflate_dynamic == "circle_max")
+          inflateCircularDynamicLayers(r_cells);
+        else if (params_.inflate_dynamic == "circle_sum")
+          inflateCircularSumDynamicLayers(r_cells);
+        else
+          inflateDynamicLayers(r_cells);
+      }
       copyStaticLayer(*costmap);
     }
     else
@@ -140,6 +156,7 @@ namespace MPCPlannerStepMap
     global_nh.param("forward_offset_ratio", params_.forward_offset_ratio, params_.forward_offset_ratio);
     global_nh.param("max_alpha", params_.max_alpha, params_.max_alpha);
     global_nh.param("z_scale", params_.z_scale, params_.z_scale);
+    global_nh.param("color_gamma", params_.color_gamma, params_.color_gamma);
     global_nh.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
     global_nh.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
     global_nh.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
@@ -150,7 +167,8 @@ namespace MPCPlannerStepMap
     global_nh.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     global_nh.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     global_nh.param("vis_stages", params_.vis_stages, params_.vis_stages);
-    global_nh.param("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
+    global_nh.param<std::string>("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
+    global_nh.param("inflate_include_obstacle_radius", params_.inflate_include_obstacle_radius, params_.inflate_include_obstacle_radius);
 
     nh_ = ros::NodeHandle(parent_nh, "step_map");
     nh_.param("resolution_ratio", params_.resolution_ratio, params_.resolution_ratio);
@@ -158,6 +176,7 @@ namespace MPCPlannerStepMap
     nh_.param("forward_offset_ratio", params_.forward_offset_ratio, params_.forward_offset_ratio);
     nh_.param("max_alpha", params_.max_alpha, params_.max_alpha);
     nh_.param("z_scale", params_.z_scale, params_.z_scale);
+    nh_.param("color_gamma", params_.color_gamma, params_.color_gamma);
     nh_.param("gaussian_samples", params_.gaussian_samples, params_.gaussian_samples);
     nh_.param("gaussian_sample_value", params_.gaussian_sample_value, params_.gaussian_sample_value);
     nh_.param("occupancy_threshold", params_.occupancy_threshold, params_.occupancy_threshold);
@@ -168,7 +187,16 @@ namespace MPCPlannerStepMap
     nh_.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     nh_.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     nh_.param("vis_stages", params_.vis_stages, params_.vis_stages);
-    nh_.param("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
+    nh_.param<std::string>("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
+    nh_.param("inflate_include_obstacle_radius", params_.inflate_include_obstacle_radius, params_.inflate_include_obstacle_radius);
+
+    // 하위 호환: bool 값 "true"/"false" → string 매핑
+    if (params_.inflate_dynamic == "true" || params_.inflate_dynamic == "1")
+      params_.inflate_dynamic = "box";
+    else if (params_.inflate_dynamic == "false" || params_.inflate_dynamic == "0")
+      params_.inflate_dynamic = "none";
+    else if (params_.inflate_dynamic == "circle")
+      params_.inflate_dynamic = "circle_max";
   }
 
   double StepMapBuilder::robotRadius(const std::vector<MPCPlanner::Disc> &robot_discs) const
@@ -388,4 +416,123 @@ namespace MPCPlannerStepMap
       }
     }
   }
+  void StepMapBuilder::inflateCircularDynamicLayers(int r_cells)
+  {
+    const int cx = map_->cellsX();
+    const int cy = map_->cellsY();
+    const int ct = map_->cellsT();
+    const double res = map_->resolution();
+    const double r_m = static_cast<double>(r_cells) * res;
+
+    // 사전 계산: 각 dy에 대한 수평 반폭
+    std::vector<int> half_w(2 * r_cells + 1);
+    for (int dy = -r_cells; dy <= r_cells; ++dy)
+    {
+      double dy_m = static_cast<double>(dy) * res;
+      double dx_max = std::sqrt(std::max(0.0, r_m * r_m - dy_m * dy_m));
+      half_w[dy + r_cells] = static_cast<int>(std::floor(dx_max / res));
+    }
+
+    std::vector<double> src(static_cast<size_t>(cx) * static_cast<size_t>(cy), 0.0);
+
+    for (int gt = 0; gt < ct; ++gt)
+    {
+      // 현재 시간층 복사
+      for (int gy = 0; gy < cy; ++gy)
+        for (int gx = 0; gx < cx; ++gx)
+          src[static_cast<size_t>(gy) * cx + gx] = map_->cellCost(gx, gy, gt);
+
+      // 원형 max inflation
+      for (int gy = 0; gy < cy; ++gy)
+      {
+        for (int gx = 0; gx < cx; ++gx)
+        {
+          double cell_max = 0.0;
+
+          for (int dy = -r_cells; dy <= r_cells; ++dy)
+          {
+            int row = gy + dy;
+            if (row < 0 || row >= cy)
+              continue;
+
+            int hw = half_w[dy + r_cells];
+            int x_start = std::max(0, gx - hw);
+            int x_end = std::min(cx - 1, gx + hw);
+
+            const double *row_ptr = &src[static_cast<size_t>(row) * cx];
+            for (int x = x_start; x <= x_end; ++x)
+              cell_max = std::max(cell_max, row_ptr[x]);
+          }
+
+          if (cell_max > 0.0)
+            map_->setCostCell(gx, gy, gt, cell_max);
+        }
+      }
+    }
+  }
+
+  void StepMapBuilder::inflateCircularSumDynamicLayers(int r_cells)
+  {
+    const int cx = map_->cellsX();
+    const int cy = map_->cellsY();
+    const int ct = map_->cellsT();
+    const double res = map_->resolution();
+    const double r_m = static_cast<double>(r_cells) * res;
+
+    // 사전 계산: 각 dy에 대한 수평 반폭
+    std::vector<int> half_w(2 * r_cells + 1);
+    for (int dy = -r_cells; dy <= r_cells; ++dy)
+    {
+      double dy_m = static_cast<double>(dy) * res;
+      double dx_max = std::sqrt(std::max(0.0, r_m * r_m - dy_m * dy_m));
+      half_w[dy + r_cells] = static_cast<int>(std::floor(dx_max / res));
+    }
+
+    std::vector<double> src(static_cast<size_t>(cx) * static_cast<size_t>(cy), 0.0);
+    // 행별 prefix sum 캐시: prefix[gy][gx+1] = src[gy][0..gx] 합
+    std::vector<double> prefix(static_cast<size_t>(cy) * static_cast<size_t>(cx + 1), 0.0);
+
+    for (int gt = 0; gt < ct; ++gt)
+    {
+      // 현재 시간층 복사 및 행별 prefix sum 미리 계산
+      for (int gy = 0; gy < cy; ++gy)
+      {
+        double* p = &prefix[static_cast<size_t>(gy) * (cx + 1)];
+        p[0] = 0.0;
+        for (int gx = 0; gx < cx; ++gx)
+        {
+          double v = map_->cellCost(gx, gy, gt);
+          src[static_cast<size_t>(gy) * cx + gx] = v;
+          p[gx + 1] = p[gx] + v;
+        }
+      }
+
+      // 원형 sum inflation: prefix sum으로 행별 구간 합 O(1) 쿼리
+      for (int gy = 0; gy < cy; ++gy)
+      {
+        for (int gx = 0; gx < cx; ++gx)
+        {
+          double total = 0.0;
+
+          for (int dy = -r_cells; dy <= r_cells; ++dy)
+          {
+            int row = gy + dy;
+            if (row < 0 || row >= cy)
+              continue;
+
+            int hw = half_w[dy + r_cells];
+            int x_start = std::max(0, gx - hw);
+            int x_end   = std::min(cx - 1, gx + hw);
+
+            const double* p = &prefix[static_cast<size_t>(row) * (cx + 1)];
+            total += p[x_end + 1] - p[x_start];
+          }
+
+          if (total > 0.0)
+            map_->setCostCell(gx, gy, gt, total);
+        }
+      }
+    }
+  }
+
 } // namespace MPCPlannerStepMap

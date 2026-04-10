@@ -39,9 +39,11 @@ range_ = max_ − min_
 
 **샘플링:**
 ```
-x = min_.x + U(0,1) × range_.x
-y = min_.y + U(0,1) × range_.y
-t = U{1, 2, ..., N-2}  (양 끝 start(t=0), goal(t=N) 제외)
+x = min_.x + rand × range_.x
+y = min_.y + rand × range_.y
+t = 1 ~ N-2 중 균일 정수 랜덤  (양 끝 start(t=0), goal(t=N) 제외)
+
+  rand : [0, 1] 균일 난수 (random_generator_.Double())
 ```
 
 - 결과적으로 **start와 goals가 이루는 axis-aligned bounding box** 안에서 균등 샘플링
@@ -52,7 +54,9 @@ t = U{1, 2, ..., N-2}  (양 끝 start(t=0), goal(t=N) 제외)
 `SampleUniformly`에 추가로 orientation 차원을 샘플링:
 
 ```
-θ = U(0.785398 − π/2, 0.785398 + π/2)  ≈ U(−0.785, 1.571)  [rad]
+θ = (0.785398 − π/2) + rand × π  ≈ −0.785 ~ 1.571 [rad] 범위에서 균등 선택
+
+  rand : [0, 1] 균일 난수 (random_generator_.Double())
 ```
 
 `SpaceTimePoint::numStates() == 3`일 때 (예: Dubins 경로를 사용하는 `UniformWithOrientation` 모드) 자동 활성화.
@@ -61,19 +65,34 @@ t = U{1, 2, ..., N-2}  (양 끝 start(t=0), goal(t=N) 제외)
 
 `GlobalGuidance::LoadReferencePath()` 또는 `SampleAlongReferencePath()` 호출 시 활성화 (`sampler.cpp:114-135`).
 
-**종방향(longitudinal):**
-```
-s = cur_s + U(0,1) × (s_best − cur_s)
-```
-`s_best = cur_s + DT × N × reference_velocity_`
+기준 경로(spline)를 기준으로 **종방향(경로 따라)**과 **횡방향(경로에 수직)**을 각각 독립적으로 샘플링한 뒤, world 좌표 (x, y)로 변환한다.
 
-**횡방향(lateral):**
+**① 종방향: 경로 위 어느 위치에서 뽑을지 결정**
+
+기준 경로의 호장(arc-length) 파라미터 `s`를 `[cur_s, s_best]` 범위에서 균등하게 선택한다.
+
 ```
-y_dev = min_lat + U(0,1) × range_lat
-      = −road_width_left + U(0,1) × (road_width_left + road_width_right)
+s = cur_s + rand × (s_best − cur_s)
+
+  cur_s  : 현재 로봇이 경로에서 위치한 s값
+  s_best : cur_s + DT × N × reference_velocity_  (계획 지평선 끝)
+  rand   : [0, 1] 균일 난수 (random_generator_.Double())
 ```
 
-**공간 좌표 변환:**
+**② 횡방향: 경로에서 얼마나 옆으로 벗어날지 결정**
+
+`s` 위치에서 경로 법선 방향으로 `[-road_width_left, +road_width_right]` 사이의 거리를 균등하게 선택한다.
+
+```
+y_dev = −road_width_left + rand × (road_width_left + road_width_right)
+```
+
+좌측(-방향)과 우측(+방향)을 대칭 또는 비대칭으로 설정할 수 있다.
+
+**③ world 좌표 변환**
+
+`s`에서의 경로 접선에 수직인 법선 벡터를 이용해 최종 (x, y)를 계산한다.
+
 ```
 (x, y) = reference_path.getPoint(s) + reference_path.getOrthogonal(s) × y_dev
 ```

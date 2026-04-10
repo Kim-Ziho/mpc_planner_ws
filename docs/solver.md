@@ -148,13 +148,15 @@ z = [u_0, ..., u_{nu-1},  x_0, ..., x_{nx-1}]
 
 ### 사용 가능한 모델 구현체
 
-| 클래스 | nu | nx | 상태 | 입력 | 용도 |
-|--------|----|----|------|------|------|
-| `SecondOrderUnicycleModel` | 2 | 4 | x, y, psi, v | a, w | 기본 유니사이클 |
-| `ContouringSecondOrderUnicycleModel` | 2 | 5 | x, y, psi, v, spline | a, w | 경로 추적 (T-MPC 기본) |
-| `ContouringSecondOrderUnicycleModelWithSlack` | 2 | 6 | x, y, psi, v, spline, slack | a, w | SH-MPC (Safe Horizon) |
-| `ContouringSecondOrderUnicycleModelCurvatureAware` | 2 | 5 | x, y, psi, v, spline | a, w | CA-MPCC (FORCES 전용) |
-| `BicycleModel2ndOrder` | 3 | 6 | x, y, psi, v, delta, spline | a, w, slack | 동적 스티어링 자전거 모델 |
+| 클래스 | nu | nx | 상태 | 입력 | max v | 용도 |
+|--------|----|----|------|------|-------|------|
+| `SecondOrderUnicycleModel` | 2 | 4 | x, y, psi, v | a, w | 3.0 m/s | 기본 유니사이클 |
+| `ContouringSecondOrderUnicycleModel` | 2 | 5 | x, y, psi, v, spline | a, w | 3.0 m/s | 경로 추적 (T-MPC 기본) |
+| `ContouringSecondOrderUnicycleModelWithSlack` | 2 | 6 | x, y, psi, v, spline, slack | a, w | 3.0 m/s | SH-MPC (Safe Horizon) |
+| `ContouringSecondOrderUnicycleModelCurvatureAware` | 2 | 5 | x, y, psi, v, spline | a, w | 3.0 m/s | CA-MPCC (FORCES 전용) |
+| `BicycleModel2ndOrder` | 3 | 6 | x, y, psi, v, delta, spline | a, w, slack | 5.0 m/s | 동적 스티어링 자전거 모델 |
+
+> `max v`는 `solver_model.py`의 `upper_bound` 기준. `guidance_planner`의 `max_velocity`(노드 간 연결 속도 상한)도 동일하게 3.0 m/s로 맞춰져 있음 (`guidance_planner.yaml`).
 
 `spline` 상태는 스플라인 파라미터 s이며, `v`의 적분으로 전진: `ds/dt = v`.
 
@@ -289,47 +291,112 @@ num parameters: 203
 
 ## 설정 파일 레퍼런스 (settings.yaml)
 
+각 시스템마다 별도의 `settings.yaml`이 존재한다:
+
+| 경로 | 시스템 |
+|------|--------|
+| `mpc_planner_jackalsimulator/config/settings.yaml` | Jackal 시뮬레이터 (N=30, num_segments=5) |
+| `mpc_planner_rosnavigation/config/settings.yaml` | ROS Navigation (N=20, num_segments=8) |
+| `mpc_planner_jackal/config/settings.yaml` | 실제 Jackal 로봇 |
+| `mpc_planner_dingo/config/settings.yaml` | Dingo 로봇 |
+
+### 공통 키
+
 ```yaml
-name: "jackalsimulator"       # 솔버 식별 이름 (파일/함수 이름에 사용)
+name: "rosnavigation"         # 솔버 식별 이름 (파일/함수 이름에 사용)
 N: 20                         # 시간 호라이즌 (스테이지 수, guidance_planner T/N 과 일치해야 함)
 integrator_step: 0.2          # [s] RK4 적분 스텝 크기
+n_discs: 1                    # 로봇을 모델링하는 디스크 수
+
+enable_output: true           # 로봇으로 명령 출력 활성화
+control_frequency: 20         # [Hz] MPC 제어 주기
+deceleration_at_infeasible: 3.0  # [m/s²] 솔버 비실현 시 감속도
+max_obstacles: 12             # 동적 장애물 최대 수 (솔버 파라미터 크기 결정)
+robot_radius: 0.325           # [m] 로봇 반경
+robot:
+  length: 0.65                # [m]
+  width: 0.65                 # [m]
+  com_to_back: 0.0            # [m] 무게중심에서 후방까지 거리
+obstacle_radius: 0.4          # [m] 장애물 반경 (메시지에 없을 때 사용)
+
+debug_output: false           # 디버그 출력 활성화
+debug_limits: false           # 상태/입력 한계 도달 시 출력
+debug_visuals: false          # 추가 시각화 활성화
 
 solver_settings:
   solver: "acados"            # "acados" | "forces"
-
   acados:
     solver_type: SQP_RTI      # SQP_RTI (실시간) | SQP (전체 수렴)
-    iterations: 10            # SQP_RTI 반복 횟수
-
+    iterations: 4             # SQP_RTI 반복 횟수 (jackalsimulator=10, rosnavigation=4)
   forces:
     use_sqp: false            # false=PDIP (기본) | true=SQP
     floating_license: true    # FORCES Pro 부동 라이선스 사용 여부
     enable_timeout: true      # 솔버 타임아웃 활성화
     init: 2                   # 0=cold start | 1=centered | 2=warm start
-
   tolstat: 1e-3               # 정상성 공차
 
 contouring:
-  num_segments: 5             # 스플라인 세그먼트 수 (N과 무관, 보통 3~10)
+  num_segments: 8             # 스플라인 세그먼트 수 (jackalsimulator=5, rosnavigation=8)
   dynamic_velocity_reference: false  # PathReferenceVelocityModule 연동 여부
+  preview: 0.0                # (미사용)
+  add_road_constraints: true  # (미사용)
+
+t-mpc:
+  use_t-mpc++: true                    # T-MPC++ 활성화 (비가이드 플래너 병렬 추가)
+  enable_constraints: true             # GuidanceConstraintModule 활성화
+  highlight_selected: true             # 선택된 궤적 빨간색 강조
+  warmstart_with_mpc_solution: false   # false=항상 guidance 궤적 | true=MPC 풀이 재사용
+
+probabilistic:
+  enable: true                # 불확실성 고려 활성화
+  risk: 0.05                  # [0~1] 허용 위험도
+  propagate_uncertainty: false # 시간에 따른 불확실성 전파 여부
+
+road:
+  two_way: false              # 양방향 도로 여부
+  width: 6.0                  # [m] 도로 폭
+
+shift_previous_solution_forward: false  # 이전 MPC 풀이를 앞으로 시프트 (권장: false)
 
 weights:                      # 목적함수 가중치 (RQT reconfigure로 런타임 조정 가능)
+  goal: 10.
   velocity: 0.55
   acceleration: 0.34
   angular_velocity: 0.85
+  reference_velocity: 2.0
   contour: 0.05
   lag: 0.75
-  terminal_angle: 0.1
-  terminal_contouring: 0.1
-  reference_velocity: 0.1
+  slack: 10000.
+  terminal_angle: 100.0
+  terminal_contouring: 10.0
 
-robot:
-  length: 0.65                # [m] 로봇 길이
-  width: 0.65                 # [m] 로봇 너비
+visualization:
+  draw_every: 5               # 몇 스테이지마다 시각화할지
 
-t-mpc:
-  use_t-mpc++: true           # T-MPC++ 활성화
-  enable_constraints: true    # GuidanceConstraintModule 활성화
+recording:
+  enable: false
+  folder: "/workspace/data/experiments"
+  file: experiment_name
+  timestamp: true
+  num_experiments: 3
+```
+
+### 시스템별 전용 키
+
+```yaml
+# rosnavigation 전용
+downsample_path: 10           # 참조 경로 다운샘플링 인수
+step_map:
+  enable: true                # StepMap 활성화 (StepMapBuilder 연동)
+decomp:
+  range: 2.0                  # [m] 볼록 분해 범위
+  max_constraints: 12         # DecompConstraintModule 최대 halfspace 수
+
+# jackalsimulator / jackal 전용
+linearized_constraints:
+  add_halfspaces: 0           # 정적 제약 추가 수 (도로 경계 등)
+scenario_constraints:
+  parallel_solvers: 4         # SH-MPC 병렬 솔버 수
 ```
 
 ---

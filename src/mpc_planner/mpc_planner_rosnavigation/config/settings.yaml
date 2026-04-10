@@ -27,7 +27,7 @@ recording:
   num_experiments: 3
 
 step_map:
-  enable: true
+  enable: false
 
 debug_output: false
 debug_limits: false

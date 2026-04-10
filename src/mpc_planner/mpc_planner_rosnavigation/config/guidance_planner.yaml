@@ -74,10 +74,12 @@ guidance_planner:
     topic: guidance_planner/step_map
     frame_id: map
     gaussian_samples: 1000         # 가우시안 샘플 수
-    gaussian_sample_value: 0.05     # 샘플당 코스트 누적 값
+    gaussian_sample_value: 0.001     # 샘플당 코스트 누적 값 (1000 × 0.001 = 1.0 총 확률 질량)
     occupancy_threshold: 0.5       # 코스트가 이 값 이상이면 점유로 판단
     dynamic_method: gaussian_independent  # gaussian_independent / gaussian_trajectory / (deterministic: 자동)
     propagate_uncertainty: true          # gaussian_independent에서 불확실성 누적 전파 여부
     stage_z_offset: 0.0                  # stage 간 추가 z 오프셋 [m] (0.0 = 오프셋 없음)
     vis_stages: 5                        # 0=전체, N>0 → start/terminal 포함 N개 스테이지만 시각화
-    inflate_dynamic: true                # Gaussian 샘플 후 box filter inflation 적용 여부
+    inflate_dynamic: circle_sum          # "none" / "box" / "circle_max" / "circle_sum"
+    inflate_include_obstacle_radius: true  # true이면 동적 장애물 radius를 로봇 반경에 더해 inflation
+    color_gamma: 0.3                       # 시각화 gamma 보정 (1.0=선형, <1이면 낮은 cost 차이 강조)

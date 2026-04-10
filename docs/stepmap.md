@@ -182,6 +182,7 @@ ROS 파라미터 서버의 `/guidance_planner/step_map` (또는 상위 노드) �
 | `propagate_uncertainty` | false | Gaussian 불확실성 누적 전파 여부 |
 | `z_scale` | 0.5 | 시각화 큐브 Z 높이 (m/layer) |
 | `max_alpha` | 0.3 | 시각화 투명도 최대값 |
+| `color_gamma` | 0.5 | 시각화 색상 gamma 보정 (1.0 = 선형, <1이면 낮은 cost 차이 강조) |
 | `stage_z_offset` | 0.0 | 시각화 스테이지 간 Z 추가 오프셋 |
 | `vis_stages` | 0 | 시각화할 시간층 수. 0 = 전체, N>0 → start/terminal 포함 N개 스테이지만 시각화 |
 | `topic` | `"guidance_planner/step_map"` | 시각화 발행 토픽 |
@@ -193,8 +194,31 @@ ROS 파라미터 서버의 `/guidance_planner/step_map` (또는 상위 노드) �
 
 - 마커 유형: `CUBE_LIST` (각 셀 = 큐브)
 - 크기: `x, y = resolution`, `z = z_scale`
-- 색상: HSV 그라디언트 (`hue = (1 - cost) * 120°`) → cost 1.0 = 빨간색, 0.5 = 노란색, 0.0 = 초록색 (불투명)
+- 색상: HSV 그라디언트 (`hue = (1 - display_cost) * 120°`) → cost 1.0 = 빨간색, 0.5 = 노란색, 0.0 = 초록색
+  - `display_cost = pow(cost, color_gamma)` — gamma correction 적용 후 hue 계산
   - 알파: `max_alpha` 고정 (cost와 무관)
+
+### color_gamma — 색상 Gamma 보정
+
+Gaussian 샘플링 특성상 낮은 cost 값(0.1~0.4)이 많은데, 선형 매핑(`color_gamma=1.0`)에서는 이들이 모두 비슷한 녹색으로 표현되어 구별이 어렵다. `color_gamma < 1`을 적용하면 낮은 cost 값들이 노랑~주황 영역으로 펼쳐진다.
+
+```
+display_cost = pow(cost, color_gamma)
+hue          = (1.0 - display_cost) * 120°
+```
+
+**색상 변화 비교 (gamma=0.5 vs 선형)**
+
+| cost 값 | 선형(gamma=1.0) hue | gamma=0.5 hue | 색상 |
+|--------|---------------------|---------------|------|
+| 0.1 | 108° | 82° | 초록 → 연녹-노랑 |
+| 0.2 | 96° | 66° | 초록 → 노랑 |
+| 0.4 | 72° | 44° | 연초록 → 주황-노랑 |
+| 0.6 | 48° | 27° | 노랑 → 주황 |
+| 1.0 | 0° | 0° | 빨강 (변화 없음) |
+
+- `color_gamma: 1.0` → 기존 선형 동작과 동일 (regression 없음)
+- 값이 작을수록 낮은 cost 간 색 차이가 커짐 (권장 범위: 0.3~0.7)
   - 색상 계산은 O(1) — HSV→RGB 수식 직접 계산, 분기 최대 1회
 - `cost <= 0.0`인 셀은 발행하지 않음 (occupancy_threshold 기반 필터링은 없음)
 - Z 좌표: `time_scale * gt + stage_z_offset * gt` → 시간층을 Z축에 표현

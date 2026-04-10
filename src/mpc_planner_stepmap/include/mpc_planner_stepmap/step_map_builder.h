@@ -21,6 +21,8 @@ namespace MPCPlannerStepMap
     double forward_offset_ratio{0.25};
     double max_alpha{0.3};
     double z_scale{0.5};
+    // gamma < 1이면 낮은 cost 값들이 더 넓은 색 범위에 펼쳐짐 (1.0 = 선형, 기본 0.5)
+    double color_gamma{0.5};
     int gaussian_samples{1000};
     double gaussian_sample_value{0.2};
     double occupancy_threshold{0.4};
@@ -36,8 +38,11 @@ namespace MPCPlannerStepMap
     double stage_z_offset{0.0};
     // 0 = 전체 시각화, N>0 → start/terminal 포함 N개 스테이지만 시각화
     int vis_stages{0};
-    // Gaussian 샘플 누적 후 box filter inflation 적용 여부
-    bool inflate_dynamic{false};
+    // "none" = inflation 없음, "box" = box filter,
+    // "circle_max" = 원형 커널 직접 탐색 max, "circle_sum" = 원형 커널 prefix sum
+    std::string inflate_dynamic{"none"};
+    // true이면 동적 장애물의 radius를 로봇 반경에 더해 inflation 반경 계산
+    bool inflate_include_obstacle_radius{false};
   };
 
   class StepMapVisualizer;
@@ -66,6 +71,8 @@ namespace MPCPlannerStepMap
     void copyDynamicObstacles(const std::vector<MPCPlanner::DynamicObstacle> &dynamic_obstacles,
                               double robot_radius, int horizon_steps);
     void inflateDynamicLayers(int r_cells);
+    void inflateCircularDynamicLayers(int r_cells);
+    void inflateCircularSumDynamicLayers(int r_cells);
 
   private:
     StepMapParameters params_;
