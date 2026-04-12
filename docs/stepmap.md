@@ -261,3 +261,235 @@ vis_stages >= 3:
 
 **메모리 사용 예시**: 해상도 0.2m, 그리드 20×20m, horizon=10  
 → `100 × 100 × 10 × 8 bytes = 800 KB`
+
+---
+
+## 알고리즘 연결 구조
+
+### 전파 경로 — GuidanceConstraints → Environment
+
+StepMap은 생성되는 즉시 단일 진입점(`SetStepMap`)을 통해 계층적으로 전파된다.
+
+```
+GuidanceConstraints::update()                    [guidance_constraints.cpp:87-114]
+  │
+  ├── StepMapBuilder::update(costmap, pos, psi, obstacles, robot_discs, N, DT)
+  │       → shared_ptr<StepMap> 반환
+  │
+  ├── step_map_->valid() 확인
+  │       참  → GlobalGuidance::SetStepMap(step_map_)
+  │       거짓 → GlobalGuidance::SetStepMap(nullptr)
+  │
+  └── GlobalGuidance::SetStepMap()              [global_guidance.cpp:99-103]
+        └── PRM::SetStepMap()                  [prm.cpp:73-77]
+              └── Environment::SetStepMap()    [environment.cpp:18-21]
+                    └── step_map_ 멤버 저장
+```
+
+`_enable_step_map = false`이면 `step_map_.reset()`을 호출하고 `SetStepMap(nullptr)`을 전달하여 체인 전체가 StepMap 없이 동작한다.
+
+```cpp
+// 비활성화 분기 (guidance_constraints.cpp:111-114)
+else
+{
+    step_map_.reset();
+    global_guidance_->SetStepMap(nullptr);
+}
+```
+
+---
+
+### StepMap이 알고리즘에 영향을 주는 3개 지점
+
+#### 1. Environment::InCollision() — PRM 노드 샘플링 충돌 판정
+
+**파일:** `environment.cpp:23-45` (일반) / `environment.cpp:323-349` (격자)
+
+PRM이 새 노드를 샘플링할 때마다 호출된다. 3단계 필터로 구성되며, 앞 단계에서 충돌이 감지되면 뒤 단계는 건너뛴다.
+
+```
+InCollision(point, margin) 흐름:
+  ┌─────────────────────────────────────────────────────────────┐
+  │ 1단계: StepMap (빠름, O(1))                                  │
+  │   layer = clamp(round(point.Time()), 0, cells_t-1)          │
+  │   if step_map_->isOccupiedWorld(point.Pos(), layer):        │
+  │     return true  ◄── 조기 종료                               │
+  │                                                             │
+  │ 2단계: 동적 장애물 직접 거리 비교                              │
+  │   for each obstacle:                                        │
+  │     if dist(obstacle[k], point.Pos()) < radius + margin:    │
+  │       return true                                           │
+  │                                                             │
+  │ 3단계: 정적 halfspace 검사                                   │
+  │   if A^T * point.Pos() > b: return true                     │
+  │                                                             │
+  │   return false                                              │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+**역할:** Guard 노드 위치 결정, PRM 그래프 내 유효 노드 판별
+
+#### 2. Environment::IsVisibleRayCast() — Guard 간 가시성 판정 (Connector 추가)
+
+**파일:** `environment.cpp:59-112`
+
+두 Guard 노드 사이에 엣지(Connector)를 추가할 수 있는지 결정한다. 시공간 선분이 충돌 없이 통과 가능한지를 확인한다.
+
+```
+IsVisibleRayCast(point_one, point_two) 흐름:
+  ┌─────────────────────────────────────────────────────────────┐
+  │ 1단계: StepMap 3D DDA (O(cells_x + cells_y + cells_t))      │
+  │   if step_map_->isSegmentOccupiedWorld(                     │
+  │       p1.Pos(), p1.Time(), p2.Pos(), p2.Time()):            │
+  │     return false  ◄── 조기 종료                              │
+  │                                                             │
+  │ 2단계: 동적 장애물 3D skew-line 거리 계산                     │
+  │   for each obstacle, for each step k:                       │
+  │     a = point_one.PosTime()   // 시공간 좌표 (x, y, t)      │
+  │     b = point_two - point_one                               │
+  │     c = (obstacle[k].x, obstacle[k].y, k)                  │
+  │     d = obstacle[k+1] - c                                   │
+  │     e = a - c                                               │
+  │     A = -(b·b)(d·d) + (b·d)²                               │
+  │     s, t = clamp(공식값, 0, 1)                               │
+  │     dist = ||e + b·t - d·s||                                │
+  │     if dist < obstacle.radius: return false                  │
+  │                                                             │
+  │   return true                                               │
+  └─────────────────────────────────────────────────────────────┘
+```
+
+**역할:** PRM 그래프 엣지 구성 → 위상 경로 탐색 → 안내 궤적 생성
+
+#### 3. GuidanceConstraints::setGoals() — 목표점 차단 로직
+
+**파일:** `guidance_constraints.cpp:228-239`
+
+참조 경로를 따라 격자 형태로 생성된 각 목표점(goal)에 대해 StepMap으로 점유 여부를 확인한다.
+
+```
+setGoals() 흐름:
+  for i in n_long (종방향 목표):
+    for j in n_lat (횡방향 목표):
+      res = line_point + normal * dist_lat[j]   // 목표 좌표 계산
+
+      goal_blocked = false
+      if _enable_step_map and step_map_->valid():
+        goal_layer = max(0, N-1)                // 최종 시간층
+        goal_blocked = step_map_->isOccupiedWorld(res, goal_layer)
+
+      if goal_blocked:
+        if (i==0 and j==middle_lat):            // 정중앙 첫 번째 goal은 예외
+          goal_blocked = false                  // 강제 유지 (계획 실패 방지)
+        else:
+          continue                              // 해당 goal 제외
+
+      goals.emplace_back(result, cost)
+```
+
+`(i==0, j==middle_lat)`은 참조 경로 정중앙의 첫 번째 목표로, StepMap이 점유로 판정하더라도 제거하지 않는다. 이는 유효한 목표가 하나도 없는 상황(= 계획 실패)을 방지하기 위한 안전장치다.
+
+### 알고리즘 영향 지점 요약
+
+| 지점 | 파일:라인 | StepMap 호출 | 역할 |
+|------|-----------|-------------|------|
+| `InCollision()` | environment.cpp:25-29 | `isOccupiedWorld(pos, t)` | PRM 노드 샘플링 유효성 판별 |
+| `IsVisibleRayCast()` | environment.cpp:61-65 | `isSegmentOccupiedWorld(p0,t0,p1,t1)` | Guard 간 엣지(Connector) 추가 결정 |
+| `setGoals()` | guidance_constraints.cpp:228-231 | `isOccupiedWorld(pos, N-1)` | 목표점 격자에서 차단된 goal 제거 |
+
+---
+
+## 모듈 분리 분석
+
+### 잘 분리된 설계 결정
+
+#### 단일 진입점 전파
+
+`SetStepMap()`이 각 계층(GlobalGuidance → PRM → Environment)에 정의되어 있으며, 호출자는 최상위(`global_guidance_->SetStepMap(...)`)만 알면 된다. 내부 계층 구조는 외부에 노출되지 않는다.
+
+```
+GuidanceConstraints (생성/갱신)
+       │  SetStepMap()
+       ▼
+  GlobalGuidance      ← guidance_planner의 공개 인터페이스
+       │  SetStepMap()
+       ▼
+     PRM              ← 내부, 외부 직접 접근 불가
+       │  SetStepMap()
+       ▼
+  Environment         ← 충돌 판정의 실질 구현체
+```
+
+#### shared_ptr 수명 관리
+
+`StepMapBuilder::update()`는 매 주기마다 내부 `map_` 포인터를 반환한다. `GuidanceConstraints`, `GlobalGuidance`, `Environment`가 동일한 인스턴스를 `shared_ptr`로 참조하므로 복사 비용이 없고 수명이 자동 관리된다.
+
+#### `_enable_step_map` 플래그 — 완전 비활성화
+
+YAML 설정 `step_map.enable: false` 한 줄로 StepMap 경로 전체를 우회할 수 있다. `InCollision`, `IsVisibleRayCast`, `setGoals` 모두 `step_map_ && step_map_->valid()` 가드를 포함하므로, 플래그 비활성화 시 동작이 StepMap 도입 이전과 동일하다.
+
+#### `step_map_->valid()` — Fallback 보장
+
+`StepMapBuilder::update()`가 costmap 미수신 등으로 유효한 맵을 반환하지 못하는 경우, `valid() == false`이므로 StepMap 경로가 조용히 스킵된다. 계획기는 동적 장애물 직접 검사만으로 동작한다.
+
+#### 단방향 의존성
+
+`mpc_planner_stepmap`은 `guidance_planner`를 의존하지 않는다. 단방향 구조이므로 순환 참조가 발생하지 않는다.
+
+```
+mpc_planner_modules  ──→  mpc_planner_stepmap
+guidance_planner     ──→  mpc_planner_stepmap
+                          (역방향 없음)
+```
+
+---
+
+### 혼용/중복 구조와 그 이유
+
+#### 동적 장애물의 이중 표현
+
+동적 장애물은 두 경로로 동시에 guidance_planner에 전달된다.
+
+| 경로 | 진입점 | 저장 위치 |
+|------|--------|-----------|
+| StepMap 인코딩 | `StepMapBuilder::update()` → `copyDynamicObstacles()` | `StepMap::occupancy_[]` |
+| 직접 전달 | `GlobalGuidance::LoadObstacles()` | `Environment::dynamic_obstacles_[]` |
+
+`gym_cpp.cpp`에서 이 두 호출이 나란히 나타난다:
+```cpp
+guidance.SetStepMap(step_map);                          // StepMap 경로 (장애물 포함)
+guidance.LoadObstacles(pedestrians, static_obstacles);  // 직접 전달 경로
+```
+
+#### 이중 충돌 검사의 의도적 설계
+
+`InCollision()`과 `IsVisibleRayCast()` 모두 StepMap 1차 검사 → 동적 장애물 2차 검사 순서로 동작한다. 이는 버그가 아니라 의도적 설계다.
+
+**StepMap의 역할 (1차 — 속도 우선):**
+- 이산화된 그리드이므로 O(1) 점 검사 / O(cells) DDA 선분 검사로 빠른 조기 종료
+- 정적 + 동적 장애물을 하나의 구조로 통합
+- 단, 이산화 오류(양자화 아티팩트)가 발생할 수 있음
+
+**동적 장애물 직접 검사의 역할 (2차 — 정확도 우선):**
+- StepMap을 통과한 경우에도 연속 좌표계에서 정확한 거리 계산 수행
+- 이산화 오류로 StepMap이 자유 공간으로 판정한 영역을 재검사
+- Safety net 역할 → StepMap이 없는 경우와 동일한 안전 보장
+
+```
+이산화 오류 예시:
+  장애물 반경 = 0.5m, StepMap 해상도 = 0.4m (resolution_ratio = 2)
+  → 장애물 경계 근방에서 최대 0.4m 오차 발생 가능
+  → 2차 거리 검사가 이를 보정
+```
+
+---
+
+### 아키텍처 Trade-off 요약
+
+| 항목 | 설계 선택 | Trade-off |
+|------|----------|-----------|
+| 충돌 검사 순서 | StepMap 먼저, 직접 검사 나중 | 속도(조기 종료) vs. 정확도(이산화 오류 보정) |
+| 동적 장애물 이중 표현 | StepMap + direct 병존 | 구현 단순성 vs. 메모리·CPU 중복 |
+| StepMap 해상도 | `costmap_res × resolution_ratio` | 해상도 낮을수록 빠름, 이산화 오류 증가 |
+| Lazy Initialization | 생성자 + update() 양쪽 초기화 코드 | ROS 타이밍 방어 vs. 코드 중복 |
+| 목표점 예외 처리 | 정중앙 goal 항상 유지 | 계획 안정성 vs. StepMap 판정 신뢰 손실 |
