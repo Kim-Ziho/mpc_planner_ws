@@ -79,17 +79,30 @@ State = (gx, gy, gt, θ_bin, h)
 
 #### Heading 이산화
 
-셀 전이의 방향을 heading으로 사용한다. 9-connectivity에서 제자리(`dx=0, dy=0`)를 제외한 8방향이 자연스러운 heading bin을 형성한다:
+셀 전이의 방향을 heading으로 사용한다. StepMap은 로봇 heading 기준 전방 반공간(forward halfspace)을 커버하며, `rotateToGoal`이 MPC 시작 전 로봇을 reference path 방향으로 정렬하므로, heading bin은 **StepMap 로컬 좌표 기준 전방 반원(±90°)**만 커버하면 충분하다.
+
+전방 반원을 8등분하여 22.5° 간격의 heading bin을 구성한다:
 
 ```
-방향 인덱스:
-  5  6  7        NW  N  NE
-  4  ·  0   →    W   ·  E
-  3  2  1        SW  S  SE
+StepMap 로컬 좌표 기준 (X = 로봇 전진 방향):
 
-θ_bin ∈ {0, 1, 2, 3, 4, 5, 6, 7}  (45° 간격)
+       3   4   5
+     2           6
+   1       X       7      
+
+  bin 0: -90.0° (좌측 직각)     bin 4:   0.0° (정면)
+  bin 1: -67.5°                bin 5:  22.5°
+  bin 2: -45.0°                bin 6:  45.0°
+  bin 3: -22.5°                bin 7:  90.0° (우측 직각)
+
+θ_bin ∈ {0, 1, 2, 3, 4, 5, 6, 7}  (22.5° 간격, 범위 [-π/2, +π/2])
 + STATIONARY = 8 (제자리, 시작점에서만)
 ```
+
+**설계 근거:**
+- StepMap이 `forward_offset_ratio`로 전방 편향된 그리드이므로, 후방 heading bin에 대응하는 셀이 거의 없다
+- 후진 불가(`v ≥ 0`) 제약으로 전방 반원 외의 heading은 물리적으로 불필요
+- 45° 간격(8방향/360°) 대비 22.5° 간격으로 **Δψ_max = 34.4° 내에 이웃 bin 1~2개**가 존재하여 전이가 자연스러움
 
 ### 3.2 전이 규칙 — 동역학 제약 반영
 
@@ -118,22 +131,17 @@ resolution = 0.1m, d_max = 0.6m → r_reach = 6
 
 **해상도와 연산량의 trade-off**: `r_reach`가 커지면 이웃 수가 O(r²)로 증가한다. 실용적 범위는 `r_reach ≤ 4~5` (이웃 수 ≤ 50~78개).
 
-#### 제약 2: 방향 연속성 (각속도 제한) — 전진만 허용
+#### 제약 2: 방향 연속성 (각속도 제한)
 
 ```
-θ_next = atan2(dy, dx)   (셀 전이 방향)
+θ_next = atan2(dy, dx)   (셀 전이 방향, 로컬 좌표 기준)
 Δθ = angularDifference(θ_prev, θ_next)
 
 if |Δθ| > Δψ_max:
   전이 불가  (로봇이 한 스텝에 회전할 수 없는 각도)
-
-if |Δθ| > π/2:
-  전이 불가  (후진 방지 — 이전 진행 방향 대비 90° 이상 꺾이는 전이 차단)
 ```
 
-후진 방지 조건 `|Δθ| > π/2`는 `Δψ_max`보다 관대한 경우에도 독립적으로 적용된다. 로봇이 뒤로 가는 경로는 MPC에서 고려하지 않으므로, guidance에서도 배제한다.
-
-**참고**: `Δψ_max = 0.6 rad ≈ 34.4°`이므로, 실제로는 각속도 제한이 후진 방지보다 더 엄격하다. 후진 방지는 `Δψ_max`가 매우 크게 설정된 경우의 안전장치 역할을 한다.
+**후진 방지는 별도 조건이 불필요하다.** Heading bin 범위가 [-π/2, +π/2]로 제한되어 있으므로, 어떤 두 bin 간의 최대 각도 차이는 π(180°)이지만 `Δψ_max = 0.6 rad ≈ 34.4°`가 이보다 훨씬 엄격하므로 후진 전이는 각속도 제한에 의해 자동 차단된다.
 
 #### 제약 3: 제자리 대기 (정지 상태)
 
@@ -154,28 +162,32 @@ if dx == 0 and dy == 0:
     │ 2. cellCost(gx', gy', gt+1) < hard_threshold          │
     │ 3. spatial_dist ≤ d_max      (속도 제한)               │
     │ 4. |Δθ| ≤ Δψ_max            (각속도 제한)             │
-    │ 5. |Δθ| ≤ π/2               (전진만)                  │
-    │ 6. 또는 (dx=0, dy=0)         (제자리 대기)             │
+    │ 5. 또는 (dx=0, dy=0)         (제자리 대기)             │
     └──────────────────────────────────────────────────────┘
+
+    * 후진 방지는 heading bin 범위([-π/2, +π/2])로 내재화되어 별도 조건 불필요
 ```
 
 ### 3.4 도달 가능 셀 시각화
 
 ```
-    해상도 = 0.2m, d_max = 0.6m, Δψ_max = 0.6 rad
-    현재 heading = East (→)
+    해상도 = 0.2m, d_max = 0.6m, Δψ_max = 0.6 rad ≈ 34.4°
+    현재 heading = bin 4 (0°, 정면 = ↑)
 
-                       ·
-                   · · · ·
-               · · · · · · ·
-           · · · · · · · · · ·
-    ← θ_prev    · · · ★ · · ·      ★ = 현재 위치
-               · · · · · · ·       · = 도달 가능 (거리 제한 내)
-                   · · · ·         빗금 = Δθ 제한으로 차단
-                       ·
+                         ↑ (전방)
+      col: -3  -2  -1   0  +1  +2  +3
+    dy=+3:              ✓                     ← (0°, dist=0.6m)
+    dy=+2:      ·   ✓   ✓   ✓   ·          ← ±26.6° ≤ 34.4° (✓) vs ±45° > 34.4° (·)
+    dy=+1:      ·   ·   ✓   ·   ·          ← ±45° > 34.4° → 각속도 제한 초과
+    dy= 0:  ·   ·   ·  [★]  ·   ·   ·          ← 현재 위치 (측면 이동 = ±90°)
+    dy<0 :  (후방 생략 — heading bin [-90°,+90°] 범위 밖으로 완전 배제)
 
-    → 실제 도달 가능:        전방 부채꼴 (±Δψ_max 범위)
-    → 후방은 전이 불가:       후진 방지
+    ★ = 현재 위치          ✓ = 거리 + 각속도 제약 모두 만족 (전이 가능)
+    · = 거리 제약 내이나     각속도 제약 초과 또는 순수 측면이동 (전이 불가)
+
+    도달 가능 셀 (✓): (0,1), (-1,2), (0,2), (1,2), (0,3), (0,0) = 6개
+    → heading bin 범위 [-90°,+90°]로 후방 배제, Δψ_max=34.4°로 측면 배제
+    → 각속도 제한이 bin 범위보다 엄격하므로 실질적 전이는 ±1~2 bin
 ```
 
 ---
@@ -324,7 +336,7 @@ dag_dp:
 # Phase 1: 전처리
 1. d_max = v_max × dt
 2. r_reach = floor(d_max / resolution)
-3. 도달 가능 이웃 테이블 사전 계산 (제약 1, 2, 5 적용)
+3. 도달 가능 이웃 테이블 사전 계산 (제약 1, 2 적용, 후진 방지는 bin 범위로 내재)
 4. start_gx, start_gy = cellFromWorld(start_pos)
 5. start_θ = discretizeHeading(start_heading)
 
@@ -357,22 +369,26 @@ dag_dp:
 
 ```cpp
 // 각 heading bin에 대해 도달 가능한 (dx, dy) 목록
+// 로컬 좌표 기준: X = 로봇 전진 방향
 std::vector<std::vector<std::pair<int,int>>> reachable_neighbors(9);  // 8 headings + STATIONARY
 
-for θ_bin = 0 to 7:
-  θ_prev = θ_bin × (π/4)
+constexpr int N_BINS = 8;
+constexpr double BIN_STEP = M_PI / N_BINS;  // 22.5° = π/8
+
+for θ_bin = 0 to N_BINS - 1:
+  θ_prev = -M_PI_2 + θ_bin × BIN_STEP      // [-π/2, +π/2] 범위
   for dx = -r_reach to r_reach:
     for dy = -r_reach to r_reach:
-      if dx == 0 and dy == 0: continue  // 제자리는 별도 처리
+      if dx == 0 and dy == 0: continue       // 제자리는 별도 처리
       dist = sqrt(dx² + dy²) × resolution
-      if dist > d_max: continue                          // 제약 1: 속도
+      if dist > d_max: continue              // 제약 1: 속도
       θ_next = atan2(dy, dx)
+      if θ_next < -M_PI_2 or θ_next > M_PI_2: continue  // 전방 반원 외
       Δθ = angularDifference(θ_prev, θ_next)
-      if |Δθ| > Δψ_max: continue                        // 제약 2: 각속도
-      if |Δθ| > π/2: continue                           // 제약 5: 전진만
+      if |Δθ| > Δψ_max: continue            // 제약 2: 각속도
       reachable_neighbors[θ_bin].push_back({dx, dy})
 
-// STATIONARY (시작점): 모든 거리 내 이웃 허용 (방향 제한 없음)
+// STATIONARY (시작점): 전방 반원 내 모든 거리 내 이웃 허용
 // 제자리 전이: 모든 heading에서 {0, 0} 허용
 ```
 
@@ -386,6 +402,32 @@ for θ_bin = 0 to 7:
 
 ### 6.3 층별 DP 루프 의사코드
 
+#### 핵심 아이디어 — 슬라이딩 윈도우 DP
+
+전체 시공간 그리드 `(gx, gy, gt, θ_bin, h)`를 한꺼번에 메모리에 올리면 너무 크다. 대신 **시간축(gt)을 따라 한 층씩 전진**하면서 딱 두 층만 유지한다.
+
+```
+gt=0  [curr_layer]  →  (전이 계산)  →  gt=1  [next_layer]
+gt=1  [curr_layer]  →  (전이 계산)  →  gt=2  [next_layer]
+...
+gt=T-2[curr_layer]  →  (전이 계산)  →  gt=T-1[next_layer]
+```
+
+각 층의 상태는 `(gx, gy, θ_bin, h)` 튜플이고, 값은 **시작점으로부터의 최소 누적 비용**이다. 동일 상태에 여러 경로가 도달하면 비용이 낮은 쪽만 살아남는다(relaxation).
+
+역추적(backtracking)을 위해 `pred` 테이블에 "어느 상태에서 왔는지"를 별도로 기록한다. DP가 끝난 뒤 `pred`를 거꾸로 따라가면 최적 경로를 복원할 수 있다.
+
+#### 두 가지 전이 유형
+
+| 전이 유형 | 의미 | 비용 특성 |
+|-----------|------|-----------|
+| **(a) 제자리 대기** | 한 타임스텝 동안 같은 셀에 머문다 (`dx=dy=0`) | 이동 비용 0, 방향 유지 → smooth 페널티 없음 |
+| **(b) 이동** | 동역학 제약을 만족하는 인접 셀로 이동 | 거리·장애물·smooth·progress 비용의 합 |
+
+제자리 대기는 **장애물을 피하기 위해 잠시 멈추는** 행동을 모델링한다. 비용이 없으므로 꼭 필요할 때만 선택된다.
+
+#### 의사코드
+
 ```
 # 자료구조
 DPEntry = { cost: double, prev_gx: int, prev_gy: int, prev_θ: int, prev_h: uint64 }
@@ -394,76 +436,129 @@ DPEntry = { cost: double, prev_gx: int, prev_gy: int, prev_θ: int, prev_h: uint
 curr_layer: HashMap<(gx, gy, θ_bin, h), DPEntry>
 next_layer: HashMap<(gx, gy, θ_bin, h), DPEntry>
 
-# predecessor 테이블 (역추적용)
+# predecessor 테이블 (역추적용) — 각 시간층마다 "전 상태"를 저장
 pred: Array[cells_t] of HashMap<(gx, gy, θ_bin, h), (prev_gx, prev_gy, prev_θ, prev_h)>
 
-# 초기화
+# 초기화 — 시작점만 비용 0으로 삽입, 나머지는 ∞
 curr_layer[(start_gx, start_gy, start_θ, h=0)] = { cost: 0, ... }
 
-# 메인 루프
+# 메인 루프 — gt: 현재 시간층, gt+1: 다음 시간층
 for gt = 0 to cells_t - 2:
   next_layer.clear()
 
   for each ((gx, gy, θ_prev, h), entry) in curr_layer:
-    c = entry.cost
+    c = entry.cost  # 현재까지의 누적 최소 비용
 
-    # (a) 제자리 전이
-    stay_cost = c + w_smooth × 0  # 방향 유지, 진행 0
+    # (a) 제자리 전이 — 한 스텝 대기
+    stay_cost = c + 0  # 이동 없음 → 추가 비용 없음
     key_stay = (gx, gy, θ_prev, h)
     if stay_cost < next_layer[key_stay].cost:
-      update next_layer and pred
+      update next_layer and pred  # 더 낮은 비용으로 갱신
 
     # (b) 이동 전이
     for each (dx, dy) in reachable_neighbors[θ_prev]:
+      # reachable_neighbors: 현재 heading θ_prev에서 각속도 제한을 만족하는
+      # (dx, dy) 오프셋 목록 (§6.2에서 사전 계산)
+
       gx' = gx + dx
       gy' = gy + dy
       if !insideGrid(gx', gy'): continue
 
-      dest_cost = cellCost(gx', gy', gt+1)
-      if dest_cost >= hard_threshold: continue
+      dest_cost = cellCost(gx', gy', gt+1)    # StepMap의 점유 비용
+      if dest_cost >= hard_threshold: continue  # 충돌 셀 즉시 제외
 
-      θ_next = directionBin(dx, dy)
-      Δθ = angularDifference(θ_prev × π/4, θ_next × π/4)
+      # 다음 heading bin 결정
+      θ_next = directionBin(dx, dy)  # atan2(dy, dx) → 가장 가까운 bin (0~15)
+      Δθ = angularDifference(binToAngle(θ_prev), binToAngle(θ_next))
+      # binToAngle(b) = -π/2 + b × π/8  (bin → 실제 각도)
 
-      # 에지 비용 계산
-      spatial = sqrt(dx² + dy²) × resolution
-      C_obs = exp(gamma × dest_cost) - 1.0
-      C_smooth = (Δθ / Δψ_max)²
-      C_progress = -progressAlongRef(gx', gy')
+      # 에지 비용 계산 (§4 참조)
+      spatial    = sqrt(dx² + dy²) × resolution  # 실제 이동 거리 (m)
+      C_obs      = exp(gamma × dest_cost) - 1.0   # 장애물 근접 페널티
+      C_smooth   = (Δθ / Δψ_max)²                 # 급격한 방향 전환 페널티
+      C_progress = -progressAlongRef(gx', gy')    # 목표 방향 진행 장려 (음수 = 보상)
       edge = w_dist × spatial + w_obs × C_obs + w_smooth × C_smooth + w_progress × C_progress
 
       new_cost = c + edge
 
-      # winding label 업데이트
+      # winding label 업데이트 — 장애물을 어느 방향으로 통과했는지 기록
       new_h = updateWindingLabel(h, gx, gy, gx', gy', gt+1, obstacles)
 
-      # relaxation
+      # relaxation — 동일 상태에 도달하는 경로 중 비용이 낮은 쪽만 유지
       key = (gx', gy', θ_next, new_h)
       if new_cost < next_layer[key].cost:
         next_layer[key] = { cost: new_cost, prev: (gx, gy, θ_prev, h) }
         pred[gt+1][key] = (gx, gy, θ_prev, h)
 
   swap(curr_layer, next_layer)
+  # 이제 curr_layer는 gt+1 층의 최적 상태를 담고 있음
 ```
+
+#### 왜 HashMap인가?
+
+활성 셀 수는 전체 그리드의 극히 일부다 (대부분은 도달 불가능하거나 장애물). HashMap을 쓰면 **도달된 상태만** 처리하므로 메모리와 연산을 모두 절약할 수 있다.
 
 ### 6.4 Winding Label 업데이트
 
-`guidance-strategy.md` §3.4와 동일한 점진적 winding angle 계산을 사용하되, heading state가 추가되어 더 자연스러운 winding 추적이 가능하다.
+#### 직관적 이해 — "장애물을 왼쪽으로 돌았나, 오른쪽으로 돌았나?"
+
+두 경로가 동일한 목표 셀에 도달하더라도, 장애물을 **서로 다른 방향으로 우회**했다면 위상적으로 구별되는 경로다. Winding label `h`는 이 정보를 압축 저장하는 비트열이다.
+
+```
+장애물 A를 오른쪽으로 통과한 경로:  h의 A번째 비트 = RIGHT(1)
+장애물 A를 왼쪽으로 통과한 경로:   h의 A번째 비트 = LEFT(0)
+아직 통과하지 않은 경우:            해당 비트 = 미결정(중립)
+```
+
+relaxation 단계에서 `(gx', gy', θ_next, new_h)` 키가 다르면 **다른 상태로 취급**된다. 따라서 같은 셀에 도달하더라도 우회 방향이 다른 두 경로는 **서로 경쟁하지 않고 독립적으로 살아남는다**. 이것이 위상적으로 다양한 경로를 동시에 찾는 핵심 메커니즘이다.
+
+#### 점진적 각도 누적 방식
+
+매 스텝마다 로봇과 장애물 사이의 방위각(bearing angle) 변화를 누적한다. 장애물을 완전히 한 바퀴 돌면 총 변화량이 ±2π에 가까워지지만, 일반적인 통과(옆을 지나침)에서는 ±π 이상 변화가 발생한다.
+
+```
+시간 흐름에 따른 bearing angle 변화 예시:
+
+  장애물 왼쪽 통과:        장애물 오른쪽 통과:
+  angle 변화: +π           angle 변화: -π
+  (반시계 방향 회전)       (시계 방향 회전)
+```
+
+누적 변화량이 `pass_threshold`(≈ π/2)를 넘으면 "통과 완료"로 판정하고 비트를 고정한다.
+
+#### 의사코드
 
 ```
 updateWindingLabel(h, gx, gy, gx', gy', gt', obstacles):
-  robot_pos = worldFromCell(gx', gy')
-  for each nearby obstacle m (K-nearest):
-    obs_pos = obstacle[m].positions_[gt']
+  robot_pos = worldFromCell(gx', gy')  # 다음 셀의 월드 좌표
+
+  for each nearby obstacle m (K-nearest, 보통 K=3~5):
+    obs_pos = obstacle[m].positions_[gt']  # gt' 시점에서의 장애물 위치 (예측값)
+
+    # 로봇→장애물 방위각 (bearing angle)
     angle_new = atan2(robot_pos.y - obs_pos.y, robot_pos.x - obs_pos.x)
+
+    # 이전 스텝 대비 방위각 변화량 (−π ~ +π 정규화)
     delta = angularDifference(angle_prev[m], angle_new)
-    accumulated_winding[m] += delta
+    #   delta > 0: 로봇 기준 장애물이 시계 반대 방향으로 이동 → 로봇이 왼쪽으로 통과 중
+    #   delta < 0: 로봇 기준 장애물이 시계 방향으로 이동    → 로봇이 오른쪽으로 통과 중
 
+    accumulated_winding[m] += delta  # 스텝마다 누적
+
+    # 누적값이 임계치를 넘으면 통과 방향 확정
     if |accumulated_winding[m]| >= pass_threshold:
-      h의 m번째 비트를 LEFT 또는 RIGHT로 설정
+      if accumulated_winding[m] > 0:
+        h의 m번째 비트 = LEFT   # 양의 누적 → 왼쪽 통과
+      else:
+        h의 m번째 비트 = RIGHT  # 음의 누적 → 오른쪽 통과
 
-  return h
+  return h  # 업데이트된 위상 레이블 반환
 ```
+
+#### 주의사항
+
+- `angle_prev[m]`는 **상태에 암묵적으로 딸려 있는 값**이 아니라 이전 셀 위치와 `gt'-1` 시점 장애물 위치로부터 재계산한다. 상태 크기를 늘리지 않기 위한 설계다.
+- 여러 장애물을 동시에 추적하므로 `h`의 비트 수는 `K`에 비례한다. 장애물이 많아질수록 레이블 다양성이 기하급수적으로 증가하므로 `K`를 작게 유지한다.
 
 ### 6.5 목표 수집
 
@@ -577,7 +672,7 @@ effective_cost(gx, gy, gt) = cellCost(gx, gy, gt) + penalty_overlay(gx, gy, gt)
 |------|------|------|
 | 공간 셀 | X × Y = 100 × 100 = 10,000 | |
 | 시간 층 | T = 20 | |
-| Heading bins | Θ = 9 | 8방향 + 정지 |
+| Heading bins | Θ = 9 | 전방 반원 8방향(22.5° 간격) + 정지 |
 | 호모토피 레이블 | H ≤ 2^K (K=4 → 16) | 대부분 셀에서 1-3개만 활성 |
 
 이론적 최대 상태: `X × Y × T × Θ × H = 100 × 100 × 20 × 9 × 16 ≈ 29M`
@@ -753,8 +848,8 @@ guidance_planner:
 | 항목 | guidance-strategy.md §5 | 본 문서 (Kinodynamic) |
 |------|-------------------------|----------------------|
 | 전이 이웃 | 9-connectivity 고정 | **가변 r_reach 기반 동역학 이웃** |
-| 방향 제약 | 없음 | **Δψ_max + 후진 방지** |
-| 상태 | `(gx, gy, gt, h)` | **`(gx, gy, gt, θ_bin, h)`** |
+| 방향 제약 | 없음 | **Δψ_max (전방 반원 bin 범위로 후진 내재 방지)** |
+| 상태 | `(gx, gy, gt, h)` | **`(gx, gy, gt, θ_bin, h)` — θ_bin: 전방 반원 8방향(22.5°)** |
 | 에지 비용 | `spatial × exp(γ×cost)` | **4-항 비용 (거리+장애물+부드러움+진행)** |
 | 경로 평가 | 비용 오름차순 | **진행 거리 우선 품질 점수** |
 | n_paths | 항상 n_paths개 목표 | **유연 (0~n_paths개)** |
@@ -768,7 +863,7 @@ guidance_planner:
 
 1. **가속도 제약 반영**: 현재 설계는 `v_max`로 최대 이동 거리를 제한하지만, 실제 로봇은 정지 상태에서 바로 `v_max`에 도달할 수 없다. 가속도를 반영하려면 속도 상태 `v_bin`을 추가해야 하는데 (`State = (gx, gy, gt, θ_bin, v_bin, h)`), 상태 공간이 크게 증가한다. 초기 구현은 `v_max`만으로 시작하고, 필요시 가속도를 추가하는 것이 적절한가?
 
-2. **Heading bin 해상도**: 45° 간격(8방향)이 충분한가? 22.5°(16방향)로 세밀화하면 부드러운 경로가 가능하지만 상태 공간이 2배 증가한다. `Δψ_max = 34.4°`인 현재 설정에서 45° bin은 제약 적용의 정밀도를 떨어뜨리는가?
+2. ~~**Heading bin 해상도**~~ **해결됨**: 전방 반원(±90°)에 8 bin을 배치하여 22.5° 간격으로 결정. StepMap이 전방 반공간 중심이고, `rotateToGoal`이 초기 heading을 보장하므로 후방 bin이 불필요. 상태 공간 증가 없이(Θ=9 유지) 각도 해상도 2배 향상.
 
 3. **Reference path 의존성**: `C_progress`가 reference path를 요구한다. Reference path가 없거나 로봇 전방에 reference가 없는 상황(u-turn 등)에서는 어떤 fallback을 사용할 것인가?
 
