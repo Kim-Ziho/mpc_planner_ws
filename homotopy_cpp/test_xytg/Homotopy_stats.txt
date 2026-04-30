@@ -1,0 +1,32 @@
+
+----@@@@ A new goal state (900,850,0,0) expanded: LVal = 1397.046316+1955.455850i ; time = 13.690000 ; expansions = 19840
+----@@@@ A new goal state (900,850,0,0) expanded: LVal = 230.663961+588.448166i ; time = 15.160000 ; expansions = 23233
+
+----@@@@ A new goal state (900,850,0,0) expanded: LVal = -230.663961+-588.448166i ; time = 1.880000 ; expansions = 19840
+----@@@@ A new goal state (900,850,0,0) expanded: LVal = -230.663961+-588.448166i ; time = 1.900000 ; expansions = 23233 
+
+
+58.out
+
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 321.538867+-121.784222i ; time = 1.690000 ; expansions = 26895 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 334.105368+-136.465411i ; time = 6.360000 ; expansions = 204140 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 348.774520+-121.487153i ; time = 7.460000 ; expansions = 256958 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -595.842868+300.360808i ; time = 10.070000 ; expansions = 385333 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 371.804564+48.735111i ; time = 13.500000 ; expansions = 562530 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 361.341020+-136.168342i ; time = 14.080000 ; expansions = 600972 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -194.163959+-31.009803i ; time = 17.380000 ; expansions = 774652 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -244.429656+-201.529135i ; time = 20.320000 ; expansions = 935498 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -582.387418+-101.548049i ; time = 20.980000 ; expansions = 975624 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -608.409369+315.041997i ; time = 22.540000 ; expansions = 1060156 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -373.410678+507.402577i ; time = 23.650000 ; expansions = 1116095 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -623.078520+300.063739i ; time = 24.770000 ; expansions = 1177498 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 399.040217+49.032180i ; time = 32.740000 ; expansions = 1552929 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -359.955228+105.493720i ; time = 34.040000 ; expansions = 1617226 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -231.863156+-216.210324i ; time = 36.750000 ; expansions = 1742270 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -594.953919+-86.866861i ; time = 40.520000 ; expansions = 1907841 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 0.223463+3.017822i ; time = 42.740000 ; expansions = 2006722 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -635.645021+314.744928i ; time = 44.500000 ; expansions = 2081650 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = -400.646330+507.105508i ; time = 46.140000 ; expansions = 2150443 
+----@@@@ A new goal state (950,900,0,0) expanded: LVal = 0.343505+-3.248114i ; time = 53.610000 ; expansions = 2446291 
+
+

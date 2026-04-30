@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 97
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/planners/ARAStar
+END
+araplanner.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 112
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/planners/ARAStar/araplanner.cpp
+END
+araplanner.h
+K 25
+svn:wc:ra_dav:version-url
+V 110
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/planners/ARAStar/araplanner.h
+END

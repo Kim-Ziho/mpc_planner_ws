@@ -1,0 +1,1292 @@
+function varargout = PlotData(varargin)
+% PLOTDATA M-file for PlotData.fig
+%      PLOTDATA, by itself, creates a new PLOTDATA or raises the existing
+%      singleton*.
+%
+%      H = PLOTDATA returns the handle to a new PLOTDATA or the handle to
+%      the existing singleton*.
+%
+%      PLOTDATA('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in PLOTDATA.M with the given input arguments.
+%
+%      PLOTDATA('Property','Value',...) creates a new PLOTDATA or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before PlotData_OpeningFunction gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to PlotData_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Copyright 2002-2003 The MathWorks, Inc.
+
+% Edit the above text to modify the response to help PlotData
+
+% Last Modified by GUIDE v2.5 05-Nov-2009 09:47:01
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @PlotData_OpeningFcn, ...
+                   'gui_OutputFcn',  @PlotData_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before PlotData is made visible.
+function PlotData_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to PlotData (see VARARGIN)
+
+% Choose default command line output for PlotData
+handles.output = hObject;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% UIWAIT makes PlotData wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+global figHandle slider1Handle edit1Handle slider2Handle edit2Handle edit3Handle listbox1Handle
+
+figHandle = handles.figure1;
+slider1Handle = handles.slider1;
+edit1Handle = handles.edit1;
+slider2Handle = handles.slider2;
+edit2Handle = handles.edit2;
+edit3Handle = handles.edit3;
+listbox1Handle = handles.listbox1;
+
+if(nargin > 0)
+    LoadFile(varargin{1});
+end
+
+% =========================================================
+
+function LoadFile(filename)
+
+global figHandle slider1Handle edit1Handle slider2Handle edit2Handle edit3Handle listbox1Handle
+global IterNo TimeStepNo
+global ObsCoords IterData DistanceConstraints
+global MaxTimeStep
+global fid
+
+%try
+    clear global ObsCoords IterData
+    disp('Please wait, loading data file...');
+    LoadData(filename);
+    global ObsCoords IterData DistanceConstraints
+    disp('Data file loaded successfully!');
+%{
+catch
+    fclose(fid);
+    disp(lasterr);
+    disp('ERROR in loading file!!');
+    dbstack;
+end
+%}
+
+%try
+    
+    global ObsCoords IterData DistanceConstraints
+    
+    set(slider1Handle, 'Min', 1);
+    set(slider1Handle, 'Max', length(IterData));
+    set(slider1Handle, 'SliderStep', [1 10]/length(IterData));
+    set(slider2Handle, 'Min', 1);
+    set(slider2Handle, 'Max', MaxTimeStep);
+    set(slider2Handle, 'SliderStep', [1 10]/MaxTimeStep);
+    set(edit3Handle, 'String', filename);
+
+    IterNo = 1;
+    TimeStepNo = 1;
+    updateAll;
+    
+%{
+catch
+    
+    global ObsCoords IterData DistanceConstraints
+    
+    if size(ObsCoords,1) > 0
+        plotCell(ObsCoords(:,1)', ObsCoords(:,2)', [1 0 0]);
+    end
+    try
+        fclose(fid);
+    end
+    disp(lasterr);
+    disp('Incorrect data file!!');
+    dbstack;
+    
+end
+%}
+
+% =========================================================
+
+function updateAll()
+global ObsCoords IterData DistanceConstraints
+global figHandle slider1Handle edit1Handle slider2Handle edit2Handle edit3Handle listbox1Handle
+global IterNo TimeStepNo
+
+PlotThisFrame;
+%pause(0.1);
+set(slider1Handle,'Value', IterNo);
+set(edit1Handle,'String',sprintf('%d [%d-%d]',IterNo,IterData{IterNo}.SuperIterNo,IterData{IterNo}.SubIterNo));
+set(slider2Handle,'Value', TimeStepNo);
+set(edit2Handle,'String',sprintf('%d',TimeStepNo));
+ConstraintText = '';
+for ConsNo=1:length(IterData{IterNo}.PenaltyWeights)
+    %ConstraintText = [ConstraintText '\n' sprintf('%f',IterData{IterNo}.PenaltyWeight(ConsNo))];
+    %ConstraintText{ConsNo} = sprintf('%d-%d :: %f',DistanceConstraints{ConsNo}.Robots(1),DistanceConstraints{ConsNo}.Robots(2), ...
+    %                                    IterData{IterNo}.PenaltyWeight(ConsNo));
+    ConstraintText{ConsNo} = sprintf('%d-%d :: %f',IterData{IterNo}.PenaltyWeights(ConsNo).Robot1,IterData{IterNo}.PenaltyWeights(ConsNo).Robot2, ...
+                                        IterData{IterNo}.PenaltyWeights(ConsNo).Weight);
+end
+set(listbox1Handle,'String',ConstraintText);
+
+% =========================================================
+
+% --- Outputs from this function are returned to the command line.
+function varargout = PlotData_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on slider movement.
+function slider1_Callback(hObject, eventdata, handles)
+% hObject    handle to slider1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+
+global IterNo
+IterNo = round(get(hObject,'Value'));
+updateAll;
+
+
+% --- Executes during object creation, after setting all properties.
+function slider1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to slider1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background, change
+%       'usewhitebg' to 0 to use default.  See ISPC and COMPUTER.
+usewhitebg = 1;
+if usewhitebg
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+% --- Executes on slider movement.
+function slider2_Callback(hObject, eventdata, handles)
+% hObject    handle to slider2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+
+global TimeStepNo
+TimeStepNo = round(get(hObject,'Value'));
+updateAll;
+
+% --- Executes during object creation, after setting all properties.
+function slider2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to slider2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background, change
+%       'usewhitebg' to 0 to use default.  See ISPC and COMPUTER.
+usewhitebg = 1;
+if usewhitebg
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+
+function edit1_Callback(hObject, eventdata, handles)
+% hObject    handle to edit1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit1 as text
+%        str2double(get(hObject,'String')) returns contents of edit1 as a double
+
+global IterNo
+IterNo = round(sscanf(get(hObject,'String'),'%d'));
+updateAll;
+
+% --- Executes during object creation, after setting all properties.
+function edit1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc
+    set(hObject,'BackgroundColor','white');
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+
+function edit2_Callback(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit2 as text
+%        str2double(get(hObject,'String')) returns contents of edit2 as a double
+
+global TimeStepNo
+TimeStepNo = round(sscanf(get(hObject,'String'),'%d'));
+updateAll;
+
+
+% --- Executes during object creation, after setting all properties.
+function edit2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc
+    set(hObject,'BackgroundColor','white');
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+function edit3_Callback(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit3 as text
+%        str2double(get(hObject,'String')) returns contents of edit3 as a double
+
+LoadFile(get(hObject,'String'));
+
+% ====================================================================================
+
+function LoadData(fileName)
+global ObsCoords DynamicObsCoords ObsPolys IterData DistanceConstraints Params
+global fid DataFileName
+
+DataFileName = fileName;
+fid = fopen(fileName, 'r');
+
+% Read headers here
+
+iterNo = 0;
+FileEnd = 0;
+ObsCoords = [];
+DynamicObsCoords = {};
+ObsPolys = {};
+Params.Robot = {};
+Params.Xscale = 1.0;
+Params.Yscale = 1.0;
+Params.Tscale = 1.0;
+
+lineNo = 0;
+SuperIterNo = 0;
+DataType = '';
+while (~FileEnd)
+
+    thisLine = fgetl(fid);
+    lineNo = lineNo + 1;
+    try
+        firstString = sscanf(thisLine, '%s', 1);
+    catch
+        disp(sprintf('WARNING: Error in reading line %d', lineNo));
+        break;
+    end
+
+    switch(firstString)
+
+        case 'ITERATION'
+            iterNoInFile = sscanf(thisLine, '%*s %d', 2) + 1;
+            iterNo = iterNo + 1;
+            robotNo = 0;
+            IterData{iterNo}.PenaltyWeights = [];
+            IterData{iterNo}.SubIterNo = iterNoInFile;
+            if iterNoInFile==1
+                SuperIterNo = SuperIterNo + 1;
+            end
+            IterData{iterNo}.SuperIterNo = SuperIterNo;
+
+        case 'ACTIVE_ROBOT'
+            activeRobot = sscanf(thisLine, '%*s %d', 2) + 1;
+            IterData{iterNo}.ActiveRobot = activeRobot;
+            
+        case 'CONSTRAINT'
+            DataType = 'CONSTRAINT';
+            thisConstraint = sscanf(thisLine, '%*s %f %f %f', 3);
+            %IterData{iterNo}.PenaltyWeight(thisConstraint(1)+1) = thisConstraint(2);
+            IterData{iterNo}.PenaltyWeights(end+1).Robot1 = thisConstraint(1)+1;
+            IterData{iterNo}.PenaltyWeights(end).Robot2 = thisConstraint(2)+1;
+            IterData{iterNo}.PenaltyWeights(end).Weight = thisConstraint(3);
+            
+        case 'CONSTRAINT_DEFINITION'
+            DataType = 'CONSTRAINT_DEFINITION';
+            thisConstraintDefinition = sscanf(thisLine, '%*s %d %d %d', 3);
+            CONSTRAINT_DEFINITION_now = thisConstraintDefinition(1)+1;
+            DistanceConstraints{CONSTRAINT_DEFINITION_now}.Robots = 1 + thisConstraintDefinition(2:3);
+            DistanceConstraints{CONSTRAINT_DEFINITION_now}.Profile = [];
+            
+        case 'ROBOT'
+            DataType = 'ROBOT';
+            robotNo = sscanf(thisLine, '%*s %d', 2) + 1;
+            IterData{iterNo}.Robot{robotNo}.Traj = [];
+            
+        case 'KEYPOINTS'
+            DataType = 'KEYPOINTS';
+            %robotNo = sscanf(thisLine, '%*s %d', 2) + 1;
+            IterData{iterNo}.Robot{robotNo}.TrajKeyPts = [];
+            
+        case 'OBSTACLE'
+            ObsTime = sscanf(thisLine, '%*s %d', 1);
+            if isempty(ObsTime)
+                DataType = 'OBSTACLE';
+            else
+                DataType = 'DYNAMIC_OBSTACLE';
+                DynamicObsTime = ObsTime;
+                DynamicObsCoords{DynamicObsTime+1} = [];
+            end
+
+        case 'END'
+            FileEnd = 1;
+            
+        case 'ROBOT_TASK'
+            thisRobotTask = sscanf(thisLine, '%*s %d %d %d', 3);
+            if length(Params.Robot)<(thisRobotTask(1)+1) || ~isfield(Params.Robot{thisRobotTask(1)+1}, 'Tasks')
+                Params.Robot{thisRobotTask(1)+1}.Tasks = [thisRobotTask(2), thisRobotTask(3)]';
+            else
+                Params.Robot{thisRobotTask(1)+1}.Tasks(:,end+1) = [thisRobotTask(2), thisRobotTask(3)]';
+            end
+        
+        case 'SCALE_FACTOR'
+            scaleFactors = sscanf(thisLine, '%*s %f %f %f', 3);
+            Params.Xscale = scaleFactors(1);
+            Params.Yscale = scaleFactors(2);
+            Params.Zscale = scaleFactors(3);
+            
+        otherwise
+            if true %~isempty(str2num(firstString))
+                switch(DataType)
+                    case 'ROBOT'
+                        thisTrajPt = sscanf(thisLine, '%d %d %d', 3);
+                        thisTimeIndex = thisTrajPt(3);
+                        for emptyTimeIndex = (size(IterData{iterNo}.Robot{robotNo}.Traj,1)+1):thisTimeIndex
+                            IterData{iterNo}.Robot{robotNo}.Traj(end+1,:) = [thisTrajPt(1:2)', emptyTimeIndex-1];
+                        end
+                        IterData{iterNo}.Robot{robotNo}.Traj(end+1,:) = thisTrajPt';
+                    case 'KEYPOINTS'
+                        thisTrajPt = sscanf(thisLine, '%d %d %d', 3);
+                        thisTimeIndex = thisTrajPt(3);
+                        lastTrajSize = size(IterData{iterNo}.Robot{robotNo}.TrajKeyPts,1);
+                        if (lastTrajSize==0 || true)
+                            IterData{iterNo}.Robot{robotNo}.TrajKeyPts(end+1,:) = [thisTrajPt(1:2)', 0];
+                        else
+                            lastTrajPt = IterData{iterNo}.Robot{robotNo}.TrajKeyPts(end,:)';
+                            if (lastTrajPt(3) ~= thisTimeIndex)
+                                for emptyTimeIndex = (lastTrajSize+1):thisTimeIndex
+                                    lastfrac = (emptyTimeIndex - lastTrajSize) / (thisTimeIndex - lastTrajSize);
+                                    IterData{iterNo}.Robot{robotNo}.TrajKeyPts(end+1,:) = [((1-lastfrac)*lastTrajPt(1:2)+lastfrac*thisTrajPt(1:2))', emptyTimeIndex-1];
+                                end
+                                IterData{iterNo}.Robot{robotNo}.TrajKeyPts(end+1,:) = thisTrajPt';
+                            end
+                        end
+                    case 'OBSTACLE'
+                        obstype = sscanf(thisLine, '%s', 1);
+                        switch (obstype)
+                            case 'Rectangle:'
+                                corners = sscanf(thisLine, '%*s %f %f %f %f', 4);
+                                thisPoly = [corners(1), corners(3), corners(3), corners(1) ; corners(2), corners(2), corners(4), corners(4)];
+                                ObsPolys{end+1} = thisPoly;
+                            case 'Circle:'
+                                circ = sscanf(thisLine, '%*s %f %f %f', 3);
+                                thisPoly = [];
+                                for aa=pi/100:pi/100:2*pi
+                                    thisPoly(:,end+1) = [circ(1);circ(2)] + circ(3)*[cos(aa);sin(aa)];
+                                end
+                                ObsPolys{end+1} = thisPoly;
+                            otherwise
+                                thisObsCoord = sscanf(thisLine, '%d %d', 2);
+                                ObsCoords(end+1,:) = thisObsCoord';
+                        end
+                    case 'DYNAMIC_OBSTACLE'
+                        thisDynamicObsCoord = sscanf(thisLine, '%d %d', 2);
+                        DynamicObsCoords{DynamicObsTime+1}(end+1,:) = thisDynamicObsCoord';
+                    case 'CONSTRAINT_DEFINITION'
+                        thisConstraintPoint = sscanf(thisLine, '%d %d', 2);
+                        DistanceConstraints{CONSTRAINT_DEFINITION_now}.Profile(end+1,:) = thisConstraintPoint';
+                end
+            else
+                disp(sprintf('WARNING: Unknown flag "%s" skipped!', firstString));
+            end
+
+    end
+    
+end
+
+global MaxTimeStep
+MaxTimeStep = 0;
+for iter = 1:length(IterData)
+    for robot = 1:length(IterData{iter}.Robot)
+        MaxTimeStep = max([MaxTimeStep length(IterData{iter}.Robot{robot}.Traj)]);
+    end
+end
+%{
+% Making all trajectories of equal length:
+for iter = 1:length(IterData)
+    for robot = 1:length(IterData{iter}.Robot)
+        currentLength = size(IterData{iter}.Robot{robot}.Traj,1);
+        if currentLength < MaxTimeStep
+            IterData{iter}.Robot{robot}.Traj(currentLength+1:MaxTimeStep,1:2) = ...
+                repmat(IterData{iter}.Robot{robot}.Traj(currentLength,1:2), [MaxTimeStep-currentLength, 1]);
+            IterData{iter}.Robot{robot}.Traj(currentLength+1:MaxTimeStep,3) = (currentLength+1):MaxTimeStep;
+        end
+        currentLengthKey = size(IterData{iter}.Robot{robot}.TrajKeyPts,1);
+        if currentLengthKey < MaxTimeStep
+            IterData{iter}.Robot{robot}.TrajKeyPts(currentLengthKey+1:MaxTimeStep,1:2) = ...
+                repmat(IterData{iter}.Robot{robot}.TrajKeyPts(currentLengthKey,1:2), [MaxTimeStep-currentLengthKey, 1]);
+            IterData{iter}.Robot{robot}.TrajKeyPts(currentLengthKey+1:MaxTimeStep,3) = (currentLengthKey+1):MaxTimeStep;
+        end
+        %disp(size(IterData{iter}.Robot{robot}.Traj));
+    end
+end
+%}
+
+fclose(fid);
+
+% ====================================================================================
+
+function PlotThisFrame(DifferentFigHandle)
+global ObsCoords DynamicObsCoords ObsPolys IterData Params
+global IterNo TimeStepNo
+global figHandle
+global DynaJump
+DynaJump = 10;
+
+if nargin > 0
+    figure(DifferentFigHandle);
+else
+    figure(figHandle);
+end
+axis equal;
+%axis tight;
+grid on;
+set(gca, 'GridLineStyle', ':');
+gridcolor = [0.9 0.9 0.8];
+set(gca, 'XColor', gridcolor);
+set(gca, 'YColor', gridcolor);
+%{
+axisTickPts = (-1000:10:1000)*(0.25/Params.Xscale);
+set(gca, 'XTick', axisTickPts);
+set(gca, 'XTickLabel', Params.Xscale*axisTickPts);
+set(gca, 'YTick', axisTickPts);
+set(gca, 'YTickLabel', Params.Yscale*axisTickPts);
+%}
+hold on;
+cla;
+
+axis([0 100 0 100]);
+
+colorObstacle = [0.55 0.6 0.55]; % [1 0 0]
+
+styles = {'-','-.','--'};
+linewidths = {2.5, 2.5, 2.5};
+FixedTrajColors = {[0.5 0 0], [0 0 0.5], [0 0.5 0]}; %, [0.5 0.5 0], [0.5 0 0.5], [0 0.5 0.5], [0 0 0]};
+
+robColors = {[1 0 0], [0 0 1], [0 1 0]};
+
+if size(ObsCoords,1) > 0
+    plotCell(ObsCoords(:,1)', ObsCoords(:,2)', colorObstacle);
+end
+for a=1:length(ObsPolys)
+    patch(ObsPolys{a}(1,:), ObsPolys{a}(2,:), colorObstacle);
+end
+
+legendPos = [90 95];
+if length(DynamicObsCoords) > 0
+    for a=DynaJump:DynaJump:length(DynamicObsCoords)
+        thisCol = 0.9*[1 1 1] - (0.9*[1 1 1]-colorObstacle)*a/length(DynamicObsCoords);
+        plotCell(DynamicObsCoords{a}(:,1)', DynamicObsCoords{a}(:,2)', thisCol);
+        %text(mean(DynamicObsCoords{a}(:,1)), mean(DynamicObsCoords{a}(:,2)), sprintf('%d',a), 'Color', [0 0 0], 'FontSize', 8);
+        plotCell((legendPos(1)-5):legendPos(1),ones(1,6)*legendPos(2)-a/DynaJump, thisCol);
+        patch((legendPos(1)-5):legendPos(1),ones(1,6)*legendPos(2)-a/DynaJump, 
+        if mod(a-DynaJump,3*DynaJump)==0
+            text(legendPos(1)+1,legendPos(2)-a/DynaJump, sprintf('%d',a), 'Color', [0 0 0], 'FontSize', 8);
+        end
+    end
+end
+
+for robotNo = 1:length(IterData{IterNo}.Robot)
+    styleNo = floor(robotNo/length(FixedTrajColors)) + 1;
+    colNo = mod(robotNo,length(FixedTrajColors)) + 1;
+    
+    if isempty(IterData{IterNo}.Robot{robotNo}.Traj)
+        continue;
+    end
+    
+    try
+        plotCell(Params.Robot{robotNo}.Tasks(1,:), Params.Robot{robotNo}.Tasks(2,:), robColors{robotNo}, 2);
+    end
+    
+    if ((robotNo==IterData{IterNo}.ActiveRobot) & 0)
+        plotCell(IterData{IterNo}.Robot{robotNo}.Traj(:,1)', IterData{IterNo}.Robot{robotNo}.Traj(:,2)', [0.1 0 0]);
+    else
+        %1: trajColor = [0, 0.3+0.7*robotNo/length(IterData{IterNo}.Robot)*mod(robotNo+1,2), 0.3+0.7*robotNo/length(IterData{IterNo}.Robot)*mod(robotNo,2)];
+        % trajColor = (0.2 + 0.2*robotNo/length(IterData{IterNo}.Robot)*mod(robotNo,2)) * [1 1 1];
+        trajColor = FixedTrajColors{colNo};
+        startTrajColors = [1 1 1] - 0.5*([1 1 1]-trajColor);
+        %~plotCell(IterData{IterNo}.Robot{robotNo}.Traj(:,1)', IterData{IterNo}.Robot{robotNo}.Traj(:,2)', trajColor, 3, styles{robotNo});
+        if isfield(IterData{IterNo}.Robot{robotNo}, 'TrajKeyPts') && length(IterData{IterNo}.Robot{robotNo}.TrajKeyPts>0)
+            plotCell(IterData{IterNo}.Robot{robotNo}.TrajKeyPts(:,1)', IterData{IterNo}.Robot{robotNo}.TrajKeyPts(:,2)', [startTrajColors; trajColor], 3, styles{styleNo}, linewidths{styleNo});
+        else
+            plotCell(IterData{IterNo}.Robot{robotNo}.Traj(:,1)', IterData{IterNo}.Robot{robotNo}.Traj(:,2)', [startTrajColors; trajColor], 3, styles{styleNo}, linewidths{styleNo});
+        end
+    end
+
+    try
+        %{
+        if size(IterData{IterNo}.Robot{robotNo}.Traj,1) >= TimeStepNo
+            thisTimeStepNo = TimeStepNo;
+        else
+            thisTimeStepNo = size(IterData{IterNo}.Robot{robotNo}.Traj,1);
+        end
+        %}
+        thisTimeStepNo = TimeStepNo;
+        %~plotCell(IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,1), IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,2), robColors{robotNo}, 1);
+        %~text(IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,1)+1, IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,2)+1, num2str(robotNo));
+        plotCell(IterData{IterNo}.Robot{robotNo}.TrajKeyPts(thisTimeStepNo,1), IterData{IterNo}.Robot{robotNo}.TrajKeyPts(thisTimeStepNo,2), robColors{robotNo}, 1);
+        text(IterData{IterNo}.Robot{robotNo}.TrajKeyPts(thisTimeStepNo,1)+1, IterData{IterNo}.Robot{robotNo}.TrajKeyPts(thisTimeStepNo,2)+1, num2str(robotNo));
+        %disp(['Robot' num2str(robotNo) ': (' num2str(IterData{IterNo}.Robot{robotNo}.Traj(TimeStepNo,1)) ',' num2str(IterData{IterNo}.Robot{robotNo}.Traj(TimeStepNo,2)) ')']);
+    catch
+        thisTimeStepNo = TimeStepNo;
+        plotCell(IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,1), IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,2), robColors{mod(robotNo,length(robColors))+1}, 1);
+        %text(IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,1)+1, IterData{IterNo}.Robot{robotNo}.Traj(thisTimeStepNo,2)+1, num2str(robotNo));
+    end
+    
+end
+
+% Custom plots
+%plot([35 65], [50 50], 'bo');
+%plot([0 0], [0 100], 'r-.', 'LineWidth', 10.0);
+
+function plotCell(x,y,c,typ,styl,linewidth)
+global DynaJump
+patchX = [x-0.5; x+0.5; x+0.5; x-0.5];
+patchY = [y+0.5; y+0.5; y-0.5; y-0.5];
+if nargin < 4
+    typ = 1;
+end
+switch(typ)
+    case 1
+        patch(patchX, patchY, c, 'EdgeColor', 'none');
+    case 1.5
+        patch(patchX, patchY, c, 'EdgeColor', [0 0 0]);
+    case 2
+        patch(patchX, patchY, 'w', 'EdgeColor', c);
+    case 3
+        if nargin < 5
+            styl = '-';
+        end
+        if nargin < 6
+            linewidth = 2.5;
+        end
+        if size(c,1)==1
+            plot(x, y, styl, 'Color', c, 'LineWidth', linewidth);
+        else
+            for aa=1:size(patchX,2)
+                lamb = (aa-1)/(size(patchX,2)-1);
+                colorCC = lamb*c(2,:)+(1-lamb)*c(1,:);
+                patch(patchX(:,aa), patchY(:,aa), colorCC, 'EdgeColor', 'none');
+                if mod(aa,DynaJump)==0
+                    text(mean(patchX(:,aa))+1, mean(patchY(:,aa)), sprintf('%d',aa), 'Color', colorCC, 'FontSize', 8);
+                end
+            end
+        end
+end
+
+% ====================================================================================
+
+function processedTraj = PostProcessTraj(rawTraj)
+
+
+
+% ====================================================================================
+
+
+% --- Executes during object creation, after setting all properties.
+function edit3_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc
+    set(hObject,'BackgroundColor','white');
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+
+
+% --- Executes on selection change in listbox1.
+function listbox1_Callback(hObject, eventdata, handles)
+% hObject    handle to listbox1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = get(hObject,'String') returns listbox1 contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from listbox1
+
+
+% --- Executes during object creation, after setting all properties.
+function listbox1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to listbox1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc
+    set(hObject,'BackgroundColor','white');
+else
+    set(hObject,'BackgroundColor',get(0,'defaultUicontrolBackgroundColor'));
+end
+
+
+
+
+% --- Executes on button press in pushbutton1.
+function pushbutton1_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+fh = figure;
+PlotThisFrame(fh);
+
+% ============================================================================
+
+% --- Executes on button press in pushbutton2.
+function pushbutton2_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%{
+global IterNo
+AvailableScarabNumbers = [1 2 3 4 5];
+
+for robotNo = 1:length(IterData{IterNo}.Robot)
+    RobotName{robotNo} = sprintf('scarab-%i', AvailableScarabNumbers(robotNo));
+    Robot_Communicate('initiate', robotNo, {RobotName{robotNo},'laser','truth'});
+end
+
+for timeStepNo = 2:1:length(IterData{IterNo}.Robot{1}.Traj)
+    HasReachedTarget = false(1, length(length(IterData{IterNo}.Robot)));
+    while (~all(HasReachedTarget))
+        for robotNo = 1:length(IterData{IterNo}.Robot)
+            pTarget = IterData{iterNo}.Robot{robotNo}.Traj(timeStepNo,:);
+            posdata = Robot_Communicate('getData_Pose', robotNo);
+            posNow = world2sim(posdata);
+            if norm(posNow-pTarget) < 0.06
+                HasReachedTarget(robotNo
+            end
+            vel = ComputeVelocity_DiscretizedPath(IterData{iterNo}.Robot{robotNo}.Traj', posNow, timeStepNo-1, timeStepNo);
+            Robot_Communicate('setVelocity', robotNo, vel);
+        end
+        pause(0.01);
+    end
+end
+%}
+
+
+% --- Executes on button press in pushbutton3.
+function pushbutton3_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle DataFileName
+RobotCount = length(IterData{IterNo}.Robot);
+
+try
+    for robotNo = 1:RobotCount
+        %^RawTraj{robotNo} = IterData{IterNo}.Robot{robotNo}.TrajKeyPts; %IterData{IterNo}.Robot{robotNo}.Traj;
+        RawTraj{robotNo}.x = IterData{IterNo}.Robot{robotNo}.TrajKeyPts(:,1);
+        RawTraj{robotNo}.y = IterData{IterNo}.Robot{robotNo}.TrajKeyPts(:,2);
+        RawTraj{robotNo}.t = IterData{IterNo}.Robot{robotNo}.TrajKeyPts(:,3);
+    end
+catch
+    for robotNo = 1:RobotCount
+        %^RawTraj{robotNo} = IterData{IterNo}.Robot{robotNo}.TrajKeyPts; %IterData{IterNo}.Robot{robotNo}.Traj;
+        RawTraj{robotNo}.x = IterData{IterNo}.Robot{robotNo}.Traj(:,1);
+        RawTraj{robotNo}.y = IterData{IterNo}.Robot{robotNo}.Traj(:,2);
+        RawTraj{robotNo}.t = IterData{IterNo}.Robot{robotNo}.Traj(:,3);
+    end
+end
+
+BadTurnAngles = [3*pi/4, pi/2, pi/4, pi/8];
+BadTurnCorrectAttempts = 10;
+
+for a=1:2
+    disp(sprintf('Running pass %d...', a));
+    RawTraj = TrajPostProcess_Interp(RawTraj, 1/2, 'cubic');
+    RawTraj = TrajPostProcess_ObsAvoid(RawTraj, 0.6);
+    RawTraj = TrajPostProcess_RobAvoid(RawTraj, 1.2, [1 2]);
+    %%RawTraj = TrajPostProcess_EliminateSharpTurns(RawTraj, BadTurnAngles(a));
+    badAngleCount = inf;
+    itCount = 0;
+    while (badAngleCount > 0 && itCount < BadTurnCorrectAttempts)
+        [RawTraj, badAngleCount] = TrajPostProcess_EliminateSharpTurns(RawTraj, BadTurnAngles(a));
+        disp(sprintf('Bad angle count = %d...', badAngleCount));
+        itCount = itCount + 1;
+    end
+end
+for a=3:4
+    disp(sprintf('Running pass %d...', a));
+    RawTraj = TrajPostProcess_Interp(RawTraj, 1/2, 'cubic');
+    RawTraj = TrajPostProcess_ObsAvoid(RawTraj, 0.6);
+    RawTraj = TrajPostProcess_RobAvoid(RawTraj, 1.2, [2 1]);
+    %%RawTraj = TrajPostProcess_EliminateSharpTurns(RawTraj, BadTurnAngles(a));
+    badAngleCount = inf;
+    itCount = 0;
+    while (badAngleCount > 0 && itCount < BadTurnCorrectAttempts)
+        [RawTraj, badAngleCount] = TrajPostProcess_EliminateSharpTurns(RawTraj, BadTurnAngles(a));
+        disp(sprintf('Bad angle count = %d...', badAngleCount));
+        itCount = itCount + 1;
+    end
+end
+
+%RawTraj = TrajPostProcess_ResampleUniformTime(RawTraj);
+
+RawTraj = TrajPostProcess_ResampleUniformTime(RawTraj);
+RawTraj = TrajPostProcess_LimitSpeed(RawTraj, 1.0);
+RawTraj = TrajPostProcess_ComputeTheta(RawTraj);
+RawTraj = TrajPostProcess_LimitTurnrate(RawTraj, 2*pi/3, [1 2]); % 2*pi/6
+
+badAngleCount = inf;
+itCount = 0;
+while (badAngleCount > 0 && itCount < BadTurnCorrectAttempts)
+    [RawTraj, badAngleCount] = TrajPostProcess_EliminateSharpTurns(RawTraj, BadTurnAngles(end));
+    disp(sprintf('Recheck: Bad angle count = %d...', badAngleCount));
+    itCount = itCount + 1;
+end
+
+RawTraj = TrajPostProcess_ComputeTheta(RawTraj);
+RawTraj = TrajPostProcess_RemoveAllStatic(RawTraj);
+
+badAngleCount = 0;
+for robotNo = 1:RobotCount
+    Turns = [diff(RawTraj{robotNo}.th)];
+    Turns = Turns + 2*pi*(Turns<=-pi) - 2*pi*(Turns>pi);
+    badTurnIndices{robotNo} = (abs(Turns) > BadTurnAngles(end));
+    badAngleCount = badAngleCount + sum(badTurnIndices{robotNo});
+end
+if (badAngleCount>0)
+    disp(sprintf('WARING: Final bad angle count = %d...', badAngleCount));
+end
+
+%figure(figHandle);
+newFig = figure;
+PlotThisFrame(newFig);
+axis equal;
+hold on;
+for a = 1:length(RawTraj{1}.t)
+    timeTxt{a} = sprintf('%d',RawTraj{1}.t(a));
+end
+for robotNo = 1:RobotCount
+    %{
+    for a=1:200
+        plot(RawTraj{robotNo}.x(a:200:end), RawTraj{robotNo}.y(a:200:end), '.', 'Color', [a/200, 0, 0]);
+        plot([RawTraj{robotNo}.x(a:200:end);RawTraj{robotNo}.x(a:200:end)+0.01*cos(RawTraj{robotNo}.th(a:200:end))], [RawTraj{robotNo}.y(a:200:end);RawTraj{robotNo}.y(a:200:end)+0.01*sin(RawTraj{robotNo}.th(a:200:end))],'g-')
+    end
+    %}
+    plot(RawTraj{robotNo}.x, RawTraj{robotNo}.y, 'r.-');
+    plot(RawTraj{robotNo}.x(badTurnIndices{robotNo}), RawTraj{robotNo}.y(badTurnIndices{robotNo}), 'bo');
+    %text(RawTraj{robotNo}.x, RawTraj{robotNo}.y, timeTxt);
+end
+
+xScale = 0.35;
+yScale = 0.35;
+xOffset = 0; %17;
+yOffset = 0; %5;
+for robotNo = 1:RobotCount
+    RawTraj{robotNo}.x = (RawTraj{robotNo}.x+0.5)*xScale - xOffset;
+    RawTraj{robotNo}.y = (RawTraj{robotNo}.y+0.5)*yScale - yOffset;
+end
+disp('Writing trajectories to file...');
+TrajFileName = sprintf('%s.traj', DataFileName);
+fidTraj = fopen(TrajFileName,'w');
+for tt = 1:length(RawTraj{1}.t)
+    fprintf(fidTraj, '%f, ', RawTraj{1}.t(tt));
+    for robotNo = 1:RobotCount
+        fprintf(fidTraj, '%f, ', RawTraj{robotNo}.x(tt));
+        fprintf(fidTraj, '%f, ', RawTraj{robotNo}.y(tt));
+        fprintf(fidTraj, '%f, ', RawTraj{robotNo}.th(tt));
+    end
+    fprintf(fidTraj, '\n');
+end
+fclose(fidTraj);
+disp('...done!!');
+
+
+% ========================================================================
+% ========================================================================
+function OutTraj = TrajPostProcess_ComputeTheta(RawTraj)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+OutTraj = RawTraj;
+
+for robotNo = 1:RobotCount
+    DXs = diff(RawTraj{robotNo}.x);
+    DYs = diff(RawTraj{robotNo}.y);
+    SegmentSlopeAng = atan2(DYs, DXs);
+    LastSegmentSlopeAng = 0;
+    for a = [1:length(SegmentSlopeAng), length(SegmentSlopeAng):-1:1]
+        if (DXs(a)==0 && DYs(a)==0 && SegmentSlopeAng(a)==0)
+            SegmentSlopeAng(a) = LastSegmentSlopeAng;
+        else
+            LastSegmentSlopeAng = SegmentSlopeAng(a);
+        end
+    end
+    %OutTraj{robotNo}.th = [SegmentSlopeAng, SegmentSlopeAng(end)];
+    th1s = [SegmentSlopeAng(1), SegmentSlopeAng];
+    th2s = [SegmentSlopeAng, SegmentSlopeAng(end)];
+    JumpIndices = abs(th1s-th2s) > pi;
+    OutTraj{robotNo}.th = (th1s+th2s)/2 + JumpIndices.*(-pi*((th1s+th2s)>0) + pi*((th1s+th2s)<0));
+    
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_Interp(RawTraj, SubsampleInterval, method)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+for robotNo = 1:RobotCount
+    InSampleIndex = 1:length(RawTraj{robotNo}.t);
+    OutSampleIndex = 1:SubsampleInterval:length(RawTraj{robotNo}.t);
+    OutTraj{robotNo}.x = interp1(InSampleIndex, RawTraj{robotNo}.x, OutSampleIndex, method);
+    OutTraj{robotNo}.y = interp1(InSampleIndex, RawTraj{robotNo}.y, OutSampleIndex, method);
+    OutTraj{robotNo}.t = interp1(InSampleIndex, RawTraj{robotNo}.t, OutSampleIndex, method);
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_ResampleUniformTime(RawTraj);
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+ReSampledTimeInterval = inf;
+MaxTime = 0;
+for robotNo = 1:RobotCount
+    ReSampledTimeInterval = min([ReSampledTimeInterval, diff(RawTraj{robotNo}.t)]);
+    MaxTime = max([MaxTime, RawTraj{robotNo}.t(end)]);
+end
+
+ResampledTimeFinal = 0:ReSampledTimeInterval:MaxTime;
+for robotNo = 1:RobotCount
+    OutTraj{robotNo}.x = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.x, ResampledTimeFinal, 'cubic');
+    OutTraj{robotNo}.y = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.y, ResampledTimeFinal, 'cubic');
+    OutTraj{robotNo}.t = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.t, ResampledTimeFinal, 'cubic');
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_LimitSpeed(RawTraj, maxSpeed)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+for robotNo = 1:RobotCount
+    DXs = diff(RawTraj{robotNo}.x);
+    DYs = diff(RawTraj{robotNo}.y);
+    Dists = sqrt(DXs.*DXs + DYs.*DYs); % dist over each segment
+    TimeReqdForTravel = diff(RawTraj{robotNo}.t); % time required to tavarse each segment
+    TravelSpeed = Dists ./ TimeReqdForTravel;
+    %disp(sprintf('Travelspeeds: min=%d, max=%d', min(TravelSpeed), max(TravelSpeed)));
+    SubSampleCounts = ceil(abs(TravelSpeed./maxSpeed));
+    TheTimeSteps{robotNo} = RawTraj{robotNo}.t;
+    disp(sprintf('Resampling for speeds for rob %d', robotNo));
+    for a = 1:length(Dists)
+        SubSampleInterval = TimeReqdForTravel(a)/max([SubSampleCounts(a),1]);
+        newTimeSteps = (RawTraj{robotNo}.t(a)+SubSampleInterval):SubSampleInterval:(RawTraj{robotNo}.t(a+1)-SubSampleInterval);
+        TheTimeSteps{robotNo}(end+1:end+length(newTimeSteps)) = newTimeSteps;
+        %TheTimeSteps{robotNo} = [TheTimeSteps{robotNo}, RawTraj{robotNo}.t(a):(TimeReqdForTravel(a)/max([SubSampleCounts(a),1])):RawTraj{robotNo}.t(a+1)];
+    end
+end
+
+AllSubsampledTimeSteps = [];
+for robotNo = 1:RobotCount
+    AllSubsampledTimeSteps = union(AllSubsampledTimeSteps, TheTimeSteps{robotNo});
+end
+
+for robotNo = 1:RobotCount
+    OutTraj{robotNo}.x = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.x, AllSubsampledTimeSteps, 'cubic');
+    OutTraj{robotNo}.y = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.y, AllSubsampledTimeSteps, 'cubic');
+    %OutTraj{robotNo}.th = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.th, ResampledTimeFinal, 'cubic');
+    OutTraj{robotNo}.t = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.t, AllSubsampledTimeSteps, 'cubic');
+end
+
+% ------------------------------------------------------------------------
+function OutTraj = TrajPostProcess_LimitTurnrate(RawTraj, maxTurnRate, RobotIndices)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+if nargin<3
+    RobotIndices = 1:RobotCount;
+end
+
+for robotNo = RobotIndices
+    Turns = diff(RawTraj{robotNo}.th); % turns over each segment
+    Turns = Turns + 2*pi*(Turns<=-pi) - 2*pi*(Turns>pi);
+    TimeReqdForTurns = diff(RawTraj{robotNo}.t); % time required to tavarse each segment
+    TurnSpeeds = Turns ./ TimeReqdForTurns;
+    SubSampleCounts = ceil(abs(TurnSpeeds./maxTurnRate));
+    TheTimeSteps{robotNo} = RawTraj{robotNo}.t;
+    disp(sprintf('Resampling for turnrates for rob %d', robotNo));
+    for a = 1:length(Turns)
+        SubSampleInterval = TimeReqdForTurns(a)/max([SubSampleCounts(a),1]);
+        newTimeSteps = (RawTraj{robotNo}.t(a)+SubSampleInterval):SubSampleInterval:(RawTraj{robotNo}.t(a+1)-SubSampleInterval);
+        TheTimeSteps{robotNo}(end+1:end+length(newTimeSteps)) = newTimeSteps;
+        %TheTimeSteps{robotNo} = [TheTimeSteps{robotNo}, RawTraj{robotNo}.t(a):(TimeReqdForTurns(a)/max([SubSampleCounts(a),1])):RawTraj{robotNo}.t(a+1)];
+    end
+end
+
+AllSubsampledTimeSteps = [];
+for robotNo = RobotIndices
+    AllSubsampledTimeSteps = union(AllSubsampledTimeSteps, TheTimeSteps{robotNo});
+end
+
+for robotNo = 1:RobotCount
+    OutTraj{robotNo}.x = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.x, AllSubsampledTimeSteps, 'cubic');
+    OutTraj{robotNo}.y = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.y, AllSubsampledTimeSteps, 'cubic');
+    %OutTraj{robotNo}.th = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.th, ResampledTimeFinal, 'cubic');
+    OutTraj{robotNo}.t = interp1(RawTraj{robotNo}.t, RawTraj{robotNo}.t, AllSubsampledTimeSteps, 'cubic');
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_ObsAvoid(RawTraj, minDistObs)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+global minDistFromObs
+minDistFromObs = minDistObs;
+RobotCount = length(IterData{IterNo}.Robot);
+
+for robotNo = 1:RobotCount
+    ptCount = length(RawTraj{robotNo}.t);
+    for a = 1:ptCount
+        [OutTraj{robotNo}.x(a), OutTraj{robotNo}.y(a)] = ObsAvoidedPt(RawTraj{robotNo}.x(a), RawTraj{robotNo}.y(a));
+    end
+    OutTraj{robotNo}.t = RawTraj{robotNo}.t;
+end
+
+
+function [xa,ya] = ObsAvoidedPt(x,y)
+global ObsCoords
+global minDistFromObs
+obsCenterOffset = minDistFromObs+0.5;
+
+dXObs = x - ObsCoords(:,1);
+dYObs = y - ObsCoords(:,2);
+distObs = sqrt(dXObs.*dXObs + dYObs.*dYObs);
+[minObsDist, closestObsIndx] = min(distObs);
+minObsDistX = dXObs(closestObsIndx);
+minObsDistY = dYObs(closestObsIndx);
+minObsDistXabs = abs(minObsDistX);
+minObsDistYabs = abs(minObsDistY);
+
+if max([minObsDistXabs,minObsDistYabs]) > obsCenterOffset % moving parrel to a wall - far enough from wall
+    xa = x;
+    ya = y;
+    return;
+end
+
+xo = ObsCoords(closestObsIndx,1);
+yo = ObsCoords(closestObsIndx,2);
+if (minObsDistXabs>minObsDistYabs) && (minObsDistYabs<=0.5) % moving parrel to a wall - close to wall
+    xa = xo + obsCenterOffset*sign(minObsDistX);
+    ya = y;
+    return;
+elseif (minObsDistYabs>minObsDistXabs) && (minObsDistXabs<=0.5)
+    xa = x;
+    ya = yo + obsCenterOffset*sign(minObsDistY);
+    return;
+end
+
+xv = xo + 0.5*sign(minObsDistX);
+yv = yo + 0.5*sign(minObsDistY);
+minVertexDistX = x - xv;
+minVertexDistY = y - yv;
+minVertexDist = sqrt(minVertexDistX*minVertexDistX + minVertexDistY*minVertexDistY);
+if minVertexDist > minDistFromObs % Taking a turn - safety distance satisfied
+    xa = x;
+    ya = y;
+    return;
+else
+    if (minVertexDist>0)
+        pushRatio = minDistFromObs/minVertexDist;
+        xa = xv + (x-xv)*pushRatio;
+        ya = yv + (y-yv)*pushRatio;
+    else
+        dXov = xv - xo;
+        dYov = yv - yo;
+        ovDist = sqrt(dXov*dXov + dYov*dYov);
+        xa = xo + (xv-xo)*obsCenterOffset/ovDist;
+        ya = yo + (yv-yo)*obsCenterOffset/ovDist;
+    end
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_RobAvoid(RawTraj, minDistRobCenter, RobIndices, symmetry)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+ptCount = length(RawTraj{1}.t);
+RobRad = minDistRobCenter / 2;
+
+OutTraj = RawTraj;
+if nargin < 3
+    RobIndices = 1:RobotCount;
+end
+if nargin < 4
+    symmetry = 1;
+end
+frac1 = symmetry;
+frac2 = 2 - frac1;
+
+for rn1 = 1:length(RobIndices)
+    robotNo1 = RobIndices(rn1);
+    for rn2 = (rn1+1):length(RobIndices)
+        robotNo2 = RobIndices(rn2);
+        DrcxVec = RawTraj{robotNo2}.x - RawTraj{robotNo1}.x;
+        DrcyVec = RawTraj{robotNo2}.y - RawTraj{robotNo1}.y;
+        CenterDistVec = sqrt(DrcxVec.*DrcxVec + DrcyVec.*DrcyVec);
+        CollideIndices = find(CenterDistVec < minDistRobCenter);
+        for a = CollideIndices
+            rcx1 = RawTraj{robotNo1}.x(a);
+            rcy1 = RawTraj{robotNo1}.y(a);
+            rcx2 = RawTraj{robotNo2}.x(a);
+            rcy2 = RawTraj{robotNo2}.y(a);
+            Drcx = DrcxVec(a);
+            Drcy = DrcyVec(a);
+            CenterDist = CenterDistVec(a);
+            if (CenterDist > minDistRobCenter)
+                OutTraj{robotNo1}.x(a) = rcx1;
+                OutTraj{robotNo1}.y(a) = rcy1;
+                OutTraj{robotNo2}.x(a) = rcx2;
+                OutTraj{robotNo2}.y(a) = rcy2;
+            elseif CenterDist > 0
+                segmentXc = (rcx1+rcx2)/2;
+                segmentYc = (rcy1+rcy2)/2;
+                shiftRatio = RobRad/CenterDist;
+                OutTraj{robotNo1}.x(a) = segmentXc - frac1*shiftRatio*Drcx;
+                OutTraj{robotNo1}.y(a) = segmentYc - frac1*shiftRatio*Drcy;
+                OutTraj{robotNo2}.x(a) = segmentXc + frac2*shiftRatio*Drcx;
+                OutTraj{robotNo2}.y(a) = segmentYc + frac2*shiftRatio*Drcy;
+            else
+                MovVecMag = 0;
+                k = 1;
+                while (MovVecMag==0)
+                    MovVecX = (RawTraj{robotNo1}.x(a+k)-RawTraj{robotNo1}.x(a-k)) + (RawTraj{robotNo2}.x(a+k)-RawTraj{robotNo2}.x(a-k));
+                    MovVecY = (RawTraj{robotNo1}.y(a+k)-RawTraj{robotNo1}.y(a-k)) + (RawTraj{robotNo2}.y(a+k)-RawTraj{robotNo2}.y(a-k));
+                    MovVecMag = sqrt(MovVecX*MovVecX + MovVecY*MovVecY);
+                    k = k + 1;
+                end
+                SegVecX = MovVecY / MovVecMag;
+                SegVecY = -MovVecX / MovVecMag;
+                RefSegVecMag = 0;
+                k = 1;
+                while (RefSegVecMag==0)
+                    RefSegVecX = (OutTraj{robotNo2}.x(a-k)-OutTraj{robotNo1}.x(a-k))/2;
+                    RefSegVecY = (OutTraj{robotNo2}.y(a-k)-OutTraj{robotNo1}.y(a-k))/2;
+                    RefSegVecMag = sqrt(RefSegVecX*RefSegVecX + RefSegVecY*RefSegVecY);
+                    k = k + 1;
+                end
+                if (SegVecX*RefSegVecX + SegVecY*RefSegVecY) < 0
+                    SegVecX = -SegVecX;
+                    SegVecY = -SegVecY;
+                end
+                OutTraj{robotNo1}.x(a) = rcx1 - frac1*SegVecX*RobRad; % check!
+                OutTraj{robotNo1}.y(a) = rcy1 - frac1*SegVecY*RobRad;
+                OutTraj{robotNo2}.x(a) = rcx2 + frac2*SegVecX*RobRad;
+                OutTraj{robotNo2}.y(a) = rcy2 + frac2*SegVecY*RobRad;
+            end
+        end
+    end
+end
+
+% ------------------------------------------------------------------------
+
+function [OutTraj, badAngleCount] = TrajPostProcess_EliminateSharpTurns(RawTraj, TurnThresh)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+OutTraj = RawTraj;
+badAngleCount = 0;
+
+for robotNo = 1:RobotCount
+    
+    DXs = diff(RawTraj{robotNo}.x);
+    DYs = diff(RawTraj{robotNo}.y);
+    SegmentSlopeAng = atan2(DYs, DXs);
+    LastSegmentSlopeAng = 0;
+    for a = [1:length(SegmentSlopeAng), length(SegmentSlopeAng):-1:1]
+        if (DXs(a)==0 && DYs(a)==0 && SegmentSlopeAng(a)==0)
+            SegmentSlopeAng(a) = LastSegmentSlopeAng;
+        else
+            LastSegmentSlopeAng = SegmentSlopeAng(a);
+        end
+    end
+    Turns = [0, diff(SegmentSlopeAng), 0];
+    Turns = Turns + 2*pi*(Turns<=-pi) - 2*pi*(Turns>pi);
+    badTurnIndices = (abs(Turns) > TurnThresh);
+    badAngleCount = badAngleCount + sum(badTurnIndices);
+    
+    k = max([1, find(badAngleCount,1)-1]);
+    ClusterStart = -1;
+    while (k < length(badTurnIndices))
+        if (ClusterStart==-1 && badTurnIndices(k)==0 && badTurnIndices(k+1)==1) % Start a new cluster
+            ClusterStart = k+1;
+        elseif (ClusterStart>0 && badTurnIndices(k)==1 && badTurnIndices(k+1)==0) % End a cluster
+            OutTraj{robotNo}.x(ClusterStart:k) = interp1([(ClusterStart-1),(k+1)], OutTraj{robotNo}.x([(ClusterStart-1),(k+1)]), ClusterStart:k);
+            OutTraj{robotNo}.y(ClusterStart:k) = interp1([(ClusterStart-1),(k+1)], OutTraj{robotNo}.y([(ClusterStart-1),(k+1)]), ClusterStart:k);
+            ClusterStart = -1;
+        end
+        k = k + 1;
+    end
+    
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_RemoveAllStatic(RawTraj)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+RobotCount = length(IterData{IterNo}.Robot);
+
+OutTraj = RawTraj;
+
+StaticIndices = true(1, length(RawTraj{1}.t)-1);
+for robotNo = 1:RobotCount
+    DXs = diff(RawTraj{robotNo}.x);
+    DYs = diff(RawTraj{robotNo}.y);
+    DTHs = diff(RawTraj{robotNo}.th);
+    StaticIndices = StaticIndices & (DXs==0 & DYs==0 & DTHs==0);
+end
+StaticIndices = StaticIndices(1:end+1-find(StaticIndices(end:-1:1)==0,1));
+NonStaticIndicesNo = find(~StaticIndices);
+
+for robotNo = 1:RobotCount
+    OutTraj{robotNo}.x = OutTraj{robotNo}.x(NonStaticIndicesNo);
+    OutTraj{robotNo}.y = OutTraj{robotNo}.y(NonStaticIndicesNo);
+    OutTraj{robotNo}.th = OutTraj{robotNo}.th(NonStaticIndicesNo);
+    OutTraj{robotNo}.t = OutTraj{robotNo}.t(NonStaticIndicesNo);
+end
+
+% ------------------------------------------------------------------------
+
+function OutTraj = TrajPostProcess_SmoothenKinks(RawTraj)
+%interp1(tsf, xsf{robotNo}, tsi, 'cubic');
+
+% ========================================================================
+% ========================================================================
+
+
+% --- Executes on button press in pushbutton4.
+function pushbutton4_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global ObsCoords IterData
+global IterNo TimeStepNo
+global MaxTimeStep
+global figHandle
+global MovieFrames
+
+if isempty(MovieFrames)
+    clear global MovieFrames
+    MovieFrames(1) = getframe;
+    global MovieFrames
+else
+    global MovieFrames
+    MovieFrames(end+1) = getframe;
+end
+
+% --- Executes on button press in pushbutton5.
+function pushbutton5_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global MovieFrames DataFileName
+
+disp('Exporting movie...');
+MovieFileName = sprintf('%s.avi', DataFileName);
+movie2avi(MovieFrames, MovieFileName, 'compression','Cinepak', 'fps',4, 'quality',100);
+disp(sprintf('Movie saved in %s', MovieFileName));
+

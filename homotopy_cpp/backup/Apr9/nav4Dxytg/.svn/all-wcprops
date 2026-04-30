@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 108
+/svnroot/personalrobots/!svn/ver/5786/pkg/trunk/motion_planning/sbpl/src/discrete_space_information/nav3dkin
+END
+environment_nav3Dkin.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 133
+/svnroot/personalrobots/!svn/ver/5786/pkg/trunk/motion_planning/sbpl/src/discrete_space_information/nav3dkin/environment_nav3Dkin.cpp
+END
+environment_nav3Dkin.h
+K 25
+svn:wc:ra_dav:version-url
+V 131
+/svnroot/personalrobots/!svn/ver/5786/pkg/trunk/motion_planning/sbpl/src/discrete_space_information/nav3dkin/environment_nav3Dkin.h
+END

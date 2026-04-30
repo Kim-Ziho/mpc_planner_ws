@@ -1,0 +1,17 @@
+K 25
+svn:wc:ra_dav:version-url
+V 121
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/discrete_space_information/navxythetalat
+END
+environment_navxythetalat.cpp
+K 25
+svn:wc:ra_dav:version-url
+V 151
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/discrete_space_information/navxythetalat/environment_navxythetalat.cpp
+END
+environment_navxythetalat.h
+K 25
+svn:wc:ra_dav:version-url
+V 149
+/svnroot/personalrobots/!svn/ver/17610/pkg/trunk/stacks/motion_planning/sbpl/src/discrete_space_information/navxythetalat/environment_navxythetalat.h
+END

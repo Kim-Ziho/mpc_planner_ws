@@ -1,0 +1,830 @@
+/*
+ * Copyright (c) 2008, Maxim Likhachev
+ * All rights reserved.
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ * 
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the University of Pennsylvania nor the names of its
+ *       contributors may be used to endorse or promote products derived from
+ *       this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+#ifndef __ENVIRONMENT_NAV4DXYTG_H_
+#define __ENVIRONMENT_NAV4DXYTG_H_
+
+
+//eight-connected grid
+#define NAV4DXYTG_DXYWIDTH 8
+
+/*
+//definition of Timet orientations
+//0 - is aligned with X-axis in the positive direction (1,0 in polar coordinates)
+//Timet increases as we go counterclockwise
+//number of Timet values 
+#define NAV4DXYTG_TimetDIRS 8 
+*/
+
+//number of actions per x,y,Timet state
+#define NAV4DXYTG_ACTIONWIDTH 5 //decrease, increase, same angle while moving plus decrease, increase angle while standing.
+
+// ------------------------
+
+#define NAV4DXYTG_COSTMULT 1000 // Needs to be 1000 if using 2Dgridsearch for precomputing huristics //1000000 //10000
+#define COST_NORM_ORDER 1.0
+
+#define LVAL_EQUAL_THRESH (1.0)
+#define LVAL_INTEGRATION_STEP (1e-2)
+
+#define RANDF (1.0 - 2.0*((float)rand())/RAND_MAX) // Samples from U((-1,1))
+#define RANDU (((float)rand())/RAND_MAX) // Samples from U((0,1))
+
+// Define metrics on the XYT space (actually a semi-norm)
+// #define TRANSITIONCOST_XYT(DX, DY, DT) ((int) NAV4DXYTG_COSTMULT*sqrt((double)((DX)*(DX)+(DY)*(DY))))
+// #define CELLCOST_XYT(DX, DY, DT) ((int) NAV4DXYTG_COSTMULT*sqrt((double)((DX)*(DX)+(DY)*(DY))))
+int TRANSITIONCOST_XYT(int DX, int DY, int DT);
+int CELLCOST_XYT(int DX, int DY, int DT, int ConstraintDist);
+
+// ------------------------
+
+typedef struct{
+	
+	float VIOLATION_COST_POWER;
+	int COLLISION_CHECK_RADIUS;
+	int HEURISTIC_TYPE;
+	int PRECOMPUTE_HEURISTIC;
+	bool IS_ITERATION_SYMMETRIC;
+	
+	bool DO_JOINTSTATESPACE_LOGGING;
+	int JOINTSTATESPACE_LOGGING_METHOD;
+	int JOINTSTATESPACE_LOGGING_RAD;
+	
+	int ITERATION_TYPE;
+	int MAX_ITERATION_COUNT;
+	int MIN_ITERATION_COUNT;
+	int MAX_SUPERITER_COUNT;
+	int CONVERGENCE_CYCLE_COUNT;
+	
+	int PENALTY_WEIGHT_INCREMENT_METHOD;
+	int PENALTY_BIN_SEARCH_MAXSTEPS;
+	float PENALTY_BIN_SEARCH_THRESH;
+	//float PENALTY_INCREMENT_MULT_FAC;
+	//vector<float> PenaltyWeightParams;
+	
+	int STATIC_OBSTACLE_INFLATION_RADIUS;
+	
+	//bool CHECK_HOMOTOPY_CLASS;
+	//int HOMOTOPY_CLASS_METHOD;
+	//vector<EnvNAV4DXYTG2Dpt_t> ObstacleCenters;
+	
+	int EXPLORE_HOMOTOPY_CLASSES;
+	
+} GlobalParams_EnvNAV4DXYTG;
+
+// ------------------------
+
+typedef struct{
+	double x;
+	double y;
+} EnvNAV4DXYTG2Dpt_t;
+
+typedef struct{
+	int x;
+	int y;
+} EnvNAV4DXYTG2DptInt_t;
+
+typedef struct{
+	double x;
+	double y;
+	double Timet;
+} EnvNAV4DXYTG3Dpt_t;
+
+typedef struct{
+	double x;
+	double y;
+	double Timet;
+	double g;
+} EnvNAV4DXYTG4Dpt_t;
+
+// ------------------------
+
+typedef struct{
+	int X;
+	int Y;
+	int Timet;
+//	int g;
+} EnvNAV4DXYTG_pos_t;
+
+typedef struct{
+	int X;
+	int Y;
+	int Timet;
+	bool isStrong;
+} EnvNAV4DXYTG_pos_key;
+
+EnvNAV4DXYTG_pos_key GetKeyPt(EnvNAV4DXYTG_pos_t pt, bool isstrong);
+
+typedef struct{
+	vector<EnvNAV4DXYTG_pos_t> pos_t;
+	vector<EnvNAV4DXYTG_pos_key> KeyPts;
+	complex<double> Lval;
+} EnvNAV4DXYTG_pos_trajectory;
+
+typedef struct{
+	int D;	// Discretized units - Already multiplied by NAV4DXYTG_COSTMULT
+	int Timet;
+} EnvNAV4DXYTG_dist_t;
+
+typedef struct{
+	vector<EnvNAV4DXYTG_dist_t> dist_t;
+} EnvNAV4DXYTG_dist_trajectory;
+
+
+int interpVal(int x1, int y1, int x2, int y2, int xs);
+
+vector<int> FindAndInterpInTrajectory(EnvNAV4DXYTG_dist_trajectory* distTraj, int timet, EnvNAV4DXYTG_dist_t* InterpedDist);
+void PutInTrajectory(EnvNAV4DXYTG_dist_trajectory* distTraj, EnvNAV4DXYTG_dist_t distToPut);
+vector<int> FindAndInterpInTrajectory(EnvNAV4DXYTG_pos_trajectory* posTraj, int timet, EnvNAV4DXYTG_pos_t* InterpedPos);
+void PutInTrajectory(EnvNAV4DXYTG_pos_trajectory* posTraj, EnvNAV4DXYTG_pos_t posToPut);
+
+//bool CompareTrajectories(EnvNAV4DXYTG_pos_trajectory* traj1, EnvNAV4DXYTG_pos_trajectory* traj2, int thresh);
+
+// ------------------------
+
+class obstacleMap2D
+{
+public:
+
+	bool* data;
+	int size_x, size_y;
+	obstacleMap2D() { };
+	obstacleMap2D(int xSize, int ySize);
+	obstacleMap2D(int xSize, int ySize, bool initVal);
+	//~obstacleMap2D() {delete[] data;};  // MEM_CLEAR ***
+	void init(int xSize, int ySize, bool initVal);
+	bool get(int xx, int yy);
+	void put(int xx, int yy, bool flag);
+	
+};
+
+class obstacleMap3D
+{
+public:
+
+	bool* data;
+	int size_x, size_y, size_tt;
+	obstacleMap3D() { };
+	obstacleMap3D(int xSize, int ySize, int tSize);
+	obstacleMap3D(int xSize, int ySize, int tSize, bool initVal);
+	~obstacleMap3D() {delete[] data;};  // MEM_CLEAR
+	void init(int xSize, int ySize, int tSize, bool initVal);
+	bool get(int xx, int yy, int tt);
+	void put(int xx, int yy, int tt, bool flag);
+	void ConstructFromTrajectories(vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories, int collisionCheckRad);
+	
+};
+
+// ------------------------
+/*
+class PenaltyTracker_t
+{
+public:
+
+	char PenaltyChangeMethod[1024];
+	vector<float> PenaltyChangeParams;
+	float Weight;
+	//float p;
+	
+	PenaltyTracker_t() { };
+	PenaltyTracker_t(char* method, char* paramsString);
+	
+	void next(void);
+	void reset(void);
+};
+*/
+// ------
+
+typedef struct
+{
+	char dX;
+	char dY;
+	char dTimet;
+	char dG;
+	unsigned int cost; // Only the edge costs 
+} EnvNAV4DXYTGAction_t;
+
+//----
+
+typedef struct
+{
+	EnvNAV4DXYTG_dist_trajectory DistTraj;
+	int RobotIndex;
+	vector<float> PenaltyParams;
+} AConstraintOfARobot_t;
+
+
+/*
+typedef struct
+{
+	int StartX_c;
+	int StartY_c;
+	int StartTimet_c;
+	int StartG_c;
+
+	int EndX_c;
+	int EndY_c;
+	int EndTimet_c;
+	int EndG_c;
+	
+	vector<EnvNAV4DXYTG2DptInt_t> Tasks;
+	
+	vector<EnvNAV4DXYTGAction_t> ActionsV;
+	
+	vector<AConstraintOfARobot_t> constraints;
+	
+} EnvNAV4DXYTG_AParticularRobot_t;
+*/
+
+class EnvNAV4DXYTG_AParticularRobot_t
+{
+public:
+
+	int StartX_c;
+	int StartY_c;
+	int StartTimet_c;
+	int StartG_c;
+
+	int EndX_c;
+	int EndY_c;
+	int EndTimet_c;
+	int EndG_c;
+	
+	vector<EnvNAV4DXYTG2DptInt_t> Tasks;
+	
+	vector<EnvNAV4DXYTGAction_t> ActionsV;
+	
+	vector<AConstraintOfARobot_t> constraints;
+	
+	vector< complex<double> > BlockedHomotopyClass_Const_LVals;
+};
+
+
+typedef struct
+{
+	int Robot1;
+	int Robot2;
+	//PenaltyTracker_t Penalty;
+	vector<float> PenaltyWeightParams;
+	EnvNAV4DXYTG_dist_trajectory constraint;
+	
+} EnvNAV4DXYTG_AParticularConstraint_t;
+
+
+// ------------------------
+
+typedef struct
+{
+	vector<int> RobotStateX;
+	vector<int> RobotStateY;
+	int Timet;
+	vector<int> ViolatingRobotIndices;
+} JointStatespacePoint_t;
+
+/*
+typedef struct
+{
+	vector<int> x;
+	vector<int> y;
+} PointsCollection_t;
+
+typedef struct
+{
+	vector<PointsCollection_t> robot;
+} HomotopyClassBlocker_t;
+*/
+
+/*
+typedef struct
+{
+	vector<int> ObsCount; // e.g. {2,-3,1,4,-5}
+}CanonicalSequence_t;
+*/
+
+//CanonicalSequence_t DetermineCanonicalSequence(EnvNAV4DXYTG_pos_trajectory posTraj, vector<EnvNAV4DXYTG2Dpt_t> ObstacleCenters);
+
+// ------------------------
+
+class HomotopyClassList_allRobots
+{
+public:
+	vector< vector< complex<double> > > HomotopyClassList; // HomotopyClassList[RobotIndex][BlockedIndex]
+};
+
+class HomotopyClass_allRobots
+{
+public:
+	vector< complex<double> > HomotopyClass; // HomotopyClass[RobotIndex]
+};
+
+
+class CentralizedInfo_t
+{
+public:
+
+	CentralizedInfo_t() { };
+	CentralizedInfo_t(int RobCount)
+		{
+			BlockedHomotopyClasses.HomotopyClassList.resize(RobCount);
+			InitialConstrainHomotopyClass.HomotopyClassList.resize(RobCount);
+		};
+	
+	// -----
+	
+	vector<JointStatespacePoint_t> JointStatespaceObstacles;
+	vector<JointStatespacePoint_t> JointStatespaceObstacles_temp;
+	
+	bool isPointInJointStatespaceObstacles(JointStatespacePoint_t pt, int flag, int radi, bool debug=false);
+	int AddObstaclePointsToJointStatespace(vector<EnvNAV4DXYTG_pos_trajectory> posTrajs, 
+												vector<EnvNAV4DXYTG_AParticularConstraint_t> theConstraints, 
+												int TimetStart, int TimetEnd, bool isMethod2=false);
+	void ConcatenateJointStatespaceLists(void);
+	
+	// -----
+	
+	vector<float> PenaltyWeights;
+	//vector<float> AveragePenaltyWeights_Robots;
+	vector< vector<float> > PenaltyWeightVectors; // PenaltyWeightMatrix[RobotIndex][ConstraintIndex]
+		
+	// -----
+	
+	HomotopyClassList_allRobots BlockedHomotopyClasses;
+	HomotopyClassList_allRobots InitialConstrainHomotopyClass;
+	
+	//vector<HomotopyClass_allRobots> NoSolutionHomotopy_hist;
+	//vector<HomotopyClassList_allRobots> BlockedHomotopy_hist;
+	
+	/*
+	vector<HomotopyClassBlocker_t> BlockedHomotopyClasses;
+	
+	bool isPointInBlockedHomotopyClasses(JointStatespacePoint_t pt, int flag=1);
+	int AddObstaclePointsToBlockedHomotopyClasses(vector<EnvNAV4DXYTG_pos_trajectory> posTrajs, 
+												vector<EnvNAV4DXYTG_AParticularConstraint_t> theConstraints, 
+												int TimetStart, int TimetEnd, int radi);
+	*/
+	
+	// -----
+	
+	// BlockedHomotopy_traj [RobotNo] [HomotopyClassNo]
+	//vector< vector<EnvNAV4DXYTG_pos_trajectory> > BlockedHomotopy_traj;
+	
+	// CurrentHomotopy_traj [RobotNo]
+	//vector<EnvNAV4DXYTG_pos_trajectory> CurrentHomotopy_traj;
+};
+
+// -----------------------------------
+
+class LValDiffMap_t
+{
+public:
+	bool isActive;
+
+	vector< complex<double> >* LValDiffs;
+	int size_x, size_y;
+	vector< complex<double> > CriticalPoints;
+	vector< complex<double> > PartialFracCoefs;
+	vector<EnvNAV4DXYTGAction_t> ActionsV;
+	vector<int> ActionV_InvIndex;
+	double IntegrationStepSize;
+	
+	LValDiffMap_t() { };
+	LValDiffMap_t(int xSize, int ySize, vector<EnvNAV4DXYTGAction_t> ActionsVIn, vector<int> Xs, vector<int> Ys, double IntegrationStepSizeIn=LVAL_INTEGRATION_STEP);
+	//void SetCriticalPoints(vector<int> Xs, vector<int> Ys);
+	//void ComputeLValDiffs(int xSize, int ySize, vector<EnvNAV4DXYTGAction_t> ActionsVIn, double IntegrationStepSizeIn=LVAL_INTEGRATION_STEP);
+	complex<double> IntegrateLValDiff(int xv, int yv, int av);
+	//~LValDiffMap_t() {delete[] data;};  // MEM_CLEAR ***
+	//void init(int xSize, int ySize, bool initVal);
+};
+
+class RobotHomotopyInfo_t
+{
+public:
+
+	bool ForcedActive;
+	vector< complex<double> > BlockedHomotopyClass_LVals;
+	vector< complex<double> > ConstrainHomotopyClass_LVals;
+	
+	LValDiffMap_t* LValDiffMap;
+	
+	complex<double> getLValDiff(int xs, int ys, int ActionInd);
+	bool isActive() { return (ForcedActive || !(BlockedHomotopyClass_LVals.size()==0 && ConstrainHomotopyClass_LVals.size()==0)); };
+};
+
+// -----------------------------------
+
+
+//configuration parameters
+typedef struct ENV_NAV4DXYTG_CONFIG
+{
+	int EnvWidth_c;
+	int EnvHeight_c;
+	int EnvMaxTime_c;
+	//int EnvMaxG_c;
+
+	int StartX_c;
+	int StartY_c;
+	int StartTimet_c;
+	int StartG_c;
+
+	int EndX_c;
+	int EndY_c;
+	int EndTimet_c;
+	int EndG_c;
+	
+	vector<EnvNAV4DXYTG2DptInt_t> Tasks;
+
+	double cellsize_m;
+	double timestepsize_m;
+	
+	GlobalParams_EnvNAV4DXYTG GlobalParams;
+	
+	int BotIdentifier;
+
+	// Trajectories in continuous space-time
+	vector<int> otherBots_identifiers;
+	vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories;
+	vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories;
+	vector<float> penaltyWeights;
+
+	// Centrally shared information
+	CentralizedInfo_t* CentralizedInfo;
+
+	//int dXY[NAV4DXYTG_DXYWIDTH][2];
+
+	vector<EnvNAV4DXYTGAction_t> ActionsV; //array of standard actions
+	
+	obstacleMap2D StaticObstacleMap;
+	obstacleMap3D DynamicObstacleMap;
+	
+	//bool StayInCurrentHomotopy;
+	//EnvNAV4DXYTG_pos_trajectory CurrentHomotopy_traj;
+	RobotHomotopyInfo_t RobotHomotopyInfo;
+
+} EnvNAV4DXYTGConfig_t;
+
+// ------------------------------------------
+
+
+typedef struct
+{
+	int EnvWidth_c;
+	int EnvHeight_c;
+	int EnvMaxTime_c;
+	
+	double cellsize_m;
+	double timestepsize_m;
+	
+	GlobalParams_EnvNAV4DXYTG GlobalParams;
+	
+	int RobotCount;
+	
+	vector<EnvNAV4DXYTG_AParticularRobot_t> TheRobots;
+	vector<EnvNAV4DXYTG_AParticularConstraint_t> TheConstraints;
+	
+	obstacleMap2D StaticObstacleMap;
+	
+	LValDiffMap_t* LValDiffMap; // Works only when all robots use 8-connected grids
+	
+} ConfigFileInfo;
+
+// -----------------------------------
+
+class ExploreInfo
+{
+public:
+	// Explored LVals
+	vector< complex<double> > ExploredLVals;
+	vector< float > ExplorationTime;
+	vector< int > ExplorationExpansions;
+
+};
+
+// -----------------------------------
+
+typedef struct 
+{
+	int stateID;
+	int X;
+	int Y;
+	int Timet;
+	int G;
+	complex<double> Lval;
+} EnvNAV4DXYTGHashEntry_t;
+
+
+typedef struct
+{
+	vector<int> RemTaskIndices;
+	vector<int> MinTaskTravelHeuSum;
+	int RemTasksCount;
+} GComputeHistory_t;
+
+// A modification on SBPL2DGridSearch for pre-computing heuristics
+class SBPL2DGridSearchWithTasks
+{
+public:
+
+	int width_x, height_y, cellsize_m;
+	//int** PreComputedHeu;
+	int TasksCount;
+	vector<EnvNAV4DXYTG2DptInt_t> Tasks;
+	vector<SBPL2DGridSearch*> TasksPreSearch;
+	SBPL2DGridSearch* OriginPreSearch;
+	
+	//int lastComputedG;
+	//vector<int> RemTaskIndices;
+	//vector<int> MinTaskTravelHeuSum;
+	//int RemTasksCount;
+	vector<int> ComputedGs;
+	vector<GComputeHistory_t> StoredCompute;
+	
+
+	SBPL2DGridSearchWithTasks(int in_width_x, int in_height_y, float in_cellsize_m);
+	~SBPL2DGridSearchWithTasks();
+	
+	bool PreCompute(unsigned char** Grid2D, unsigned char obsthresh, int ExpandOrigin_x, int ExpandOrigin_y, vector<EnvNAV4DXYTG2DptInt_t> Tasks, int ExpandStop_x, int ExpandStop_y, SBPL_2DGRIDSEARCH_TERM_CONDITION termination_condition);
+	
+	int getPreComputedHeu(int x, int y, int g);
+};
+
+
+//variables that dynamically change (e.g., array of states, ...)A hypergiant (luminosity class 0) is a star with a tremendous mass and luminosity, showing signs of a very high rate of mass loss.
+class EnvironmentNAV4DXYTG_t
+{
+public:
+
+	int startstateid;
+	int goalstateid;
+	
+	EnvNAV4DXYTGHashEntry_t* CopyOfGoalState;
+
+	//hash table of size x_size*y_size. Maps from coords to stateId	
+	int HashTableSize;
+	vector<EnvNAV4DXYTGHashEntry_t*>* Coord2StateIDHashTable;
+
+	//vector that maps from stateID to coords	
+	vector<EnvNAV4DXYTGHashEntry_t*> StateID2CoordTable;
+
+	//any additional variables
+	SBPL2DGridSearch* grid2DsearchFwd;
+	SBPL2DGridSearch* grid2DsearchBak;
+	SBPL2DGridSearchWithTasks* grid2DsearchFwdTasks;
+	
+	EnvironmentNAV4DXYTG_t() {CopyOfGoalState=NULL;};
+
+};
+
+
+
+class EnvironmentNAV4DXYTG : public DiscreteSpaceInformation
+{
+
+public:
+
+	EnvNAV4DXYTGConfig_t EnvNAV4DXYTGCfg;
+
+	bool InitializeEnv(const char* sEnvFile); // This function is of no use! - Just because it is inherited from DiscreteSpaceInformation
+	bool InitializeMDPCfg(MDPConfig *MDPCfg);
+	
+	int  HeuristicFunction(int X1, int Y1, int X2, int Y2);
+	int  GetFromToHeuristic(int FromStateID, int ToStateID);
+	int  GetGoalHeuristic(int stateID);
+	int  GetStartHeuristic(int stateID);
+	
+	void SetAllActionsandAllOutcomes(CMDPSTATE* state);
+	void SetAllPreds(CMDPSTATE* state);
+	void GetSuccs(int SourceStateID, vector<int>* SuccIDV, vector<int>* CostV);
+	void GetPreds(int TargetStateID, vector<int>* PredIDV, vector<int>* CostV);
+
+	int	 SizeofCreatedEnv();
+	void PrintState(int stateID, bool bVerbose, FILE* fOut=NULL);
+	void GetTrajectoryFromSolutionStateIDs(vector<int> solution_stateIDs_V, EnvNAV4DXYTG_pos_trajectory* posTraj);
+	void PostProcessTrajectory(EnvNAV4DXYTG_pos_trajectory* posTraj);
+	void PrintEnv_Config(FILE* fOut);
+
+    //TODO - add perimeter, goal with tols
+    // bool InitializeEnv(int width, int height,
+    //                   const unsigned char* mapdata,
+    //                   double startx, double starty, double startTimet,
+    //                   double goalx, double goaly, double goalTimet,
+	//				   double goaltol_x, double goaltol_y, double goaltol_Timet,
+	//				   vector<sbpl_2Dpt_t> perimeterptsV,
+	//				   double cellsize_m, double nominalvel_mpersecs, double timetoturn45degsinplace_secs);
+
+	// bool InitializeEnv(const char* sEnvFile, vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories,
+	//				vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories,
+	//				vector<float> penaltyWeights);
+
+	/*bool InitializeEnv(vector<int> otherBots_identifiers,
+					vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories,
+					vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories,
+					vector<float> penaltyWeights);*/
+
+	bool InitializeEnv(ConfigFileInfo* CfgInfo, CentralizedInfo_t* CentralizedInfo, int robotIndex,
+										vector<int> otherBots_identifiers,
+										vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories,
+										vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories);
+										
+	bool SetPenaltyWeights(vector<float> penaltyWeights);
+
+    int SetStart(double x, double y, double Timet, int g, complex<double> LVal = complex<double>(0.0,0.0));
+    int SetGoal(double x, double y, double Timet, int g);
+    // bool UpdateCost(int x, int y, int new_status);
+	// void GetPredsofChangedEdges(vector<nav2dcell_t>* changedcellsV, vector<int> *preds_of_changededgesIDV);
+
+
+	void GetCoordFromState(int stateID, int& x, int& y, int& Timet, int& g) const;
+
+	//int GetStateFromCoord(int x, int y, int Timet, int g);
+	int GetStateFromCoord(int x, int y, int Timet, int g, complex<double> Lval);
+
+	// bool IsObstacle(int x, int y);
+	void GetEnvParms(int *size_x, int *size_y, double* startx, double* starty, double*startTimet, 
+							double* goalx, double* goaly, double* goalTimet, double* cellsize_m);
+
+	const EnvNAV4DXYTGConfig_t* GetEnvNavConfig();
+
+
+    ~EnvironmentNAV4DXYTG();
+/*    {
+    	if (this)
+    	{
+			if (EnvNAV4DXYTG.grid2DsearchFwd)
+				delete EnvNAV4DXYTG.grid2DsearchFwd;
+			if (EnvNAV4DXYTG.grid2DsearchBak)
+				delete EnvNAV4DXYTG.grid2DsearchBak;
+			if (EnvNAV4DXYTG.grid2DsearchFwdTasks)
+				delete EnvNAV4DXYTG.grid2DsearchFwdTasks;
+			if (EnvNAV4DXYTG.Coord2StateIDHashTable)
+				delete EnvNAV4DXYTG.Coord2StateIDHashTable;
+	    }
+    };  // MEM_CLEAR
+   */
+
+    void PrintTimeStat(FILE* fOut);
+    
+   	vector<int> ComputeCellConstraintViolationCost(int X, int Y, int T, bool CheckJointStatespaceObstacle=true);
+	
+ //private:
+
+	//member data
+	// EnvNAV4DXYTGConfig_t EnvNAV4DXYTGCfg;
+	EnvironmentNAV4DXYTG_t EnvNAV4DXYTG;
+
+	
+	void ReadConfiguration(FILE* fCfg);
+
+	void InitializeEnvConfig();
+
+	unsigned int GETHASHBIN(unsigned int X, unsigned int Y, unsigned int Timet, unsigned int G);
+
+	void PrintHashTableHist();
+	bool CheckQuant(FILE* fOut);
+
+	void SetConfiguration_constraints(vector<int> otherBots_identifiers,
+					vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories,
+					vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories,
+					vector<float> penaltyWeights);
+
+	void SetConfiguration_all(int width, int height, int maxTime,
+					int startx, int starty, int startTimet, int startg,
+					int goalx, int goaly, int goalTimet, int goalg,
+					double cellsize_m, double timestepsize_m,
+					vector<EnvNAV4DXYTG_pos_trajectory> otherBots_trajectories,
+					vector<EnvNAV4DXYTG_dist_trajectory> distConstraint_trajectories,
+					vector<float> penaltyWeights);
+	
+	bool InitGeneral();
+
+
+
+	EnvNAV4DXYTGHashEntry_t* GetHashEntry(int X, int Y, int Timet, int G, complex<double> Lval, bool isGoal=false);
+
+	EnvNAV4DXYTGHashEntry_t* CreateNewHashEntry(int X, int Y, int Timet, int G, complex<double> Lval, bool isGoal=false);
+
+
+	void CreateStartandGoalStates();
+
+	void InitializeEnvironment();
+
+	void ComputeHeuristicValues();
+
+	bool IsValidCell(int X, int Y, int T, bool CheckStaticObstacle = true, bool CheckDynamicObstacle = true);
+
+	bool IsWithinMapCell(int X, int Y, int T);
+
+	// void CalculateFootprintForPose(EnvNAV4DXYTG3Dpt_t pose, vector<sbpl_2Dcell_t>* footprint);
+
+	int GetActionCost(int SourceX, int SourceY, int SourceTimet, int SourceG, EnvNAV4DXYTGAction_t* action);
+	
+	// int GetActionCost(int SourceX, int SourceY, int SourceTimet, int TargetX, int TargetY, int TargetTimet);
+
+	// Planner back reference
+	ARAPlanner* ARAPlannerPointer;
+	// Clock
+	clock_t StartTime;
+	
+	ExploreInfo ExplorationInfo;
+
+};
+
+// ------------------------------------------
+
+
+void ReadConfigurationFile(const char* sEnvFile, ConfigFileInfo* theInfo);
+EnvNAV4DXYTG_dist_trajectory* GenerateDistanceConstraint(EnvNAV4DXYTG_pos_trajectory RefPosTraj, int dist);
+
+bool IsNearTrajectories(EnvNAV4DXYTG_pos_trajectory traj1, EnvNAV4DXYTG_pos_trajectory traj2, int MismatchThresh);
+
+vector<EnvNAV4DXYTG_pos_t> GenerateStraightSegment(EnvNAV4DXYTG_pos_t startPos, EnvNAV4DXYTG_pos_t endPos, vector<EnvNAV4DXYTGAction_t> ActionsV); // This works well only for 8-connected grid - TODO: Generelize this
+
+
+// ----
+
+void CentralizedInfo_t_InitiatePenaltyWeights(CentralizedInfo_t* theCentralInfo, ConfigFileInfo theInfo);
+void CentralizedInfo_t_UpdatePenaltyWeights(CentralizedInfo_t* theCentralInfo, ConfigFileInfo theInfo, int ActiveRobot, EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env, bool isSummetricWeights=true);
+
+//vector<int> ComputeTrajectoryCost(EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env, int* Cp, int* Cc);
+void ComputeTrajectoryCost(EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env, int* Cp, vector<int>* Cc, vector< vector<int> >* ConstraintViolationIndices);
+vector<EnvNAV4DXYTG_pos_trajectory> FindVariationsOfATrajectory(EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env, vector<int> varIndices);
+//?float FindPenaltyWeightIncrement(float oldPenaltyWeight, EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env);
+//float SuggestNextPenaltyWeight(float oldPenaltyWeight, EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env);
+vector<float> SuggestNextPenaltyWeight(EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env);
+
+void EvaluateTrajectoryChange(EnvNAV4DXYTG_pos_trajectory* newTraj, EnvNAV4DXYTG_pos_trajectory* oldTraj, EnvironmentNAV4DXYTG* env, vector<int>* ConstraintNegociationFlag, float thresh);
+bool AreTrajectoriesSame(EnvNAV4DXYTG_pos_trajectory* newTraj, EnvNAV4DXYTG_pos_trajectory* oldTraj);
+
+vector< vector<int> > IndexPermute(int count);
+float sampled_atof(char* fmtStr);
+
+
+void PostProcessTrajectory_Joint(vector<EnvironmentNAV4DXYTG*> robEnvs, vector<EnvNAV4DXYTG_pos_trajectory*> posTrajs);
+
+// --------------------
+
+class OutputFile
+{
+public:
+	FILE* fOut;
+	
+	OutputFile(const char* filename);
+	
+	void WriteTrajectories(vector<EnvNAV4DXYTG_pos_trajectory> pos_trajectories, int IterNo, int ActiveRobot, vector<float> PenaltyWeight, vector< vector<int> > PenaltyWeightRobotsThisIteration = vector< vector<int> >());
+	void WriteStaticObstacles(obstacleMap2D obs);
+	void WriteConstraints(vector<EnvNAV4DXYTG_AParticularConstraint_t> TheConstraints);
+	void WriteConfigFileParameters(ConfigFileInfo* theConfigFileInfo);
+	void Close(void);
+	
+};
+
+// =================================
+
+// void ComputeTrajectoryCost(EnvNAV4DXYTG_pos_trajectory* traj, EnvironmentNAV4DXYTG* env, int* Cp, int* Cc, vector<int>* NonzeroViolationIndices);
+
+
+// **********************************
+// **********************************
+// Utilities
+
+//int MYprintf ( const char * format, ... );
+
+class IndexTracker
+{
+public:
+	int tracker;
+	int tracker_max;
+	vector<int> index;
+	vector<int> dim;
+	int dim_count;
+	
+	IndexTracker(vector<int> DimSizes);
+	void reset(void);
+	void next(void);
+};
+
+#endif

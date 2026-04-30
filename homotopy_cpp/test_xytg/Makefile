@@ -1,0 +1,95 @@
+#
+# Makefile under RedHat Linux
+#
+# Tested with:
+#
+# - Redhat 8.0
+#
+# Need to modify to include:
+#
+# -
+#
+
+
+CC = g++
+
+## gdb can be used with all the following
+
+#CFLAGS = -g -I. -I/usr/local/gcc280/lib/g++-include
+
+# Original
+#CFLAGS = -g -I. -O3 -Wall -I/usr/local/lib/g++-include
+
+# Debugging + display errors only (no warning)
+CFLAGS = -g -I. -O3 -w -I/usr/local/lib/g++-include
+
+# No debugging + display errors only (no warning)
+#CFLAGS = -I. -O3 -w -I/usr/local/lib/g++-include
+
+# For profiling the code : 
+#CFLAGS += -pg
+
+
+
+#LDFLAGS =  -lnsl -lnls -lsocket
+LDFLAGS = -lpthread
+
+# SRC = heap.o mdp.o utils.o 2Dgridsearch.o adplanner.o araplanner.o viplanner.o environment_nav2D.o environment_robarm.o environment_nav3Dkin.o environment_nav4Dxytg.o main.o
+SRC = heap.o mdp.o utils.o 2Dgridsearch.o araplanner.o environment_nav4Dxytg.o main.o
+
+
+# The main executable
+
+main : $(SRC)
+	$(CC) $(CFLAGS) -o main $(SRC) $(LDFLAGS)
+
+main.o : main.cpp
+	$(CC) $(CFLAGS) -c main.cpp
+
+
+# Utilities
+
+heap.o : ../utils/heap.h ../utils/heap.cpp
+	$(CC) $(CFLAGS) -c ../utils/heap.cpp
+
+mdp.o : ../utils/mdp.h ../utils/mdp.cpp
+	$(CC) $(CFLAGS) -c ../utils/mdp.cpp
+
+utils.o : ../utils/utils.h ../utils/utils.cpp
+	$(CC) $(CFLAGS) -c ../utils/utils.cpp
+	
+2Dgridsearch.o : ../utils/2Dgridsearch.h ../utils/2Dgridsearch.cpp
+	$(CC) $(CFLAGS) -c ../utils/2Dgridsearch.cpp
+
+
+# Planners
+
+# adplanner.o : ../planners/ADStar/adplanner.h ../planners/ADStar/adplanner.cpp
+# 	$(CC) $(CFLAGS) -c ../planners/ADStar/adplanner.cpp
+
+araplanner.o : ../planners/ARAStar/araplanner.h ../planners/ARAStar/araplanner.cpp
+	$(CC) $(CFLAGS) -c ../planners/ARAStar/araplanner.cpp
+
+# viplanner.o : ../planners/VI/viplanner.h ../planners/VI/viplanner.cpp
+# 	$(CC) $(CFLAGS) -c ../planners/VI/viplanner.cpp
+
+
+# Environments for specific problems
+
+# environment_nav2D.o : ../discrete_space_information/nav2d/environment_nav2D.h ../discrete_space_information/nav2d/environment_nav2D.cpp
+# 	$(CC) $(CFLAGS) -c ../discrete_space_information/nav2d/environment_nav2D.cpp
+
+# environment_robarm.o : ../discrete_space_information/robarm/environment_robarm.h ../discrete_space_information/robarm/environment_robarm.cpp
+# 	$(CC) $(CFLAGS) -c ../discrete_space_information/robarm/environment_robarm.cpp
+
+# environment_nav3Dkin.o : ../discrete_space_information/nav3dkin/environment_nav3Dkin.h ../discrete_space_information/nav3dkin/environment_nav3Dkin.cpp
+# 	$(CC) $(CFLAGS) -c ../discrete_space_information/nav3dkin/environment_nav3Dkin.cpp
+
+environment_nav4Dxytg.o : ../discrete_space_information/nav4Dxytg/environment_nav4Dxytg.h ../discrete_space_information/nav4Dxytg/environment_nav4Dxytg.cpp
+	$(CC) $(CFLAGS) -c ../discrete_space_information/nav4Dxytg/environment_nav4Dxytg.cpp
+
+# ../discrete_space_information/template/environment_XXX.cpp is not compiled!
+
+clean :
+	rm main $(SRC)
+	

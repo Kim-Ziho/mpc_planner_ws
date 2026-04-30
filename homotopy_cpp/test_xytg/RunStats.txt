@@ -1,0 +1,108 @@
+env_L457_2.cfg : 545.000000 (Wed Sep  9 08:17:44 2009) [GOOD_env_L457_2.cfg.out]
+env_L457_1.cfg : 1311.000000 (Fri Sep 11 12:36:33 2009) [GOOD_env_L457_1.cfg.out]
+env_L457_4.cfg : 3496.000000 (Sat Sep 12 23:35:44 2009) [GOOD_env_L457_4.cfg.out]
+env_L457_7.cfg : 3003.000000 (Sun Sep 13 07:46:30 2009) [GOOD_env_L457_7.cfg.out]
+empty2.cfg : 0.000000 (Tue Sep 15 05:37:47 2009)
+
+
+envL457_setup4.cfg_1.out -- 87.000000 -- Mon Oct 26 15:47:07 2009
+envL457_setup4.cfg_2.out -- 88.000000 -- Mon Oct 26 15:52:35 2009
+
+envL457_setup4.cfg_4.out -- Mon Oct 26 17:53:41 2009 -- [0,6](0) -- 46.000000
+envL457_setup4.cfg_5.out -- Mon Oct 26 17:54:29 2009 -- [0,8](0) -- 46.000000
+envL457_setup4.cfg_6.out -- Mon Oct 26 17:55:20 2009 -- [0,6](0) -- 49.000000
+envL457_setup4.cfg_7.out -- Mon Oct 26 17:56:03 2009 -- [0,6](0) -- 41.000000
+envL457_setup4.cfg_8.out -- Mon Oct 26 18:02:31 2009 -- [1,0](2) -- 386.000000
+envL457_setup4.cfg_9.out -- Mon Oct 26 18:09:07 2009 -- [1,0](1) -- 394.000000
+envL457_setup4.cfg_10.out -- Mon Oct 26 18:09:58 2009 -- [0,6](0) -- 49.000000
+envL457_setup4.cfg_11.out -- Mon Oct 26 18:16:58 2009 -- [0,198](0) -- 418.000000
+envL457_setup4.cfg_12.out -- Mon Oct 26 18:24:00 2009 -- [1,0](8) -- 420.000000
+envL457_setup4.cfg_13.out -- Mon Oct 26 18:30:36 2009 -- [1,0](4) -- 394.000000
+envL457_setup4.cfg_14.out -- Mon Oct 26 18:31:30 2009 -- [0,6](0) -- 51.000000
+envL457_setup4.cfg_15.out -- Mon Oct 26 18:39:03 2009 -- [1,0](7) -- 451.000000
+envL457_setup4.cfg_16.out -- Mon Oct 26 18:45:31 2009 -- [1,0](6) -- 386.000000
+envL457_setup4.cfg_17.out -- Mon Oct 26 18:51:33 2009 -- [1,0](3) -- 360.000000
+envL457_setup4.cfg_18.out -- Mon Oct 26 18:57:59 2009 -- [1,0](3) -- 384.000000
+envL457_setup4.cfg_19.out -- Mon Oct 26 18:58:54 2009 -- [0,6](0) -- 53.000000
+--------------------
+
+envL457_setup4.cfg_20.out -- Mon Oct 26 19:10:46 2009 -- [0,8](0) -- 28.000000
+envL457_setup4.cfg_21.out -- Mon Oct 26 19:11:41 2009 -- [0,6](0) -- 53.000000
+envL457_setup4.cfg_22.out -- Mon Oct 26 19:12:36 2009 -- [0,6](0) -- 53.000000
+envL457_setup4.cfg_25.out -- Mon Oct 26 19:21:28 2009 -- [0,6](0) -- 63.000000
+envL457_setup4.cfg_26.out -- Mon Oct 26 19:22:19 2009 -- [0,6](0) -- 49.000000
+envL457_setup4.cfg_27.out -- Mon Oct 26 19:23:11 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_28.out -- Mon Oct 26 19:23:55 2009 -- [0,6](0) -- 42.000000
+envL457_setup4.cfg_32.out -- Mon Oct 26 19:36:33 2009 -- [0,22](0) -- 83.000000
+envL457_setup4.cfg_33.out -- Mon Oct 26 19:37:24 2009 -- [0,6](0) -- 49.000000
+envL457_setup4.cfg_34.out -- Mon Oct 26 19:38:26 2009 -- [0,8](0) -- 60.000000
+envL457_setup4.cfg_35.out -- Mon Oct 26 19:39:19 2009 -- [0,6](0) -- 51.000000
+envL457_setup4.cfg_36.out -- Mon Oct 26 19:40:07 2009 -- [0,7](0) -- 46.000000
+envL457_setup4.cfg_37.out -- Mon Oct 26 19:41:02 2009 -- [0,6](0) -- 53.000000
+envL457_setup4.cfg_38.out -- Mon Oct 26 19:41:51 2009 -- [0,6](0) -- 47.000000
+envL457_setup4.cfg_39.out -- Mon Oct 26 19:42:49 2009 -- [0,8](0) -- 56.000000
+envL457_setup4.cfg_40.out -- Mon Oct 26 19:43:52 2009 -- [0,6](0) -- 61.000000
+envL457_setup4.cfg_41.out -- Mon Oct 26 19:44:41 2009 -- [0,6](0) -- 47.000000
+envL457_setup4.cfg_42.out -- Mon Oct 26 19:45:35 2009 -- [0,8](0) -- 52.000000
+envL457_setup4.cfg_43.out -- Mon Oct 26 19:46:31 2009 -- [0,8](0) -- 54.000000
+envL457_setup4.cfg_44.out -- Mon Oct 26 19:47:13 2009 -- [0,6](0) -- 40.000000
+envL457_setup4.cfg_45.out -- Mon Oct 26 19:48:08 2009 -- [0,6](0) -- 53.000000
+envL457_setup4.cfg_47.out -- Mon Oct 26 19:50:16 2009 -- [0,8](0) -- 61.000000
+envL457_setup4.cfg_48.out -- Mon Oct 26 19:51:16 2009 -- [0,8](0) -- 58.000000
+envL457_setup4.cfg_50.out -- Mon Oct 26 19:56:18 2009 -- [0,6](0) -- 54.000000
+envL457_setup4.cfg_51.out -- Mon Oct 26 19:57:10 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_54.out -- Mon Oct 26 20:07:32 2009 -- [0,90](0) -- 169.000000
+envL457_setup4.cfg_55.out -- Mon Oct 26 20:08:55 2009 -- [0,22](0) -- 81.000000
+envL457_setup4.cfg_56.out -- Mon Oct 26 20:11:43 2009 -- [0,87](0) -- 166.000000
+envL457_setup4.cfg_57.out -- Mon Oct 26 20:12:33 2009 -- [0,6](0) -- 48.000000
+envL457_setup4.cfg_58.out -- Mon Oct 26 20:13:36 2009 -- [0,8](0) -- 61.000000
+envL457_setup4.cfg_59.out -- Mon Oct 26 20:14:31 2009 -- [0,6](0) -- 53.000000
+envL457_setup4.cfg_60.out -- Mon Oct 26 20:15:28 2009 -- [0,8](0) -- 55.000000
+envL457_setup4.cfg_62.out -- Mon Oct 26 20:19:51 2009 -- [0,8](0) -- 53.000000
+envL457_setup4.cfg_63.out -- Mon Oct 26 20:20:47 2009 -- [0,6](0) -- 54.000000
+envL457_setup4.cfg_64.out -- Mon Oct 26 20:21:36 2009 -- [0,6](0) -- 47.000000
+envL457_setup4.cfg_66.out -- Mon Oct 26 20:26:50 2009 -- [0,25](0) -- 92.000000
+envL457_setup4.cfg_67.out -- Mon Oct 26 20:28:02 2009 -- [0,16](0) -- 70.000000
+envL457_setup4.cfg_70.out -- Mon Oct 26 20:35:11 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_73.out -- Mon Oct 26 20:43:31 2009 -- [0,6](0) -- 62.000000
+envL457_setup4.cfg_75.out -- Mon Oct 26 20:48:38 2009 -- [0,6](0) -- 52.000000
+envL457_setup4.cfg_76.out -- Mon Oct 26 20:49:30 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_82.out -- Mon Oct 26 21:09:52 2009 -- [0,6](0) -- 47.000000
+envL457_setup4.cfg_83.out -- Mon Oct 26 21:10:49 2009 -- [0,8](0) -- 55.000000
+envL457_setup4.cfg_84.out -- Mon Oct 26 21:11:33 2009 -- [0,6](0) -- 42.000000
+envL457_setup4.cfg_85.out -- Mon Oct 26 21:12:25 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_86.out -- Mon Oct 26 21:13:18 2009 -- [0,6](0) -- 51.000000
+envL457_setup4.cfg_87.out -- Mon Oct 26 21:14:33 2009 -- [0,19](0) -- 73.000000
+envL457_setup4.cfg_89.out -- Mon Oct 26 21:19:09 2009 -- [0,6](0) -- 45.000000
+envL457_setup4.cfg_90.out -- Mon Oct 26 21:20:32 2009 -- [0,22](0) -- 81.000000
+envL457_setup4.cfg_91.out -- Mon Oct 26 21:21:31 2009 -- [0,8](0) -- 57.000000
+envL457_setup4.cfg_92.out -- Mon Oct 26 21:23:02 2009 -- [0,28](0) -- 89.000000
+envL457_setup4.cfg_93.out -- Mon Oct 26 21:23:54 2009 -- [0,6](0) -- 50.000000
+envL457_setup4.cfg_94.out -- Mon Oct 26 21:24:49 2009 -- [0,10](0) -- 53.000000
+envL457_setup4.cfg_95.out -- Mon Oct 26 21:25:46 2009 -- [0,6](0) -- 55.000000
+
+out_files/envL457_setup4_pp.cfg_1.out -- Fri Oct 30 15:58:10 2009 -- [0,34](0) -- 109.000000
+out_files/envL457_setup4_pp.cfg_18.out -- Sun Nov  1 00:15:48 2009 -- [0,72](0) -- 148.000000
+out_files/empty2.cfg_18.out -- Sun Nov  1 04:30:22 2009 -- [0,127](0) -- 102.000000
+out_files/empty2.cfg_20.out -- Sun Nov  1 04:32:13 2009 -- [0,1](0) -- 10.000000
+out_files/empty2.cfg_21.out -- Sun Nov  1 04:37:07 2009 -- [0,127](0) -- 109.000000
+out_files/empty2.cfg_22.out -- Sun Nov  1 05:04:10 2009 -- [0,85](0) -- 77.000000
+out_files/empty2.cfg_27.out -- Sun Nov  1 05:26:16 2009 -- [0,85](0) -- 77.000000
+out_files/empty2.cfg_44.out -- Sun Nov  1 06:23:01 2009 -- [0,85](0) -- 75.000000
+out_files/empty2.cfg_51.out -- Sun Nov  1 17:17:08 2009 -- [0,73](0) -- 68.000000
+out_files/empty2.cfg_53.out -- Mon Nov  2 02:38:46 2009 -- [0,73](0) -- 66.000000
+out_files/empty2.cfg_54.out -- Mon Nov  2 02:43:17 2009 -- [0,73](0) -- 69.000000
+out_files/empty2.cfg_55.out -- Mon Nov  2 03:15:06 2009 -- [0,1](0) -- 12.000000
+out_files/envL457_setup4_pp.cfg_20.out -- Mon Nov  2 03:23:08 2009 -- [0,78](0) -- 143.000000
+out_files/envL457_setup4_pp.cfg_23.out -- Wed Nov 18 07:52:06 2009 -- [0,34](0) -- 110.000000
+out_files/envL457_setup4_pp.cfg_89.out -- Thu Dec 17 10:29:25 2009 -- [0,34](0) -- 148.000000
+out_files/envL457_setup4_pp.cfg_90.out -- Thu Dec 17 11:12:19 2009 -- [0,34](0) -- 149.000000
+out_files/envL457_setup4_pp.cfg_91.out -- Thu Dec 17 11:16:40 2009 -- [0,34](0) -- 149.000000
+out_files/envL457_setup4_pp.cfg_97.out -- Thu Dec 17 12:06:24 2009 -- [0,34](0) -- 150.000000
+out_files/envL457_setup4_pp.cfg_98.out -- Thu Dec 17 12:23:58 2009 -- [0,34](0) -- 150.000000
+out_files/envL457_setup4_pp.cfg_99.out -- Thu Dec 17 12:29:56 2009 -- [0,34](0) -- 150.000000
+out_files/envL457_setup4_pp.cfg_100.out -- Thu Dec 17 13:45:42 2009 -- [0,34](0) -- 500.000000
+out_files/envL457_setup4_pp.cfg_106.out -- Thu Dec 17 14:12:49 2009 -- [0,6](0) -- 106.000000
+out_files/envL457_setup4_pp.cfg_113.out -- Tue Dec 22 12:56:39 2009 -- [3,1](21) -- 160.000000
+out_files/envL457_setup4_pp.cfg_118.out -- Tue Dec 22 13:35:33 2009 -- [3,44](0) -- 306.000000
+out_files/envL457_setup4_pp.cfg_121.out -- Tue Dec 22 16:01:22 2009 -- [3,26](0) -- 243.000000
