@@ -179,6 +179,9 @@ For detailed algorithm flow, class relationships, topology comparison methods, s
 ### Profiling
 Enable with `debug_visuals: true` in settings.yaml. Output: `<package>/profiler.json`. View via `chrome://tracing/`.
 
+### Logging
+`LOG_WARN`, `LOG_INFO`, `LOG_ERROR` 등 모든 C++ 로그 메시지는 반드시 **영어**로 작성한다. `rosconsole`이 UTF-8 멀티바이트 문자(한국어 등)를 렌더링하지 못해 `???`로 깨진다.
+
 ---
 
 ## Commit Message Style

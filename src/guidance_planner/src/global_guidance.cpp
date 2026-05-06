@@ -84,6 +84,9 @@ namespace GuidancePlanner
     config_ = std::make_shared<Config>();
 
     prm_.Init(config_.get());
+    astar_planner_.Init(config_.get());
+    hybrid_astar_planner_.Init(config_.get());
+    strrt_planner_.Init(config_.get());
 
     // learning_guidance_.Init(nh_);
 
@@ -100,6 +103,9 @@ namespace GuidancePlanner
   {
     step_map_ = step_map;
     prm_.SetStepMap(step_map_);
+    astar_planner_.SetStepMap(step_map_);
+    hybrid_astar_planner_.SetStepMap(step_map_);
+    strrt_planner_.SetStepMap(step_map_);
   }
 
   void GlobalGuidance::LoadObstacles(const std::vector<Obstacle> &obstacles, const std::vector<Halfspace> &static_obstacles)
@@ -246,116 +252,244 @@ namespace GuidancePlanner
     try
     {
       PROFILE_SCOPE("GlobalGuidance::Update");
-      PRM_LOG("GlobalGuidance::Update")
-      auto &guidance_benchmarker = BENCHMARKERS.getBenchmarker("Guidance Planner");
-      auto &prm_benchmarker = BENCHMARKERS.getBenchmarker("PRM");
-      auto &processing_benchmarker = BENCHMARKERS.getBenchmarker("processing");
+      PRM_LOG("GlobalGuidance::Update");
+      auto &guidance_benchmarker    = BENCHMARKERS.getBenchmarker("Guidance Planner");
+      auto &prm_benchmarker         = BENCHMARKERS.getBenchmarker("PRM");
+      auto &processing_benchmarker  = BENCHMARKERS.getBenchmarker("processing");
 
       guidance_benchmarker.start();
 
       paths_.clear();
       splines_.clear();
-
       outputs_.clear();
       learning_outputs_.clear();
       heuristic_outputs_.clear();
-
       no_message_sent_yet_ = true;
       goals_set_ = false;
 
-      /* Verify validity of input data */
-      for (auto &obstacle : obstacles_) // Dynamic obstacles
-        ROSTOOLS_ASSERT((int)obstacle.positions_.size() >= Config::N + 1, "Obstacles should have their predictions populated from 0-N");
+      for (auto &obstacle : obstacles_)
+        ROSTOOLS_ASSERT((int)obstacle.positions_.size() >= Config::N + 1,
+                        "Obstacles should have their predictions populated from 0-N");
 
-      PRM_LOG("======== Visibility-PRM ==========");
-
-      prm_benchmarker.start();
-      prm_.SetStepMap(step_map_);
-      prm_.LoadData(obstacles_, static_obstacles_, start_, orientation_, start_velocity_, goals_);
-      Graph &graph = prm_.Update(); // Construct a graph using visibility PRM
-      prm_benchmarker.stop();
-
-      PRM_LOG("======== Depth First Path Search ==========");
-      processing_benchmarker.start();
+      // ================================================================
+      // 경로 탐색 — algorithm_ 에 따라 분기
+      // ================================================================
+      if (config_->algorithm_ == "AStar")
       {
-        PROFILE_SCOPE("Path Search");
+        PRM_LOG("======== Space-Time A* ==========");
+        prm_benchmarker.start();
 
-        std::vector<std::vector<GeometricPath>> cur_paths; // Collect each set of paths (per goal) here MAKE PREALLOCATED!
-        cur_paths.resize(graph.goal_nodes_.size());
+        if (!step_map_ || !step_map_->valid())
+        {
+          LOG_WARN("AStar mode requires a valid StepMap");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
 
-        // Search for n_paths to each goal
+        if (goals_.empty())
+        {
+          LOG_WARN("AStar: no goals set");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          return false;
+        }
+
+        // 비용이 가장 낮은 목표(가장 선호되는 목표) 선택
+        auto best_goal_it = std::min_element(goals_.begin(), goals_.end(),
+            [](const Goal &a, const Goal &b) { return a.cost < b.cost; });
+        const Eigen::Vector2d goal_xy = best_goal_it->pos;
+
+        auto opt_path = astar_planner_.Plan(start_, orientation_,
+                                            start_velocity_.norm(), goal_xy);
+        prm_benchmarker.stop();
+
+        if (!opt_path.has_value())
+        {
+          PRM_LOG("A* failed to find a path");
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+        paths_ = {opt_path.value()};
+      }
+      else if (config_->algorithm_ == "HybridAStar")
+      {
+        PRM_LOG("======== Hybrid A* ==========");
+        prm_benchmarker.start();
+
+        if (!step_map_ || !step_map_->valid())
+        {
+          LOG_WARN("HybridAStar mode requires a valid StepMap");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+
+        if (goals_.empty())
+        {
+          LOG_WARN("HybridAStar: no goals set");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          return false;
+        }
+
+        auto best_goal_it = std::min_element(goals_.begin(), goals_.end(),
+            [](const Goal &a, const Goal &b) { return a.cost < b.cost; });
+        const Eigen::Vector2d goal_xy = best_goal_it->pos;
+
+        auto opt_path = hybrid_astar_planner_.Plan(start_, orientation_,
+                                                    start_velocity_.norm(), goal_xy);
+        prm_benchmarker.stop();
+
+        if (!opt_path.has_value())
+        {
+          PRM_LOG("Hybrid A* failed to find a path");
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+        paths_ = {opt_path.value()};
+      }
+      else if (config_->algorithm_ == "STRRT")
+      {
+        PRM_LOG("======== ST-RRT* ==========");
+        prm_benchmarker.start();
+
+        if (!step_map_ || !step_map_->valid())
+        {
+          LOG_WARN("STRRT mode requires a valid StepMap");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+
+        if (goals_.empty())
+        {
+          LOG_WARN("STRRT: no goals set");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          return false;
+        }
+
+        auto best_goal_it = std::min_element(goals_.begin(), goals_.end(),
+            [](const Goal &a, const Goal &b) { return a.cost < b.cost; });
+        const Eigen::Vector2d goal_xy = best_goal_it->pos;
+
+        auto opt_path = strrt_planner_.Plan(start_, orientation_,
+                                             start_velocity_.norm(), goal_xy);
+        prm_benchmarker.stop();
+
+        if (!opt_path.has_value())
+        {
+          PRM_LOG("ST-RRT* failed to find a path");
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+        paths_ = {opt_path.value()};
+      }
+      else
+      {
+        // ── PRM 분기 (기존 코드 그대로) ────────────────────────────────
+        PRM_LOG("======== Visibility-PRM ==========");
+        prm_benchmarker.start();
+        prm_.SetStepMap(step_map_);
+        prm_.LoadData(obstacles_, static_obstacles_, start_, orientation_, start_velocity_, goals_);
+        Graph &graph = prm_.Update();
+        prm_benchmarker.stop();
+
+        PRM_LOG("======== Depth First Path Search ==========");
+        processing_benchmarker.start();
+        {
+          PROFILE_SCOPE("Path Search");
+
+          std::vector<std::vector<GeometricPath>> cur_paths;
+          cur_paths.resize(graph.goal_nodes_.size());
+
 #pragma omp parallel for num_threads(8)
-        for (size_t g = 0; g < graph.goal_nodes_.size(); g++)
-        {
-          std::vector<Node *> L = {graph.start_node_};
+          for (size_t g = 0; g < graph.goal_nodes_.size(); g++)
+          {
+            std::vector<Node *> L = {graph.start_node_};
+            graph_search_.Search(graph, config_->n_paths_, L, cur_paths[g], graph.goal_nodes_[g]);
+          }
 
-          graph_search_.Search(graph, config_->n_paths_, L, cur_paths[g], graph.goal_nodes_[g]); // Find paths via a graph-search
+          for (auto &cur_path : cur_paths)
+            for (auto &path : cur_path)
+              paths_.emplace_back(path);
+
+          if (paths_.size() == 0 && config_->n_paths_ != 0)
+            PRM_LOG("Guidance failed to find a path from the robot position to the goal (using last path)");
         }
 
-        // Join all paths
-        for (auto &cur_path : cur_paths)
+        PRM_LOG("======== Filter And Select ==========");
         {
-          for (auto &path : cur_path)
-            paths_.emplace_back(path);
-        }
+          PROFILE_SCOPE("Path Filtering");
 
-        // If there are no paths - WARN
-        if (paths_.size() == 0 && config_->n_paths_ != 0)
-        {
-          PRM_LOG("Guidance failed to find a path from the robot position to the goal (using last path)");
+          std::sort(paths_.begin(), paths_.end(),
+                    [&](const GeometricPath &a, const GeometricPath &b)
+                    { return PathSelectionCost(a) < PathSelectionCost(b); });
+
+          KeepTopologyDistinctPaths(paths_);
+
+          PRM_LOG("Paths:");
+          for (auto &path : paths_)
+          {
+            PRM_LOG("\t" << path << "\b");
+            (void)path;
+          }
+          prm_.PropagateGraph(paths_);
         }
       }
 
-      PRM_LOG("======== Filter And Select ==========");
+      // ================================================================
+      // 경로 없으면 조기 종료
+      // ================================================================
+      if (paths_.empty())
       {
-        PROFILE_SCOPE("Path Filtering");
-
-        /* Sort the paths on performance */
-        std::sort(paths_.begin(), paths_.end(),
-                  [&](const GeometricPath &a, const GeometricPath &b)
-                  { return PathSelectionCost(a) < PathSelectionCost(b); });
-
-        // Retrieve n_paths_ topology distinct paths from the sorted paths_
-        KeepTopologyDistinctPaths(paths_);
-
-        // Print all paths
-        PRM_LOG("Paths:");
-        for (auto &path : paths_)
-        {
-          PRM_LOG("\t" << path << "\b");
-          (void)path;
-        }
-        /** Propagate nodes in the graph to the next iteration */
-        prm_.PropagateGraph(paths_);
-      }
-
-      if (paths_.size() == 0) // Stop here if no paths were found
-      {
+        if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar")
+          processing_benchmarker.stop();
         guidance_benchmarker.stop();
-        processing_benchmarker.stop();
-
-        // There are no outputs
         outputs_.clear();
         previous_outputs_.clear();
         selected_id_ = -1;
-
         return false;
       }
 
-      // For each path fit a spline
+      // ================================================================
+      // 공통 — Cubic Spline 피팅
+      // ================================================================
       PRM_LOG("======== Cubic Splines ==========");
       {
         PROFILE_SCOPE("Cubic Splines");
-
         for (size_t i = 0; i < paths_.size(); i++)
         {
           auto &path = paths_[i];
-          splines_.emplace_back(path, config_.get(), start_velocity_); // Fit Cubic-Splines for each path
-          if (config_->optimize_splines_)
+          splines_.emplace_back(path, config_.get(), start_velocity_);
+          if (config_->optimize_splines_ && config_->algorithm_ != "HybridAStar" &&
+              config_->algorithm_ != "STRRT")
             splines_.back().Optimize(obstacles_);
         }
       }
 
+      // ================================================================
+      // 공통 — 출력 조립 + 호모토피 클래스 식별
+      // ================================================================
       PRM_LOG("======== Identify ==========");
       {
         PROFILE_SCOPE("Identify");
@@ -363,24 +497,31 @@ namespace GuidancePlanner
         for (size_t i = 0; i < paths_.size(); i++)
           outputs_.emplace_back(paths_[i], splines_[i]);
 
-        color_manager_->Reset(config_->n_paths_);
-        IdentifyPreviousHomologies(outputs_); // Find out which of the previous homology classes were preserved
+        if (config_->algorithm_ == "AStar" || config_->algorithm_ == "HybridAStar" ||
+            config_->algorithm_ == "STRRT")
+        {
+          // 단일 경로: topology class 고정
+          outputs_[0].topology_class    = 0;
+          outputs_[0].color_            = 0;
+          outputs_[0].is_new_topology_  = previous_outputs_.empty();
+          outputs_[0].previously_selected_ = !previous_outputs_.empty() &&
+                                             previous_outputs_[0].previously_selected_;
+        }
+        else
+        {
+          color_manager_->Reset(config_->n_paths_);
+          IdentifyPreviousHomologies(outputs_);
+        }
       }
 
+      // ================================================================
+      // 공통 — 출력 선택
+      // ================================================================
       PRM_LOG("======== Output Selection ==========");
       {
         heuristic_outputs_ = outputs_;
-        learning_outputs_ = outputs_;
+        learning_outputs_  = outputs_;
 
-        // Order the outputs based on some decision making procedure
-        // if (!config_->use_learning)
-        //   OrderOutputByHeuristic(heuristic_outputs_);
-        // else
-        //   OrderOutputByLearning(learning_outputs_);
-
-        // outputs_ = config_->use_learning ? learning_outputs_ : heuristic_outputs_;
-
-        // By default the output is now the first element of outputs_
         auto &best_output = outputs_[0];
         selected_id_ = 0;
         if (best_output.previously_selected_)
@@ -393,7 +534,7 @@ namespace GuidancePlanner
         }
 
         previous_outputs_.clear();
-        if (config_->track_selected_homology_only_) // Cheaper and should be used when using the first output always
+        if (config_->track_selected_homology_only_)
         {
           previous_outputs_.emplace_back(outputs_[0]);
           previous_outputs_[0].previously_selected_ = true;
@@ -403,16 +544,18 @@ namespace GuidancePlanner
           for (size_t o = 0; o < outputs_.size(); o++)
           {
             previous_outputs_.emplace_back(outputs_[o]);
-            previous_outputs_.back().previously_selected_ = false; // None were selected
+            previous_outputs_.back().previously_selected_ = false;
           }
-          previous_outputs_[0].previously_selected_ = true; // The first output was selected internally
+          previous_outputs_[0].previously_selected_ = true;
         }
       }
-      processing_benchmarker.stop();
+
+      if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar")
+        processing_benchmarker.stop();
       guidance_benchmarker.stop();
       PRM_LOG("=========== Done ============");
 
-      return true; /* Succesful running */
+      return true;
     }
     catch (IntegrationException &ie)
     {
@@ -664,6 +807,7 @@ namespace GuidancePlanner
 
     // Forget the graph
     prm_.Reset();
+    astar_planner_.Reset();
 
     for (auto &obstacle : obstacles_) // Ensure that the obstacles have long enough predictions
     {

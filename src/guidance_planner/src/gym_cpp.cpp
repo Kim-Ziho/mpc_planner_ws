@@ -26,6 +26,8 @@
 #include <mpc_planner_types/data_types.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <std_srvs/SetBool.h>
+#include <std_srvs/Trigger.h>
 
 #include <string>
 
@@ -59,30 +61,6 @@ std::vector<MPCPlanner::DynamicObstacle> toMPCObstacles(const std::vector<Guidan
         pred.modes[0] = std::move(mode);
         mpc_obs.prediction = std::move(pred);
 
-        // --- mpc_obs 디버그 출력 ---
-        ROS_INFO("[toMPCObstacles] obstacle idx=%zu | id=%d | pos=(%.3f, %.3f) | angle=%.3f rad | radius=%.3f | type=%d",
-                 idx, mpc_obs.index,
-                 mpc_obs.position.x(), mpc_obs.position.y(),
-                 mpc_obs.angle, mpc_obs.radius,
-                 static_cast<int>(mpc_obs.type));
-        ROS_INFO("  prediction: type=%d | modes=%zu | probabilities=%zu",
-                 static_cast<int>(mpc_obs.prediction.type),
-                 mpc_obs.prediction.modes.size(),
-                 mpc_obs.prediction.probabilities.size());
-        for (size_t m = 0; m < mpc_obs.prediction.modes.size(); ++m)
-        {
-            const auto &mode = mpc_obs.prediction.modes[m];
-            double prob = (m < mpc_obs.prediction.probabilities.size()) ? mpc_obs.prediction.probabilities[m] : -1.0;
-            ROS_INFO("    mode[%zu]: steps=%zu | prob=%.3f", m, mode.size(), prob);
-            for (size_t k = 0; k < mode.size(); ++k)
-            {
-                const auto &step = mode[k];
-                ROS_INFO("      step[%zu]: pos=(%.3f, %.3f) | angle=%.3f | r_maj=%.3f | r_min=%.3f",
-                         k, step.position.x(), step.position.y(),
-                         step.angle, step.major_radius, step.minor_radius);
-            }
-        }
-        // --------------------------
         mpc_obstacles.push_back(std::move(mpc_obs));
     }
     return mpc_obstacles;
@@ -154,7 +132,35 @@ Eigen::Vector2d robot_position_(0., 0.);
 double robot_heading_ = 0.;
 bool robot_state_received_ = false;
 
+// --- 계획 제어 ---
+bool planning_paused_ = false;
+bool step_once_ = false;
+
 tf2_ros::TransformBroadcaster *tf_broadcaster_ptr_ = nullptr;
+
+bool pausePlanningCallback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res)
+{
+    planning_paused_ = req.data;
+    res.success = true;
+    res.message = planning_paused_ ? "Planning paused" : "Planning resumed";
+    ROS_INFO("[GymCpp] Planning %s", planning_paused_ ? "PAUSED" : "RESUMED");
+    return true;
+}
+
+bool stepPlanningCallback(std_srvs::Trigger::Request &, std_srvs::Trigger::Response &res)
+{
+    if (!planning_paused_)
+    {
+        res.success = false;
+        res.message = "Not paused. Call /gym_cpp/pause_planning (data: true) first.";
+        return true;
+    }
+    step_once_ = true;
+    res.success = true;
+    res.message = "Single step will execute on next loop iteration.";
+    ROS_INFO("[GymCpp] Step requested.");
+    return true;
+}
 
 void robotStateCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
 {
@@ -216,6 +222,12 @@ int main(int argc, char **argv)
     ros::Subscriber robot_state_sub =
         nh.subscribe("/robot_state", 1, robotStateCallback);
 
+    // --- 계획 제어 서비스 ---
+    ros::ServiceServer pause_srv =
+        nh.advertiseService("pause_planning", pausePlanningCallback);
+    ros::ServiceServer step_srv =
+        nh.advertiseService("step_planning", stepPlanningCallback);
+
     // --- GlobalGuidance 초기화 ---
     ROS_INFO("[GymCpp] Creating GlobalGuidance...");
     GlobalGuidance guidance;
@@ -238,6 +250,7 @@ int main(int argc, char **argv)
     std::vector<double> pedestrian_angles;
 
     auto &benchmarker = BENCHMARKERS.getBenchmarker("GymCpp Planning");
+    auto &benchmarker_guidance = BENCHMARKERS.getBenchmarker("Guidance Planning");
 
     ROS_INFO("[GymCpp] Entering main loop (1 Hz)...");
     ros::Rate rate(1.0);
@@ -252,6 +265,15 @@ int main(int argc, char **argv)
             rate.sleep();
             continue;
         }
+
+        if (planning_paused_ && !step_once_)
+        {
+            ROS_INFO_THROTTLE(5.0, "[GymCpp] Planning PAUSED. "
+                                   "Call /gym_cpp/pause_planning (data: false) or /gym_cpp/step_planning.");
+            rate.sleep();
+            continue;
+        }
+        step_once_ = false;
 
         ROS_INFO_STREAM("[GymCpp] Robot pose: ("
                         << robot_position_(0) << ", " << robot_position_(1)
@@ -273,12 +295,17 @@ int main(int argc, char **argv)
             Config::DT);
 
         // Guidance 계획: 보행자를 동적 장애물로 전달
+        benchmarker_guidance.start();
         guidance.SetStart(robot_position_, robot_heading_, 0.5 /*speed*/);
         guidance.SetStepMap(step_map);
         guidance.LoadObstacles(pedestrians, static_obstacles);
         guidance.Update();
 
+        benchmarker_guidance.stop();
         benchmarker.stop();
+
+        benchmarker.print();
+        benchmarker_guidance.print();
 
         if (guidance.Succeeded())
         {
@@ -288,7 +315,7 @@ int main(int argc, char **argv)
             CubicSpline3D &best = guidance.GetGuidanceTrajectory(0).spline;
             RosTools::Spline2D traj = best.GetTrajectory();
             ROS_INFO("[GymCpp] Best trajectory waypoints:");
-            for (double t = 0.; t < Config::N * Config::DT; t += 4 * Config::DT)
+            for (double t = 0.; t < Config::N * Config::DT; t += Config::DT)
             {
                 Eigen::Vector2d pos = traj.getPoint(t);
                 ROS_INFO_STREAM("  t=" << std::fixed << std::setprecision(2)

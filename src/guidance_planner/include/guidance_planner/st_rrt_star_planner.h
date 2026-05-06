@@ -1,0 +1,86 @@
+#pragma once
+
+#include <guidance_planner/config.h>
+#include <guidance_planner/types/paths.h>
+#include <guidance_planner/types/node.h>
+#include <mpc_planner_stepmap/step_map.h>
+
+#include <Eigen/Dense>
+#include <list>
+#include <optional>
+#include <random>
+#include <vector>
+
+namespace GuidancePlanner
+{
+
+class STRRTStarPlanner
+{
+public:
+  void Init(Config *config);
+  void SetStepMap(std::shared_ptr<MPCPlannerStepMap::StepMap> step_map);
+  void Reset();
+
+  /** @brief StepMap 기반 단일 최적 경로 탐색 (ST-RRT*)
+   *  @return 성공 시 GeometricPath, 실패 시 std::nullopt */
+  std::optional<GeometricPath> Plan(const Eigen::Vector2d &start_xy,
+                                    double start_theta,
+                                    double start_speed,
+                                    const Eigen::Vector2d &goal_xy);
+
+private:
+  struct RRTNode
+  {
+    double x, y, theta, t;
+    double v, w;
+    double cost;
+    int    parent;
+    std::vector<int> children;
+  };
+
+  struct SteerResult
+  {
+    double x, y, theta, t, v, w;
+  };
+
+  struct Sample
+  {
+    double x, y, t;
+  };
+
+  std::optional<SteerResult> steer(const RRTNode &from,
+                                   double x_to, double y_to, double t_to) const;
+
+  bool edgeCollisionFree(const RRTNode &from, double v, double w, double dt) const;
+
+  std::optional<Sample> sampleState(double t_upper,
+                                    const Eigen::Vector2d &goal_xy,
+                                    double t_min_goal) const;
+
+  double timeAwareDist(const RRTNode &a, double x, double y, double t) const;
+
+  double edgeCost(double dt, double v, double w) const;
+
+  GeometricPath reconstructPath(const std::vector<RRTNode> &nodes, int goal_idx);
+
+  static void unicycleStep(double &x, double &y, double &theta,
+                           double v, double w, double dt);
+
+  Config *config_{nullptr};
+  std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
+  std::list<Node> path_nodes_;
+
+  int    max_iter_;
+  double steer_dt_min_, steer_dt_max_;
+  double neighbor_radius_;
+  double match_tol_;
+  double goal_radius_;
+  double goal_bias_;
+  double w_time_, w_ctrl_;
+  double v_max_, w_max_;
+  double check_dt_;
+
+  mutable std::mt19937 rng_;
+};
+
+}  // namespace GuidancePlanner

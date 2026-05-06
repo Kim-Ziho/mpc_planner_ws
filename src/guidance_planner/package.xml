@@ -21,6 +21,7 @@
   <build_depend>pkg-config</build_depend>
 
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>roscpp</depend>
   <depend>ros_tools</depend>
   <depend>dynamic_reconfigure</depend>

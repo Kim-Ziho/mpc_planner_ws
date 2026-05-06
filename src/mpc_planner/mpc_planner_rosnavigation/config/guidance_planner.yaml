@@ -1,4 +1,41 @@
 guidance_planner:
+  algorithm: STRRT   # PRM (기본) | AStar | HybridAStar | STRRT
+
+  astar:
+    num_headings: 16    # 헤딩 이산화 bin 수 (22.5°/bin)
+    w_max:  0.8         # 최대 각속도 [rad/s]
+    w_time: 1.0         # 시간 비용 가중치
+    w_occ:  5.0         # StepMap 점유 확률 비용 가중치
+    w_accel: 0.2        # |dv| 가속도 비용 가중치 [per m/s]
+    w_yaw:  0.5         # |dθ| 요레이트 비용 가중치 [per rad]
+
+  hybrid_astar:
+    num_heading_bins: 24  # closed-set 헤딩 이산화 bin 수 (15°/bin)
+    speed_bins: 4         # closed-set 속도 이산화 bin 수
+    n_v_samples: 3        # 속도 모션 프리미티브 수
+    n_w_samples: 7        # 각속도 모션 프리미티브 수
+    n_substeps: 5         # 유니사이클 적분 서브스텝 수
+    w_max: 1.5            # 최대 각속도 [rad/s]
+    a_max: 8.0            # 최대 가속도 [m/s²]
+    goal_tol_xy: 0.5      # 목표 도달 허용 거리 [m]
+    w_time: 1.0
+    w_occ: 5.0
+    w_accel: 0.2
+    w_yaw: 0.5
+    w_yaw_rate: 0.1
+
+  st_rrt:
+    max_iter:        3000    # 반복 횟수 (20Hz → 50ms 예산)
+    steer_dt_min:    0.2     # edge 최소 시간 [s]
+    steer_dt_max:    0.8     # edge 최대 시간 [s]
+    neighbor_radius: 2.0     # choose-parent / rewire 반경 [m]
+    match_tol:       0.4     # steer endpoint 매칭 허용 오차 [m]
+    goal_radius:     0.5     # goal 도달 판정 반경 [m]
+    goal_bias:       0.10    # goal 방향 샘플링 확률
+    w_time:          1.0     # 도착 시각 비용 가중치
+    w_ctrl:          0.05    # control effort 비용 가중치
+    check_dt:        0.05    # edge 충돌 검사 시간 간격 [s]
+
   debug:
     output: false
     visuals: true

@@ -94,5 +94,38 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/enable/project_from_obstacles", project_from_obstacles_);
 
     retrieveParameter(node, "guidance_planner/test_node/continuous_replanning", debug_continuous_replanning_);
+
+    retrieveParameter(node, "guidance_planner/algorithm", algorithm_, std::string("PRM"));
+    retrieveParameter(node, "guidance_planner/astar/num_headings", astar_num_headings_, 16);
+    retrieveParameter(node, "guidance_planner/astar/w_max",   astar_w_max_,   0.8);
+    retrieveParameter(node, "guidance_planner/astar/w_time",  astar_w_time_,  1.0);
+    retrieveParameter(node, "guidance_planner/astar/w_occ",   astar_w_occ_,   5.0);
+    retrieveParameter(node, "guidance_planner/astar/w_accel", astar_w_accel_, 0.2);
+    retrieveParameter(node, "guidance_planner/astar/w_yaw",   astar_w_yaw_,   0.5);
+
+    retrieveParameter(node, "guidance_planner/hybrid_astar/num_heading_bins", hastar_num_heading_bins_, 24);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/speed_bins",       hastar_speed_bins_,       4);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_v_samples",      hastar_n_v_samples_,      3);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_w_samples",      hastar_n_w_samples_,      7);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_substeps",       hastar_n_substeps_,       5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_max",            hastar_w_max_,            1.5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/a_max",            hastar_a_max_,            8.0);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/goal_tol_xy",      hastar_goal_tol_xy_,      0.5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_time",           hastar_w_time_,           1.0);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_occ",            hastar_w_occ_,            5.0);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_accel",          hastar_w_accel_,          0.2);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_yaw",            hastar_w_yaw_,            0.5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/w_yaw_rate",       hastar_w_yaw_rate_,       0.1);
+
+    retrieveParameter(node, "guidance_planner/st_rrt/max_iter",        strrt_max_iter_,        3000);
+    retrieveParameter(node, "guidance_planner/st_rrt/steer_dt_min",    strrt_steer_dt_min_,    0.2);
+    retrieveParameter(node, "guidance_planner/st_rrt/steer_dt_max",    strrt_steer_dt_max_,    0.8);
+    retrieveParameter(node, "guidance_planner/st_rrt/neighbor_radius", strrt_neighbor_radius_, 2.0);
+    retrieveParameter(node, "guidance_planner/st_rrt/match_tol",       strrt_match_tol_,       0.4);
+    retrieveParameter(node, "guidance_planner/st_rrt/goal_radius",     strrt_goal_radius_,     0.5);
+    retrieveParameter(node, "guidance_planner/st_rrt/goal_bias",       strrt_goal_bias_,       0.10);
+    retrieveParameter(node, "guidance_planner/st_rrt/w_time",          strrt_w_time_,          1.0);
+    retrieveParameter(node, "guidance_planner/st_rrt/w_ctrl",          strrt_w_ctrl_,          0.05);
+    retrieveParameter(node, "guidance_planner/st_rrt/check_dt",        strrt_check_dt_,        0.05);
   }
 }

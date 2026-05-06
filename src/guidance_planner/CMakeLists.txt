@@ -22,6 +22,7 @@ endif()
 set(DEPENDENCIES
   roscpp
   std_msgs
+  std_srvs
   ros_tools
   dynamic_reconfigure
   mpc_planner_stepmap
@@ -72,6 +73,9 @@ target_link_libraries(${PROJECT_NAME}_homotopy
 add_library(${PROJECT_NAME} SHARED
   src/config.cpp
   src/global_guidance.cpp
+  src/astar_planner.cpp
+  src/hybrid_astar_planner.cpp
+  src/st_rrt_star_planner.cpp
   src/prm.cpp
   src/sampler.cpp
   src/graph.cpp

@@ -94,6 +94,37 @@ namespace GuidancePlanner
     bool dynamically_propagate_nodes_;
     bool project_from_obstacles_;
     bool debug_continuous_replanning_;
+
+    // Algorithm selector
+    std::string algorithm_;   // "PRM" | "AStar"
+
+    // A* planner parameters
+    int    astar_num_headings_;
+    double astar_w_max_;
+    double astar_w_time_, astar_w_occ_, astar_w_accel_, astar_w_yaw_;
+
+    // Hybrid A* planner parameters
+    int    hastar_num_heading_bins_;
+    int    hastar_speed_bins_;
+    int    hastar_n_v_samples_;
+    int    hastar_n_w_samples_;
+    int    hastar_n_substeps_;
+    double hastar_w_max_;
+    double hastar_a_max_;
+    double hastar_goal_tol_xy_;
+    double hastar_w_time_, hastar_w_occ_, hastar_w_accel_, hastar_w_yaw_, hastar_w_yaw_rate_;
+
+    // ST-RRT* planner parameters
+    int    strrt_max_iter_;
+    double strrt_steer_dt_min_;
+    double strrt_steer_dt_max_;
+    double strrt_neighbor_radius_;
+    double strrt_match_tol_;
+    double strrt_goal_radius_;
+    double strrt_goal_bias_;
+    double strrt_w_time_;
+    double strrt_w_ctrl_;
+    double strrt_check_dt_;
   };
 }
 
