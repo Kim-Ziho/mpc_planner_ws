@@ -30,6 +30,7 @@ def generate_launch_description():
     pkg_rosnav = FindPackageShare("mpc_planner_rosnavigation")
     pkg_pedsim = FindPackageShare("pedestrian_simulator")
     pkg_jackal_gazebo = FindPackageShare("jackal_gazebo")
+    pkg_mrsp = FindPackageShare("mobile_robot_state_publisher")
 
     pedestrian_scenario = LaunchConfiguration("pedestrian_scenario")
     world_path = LaunchConfiguration("world_path")
@@ -97,4 +98,17 @@ def generate_launch_description():
         output="screen",
     )
 
-    return LaunchDescription(declared_args + [jackal_world, pedsim, jackal_planner, goal_publisher, rviz])
+    mobile_robot_state = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution([pkg_mrsp, "launch", "mobile_robot_publisher.launch.py"])
+        ),
+    )
+
+    return LaunchDescription(declared_args + [
+        jackal_world,
+        pedsim,
+        mobile_robot_state,
+        jackal_planner,
+        goal_publisher,
+        rviz,
+    ])

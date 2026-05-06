@@ -1,281 +1,160 @@
-/*!
- *****************************************************************
- * \file
- *
- * \note
- *   Copyright (c) 2018 \n
- *   TU Delft
- *
- *****************************************************************
- *
- * \note
- *   Project name:
- * \note
- *   ROS stack name:
- * \note
- *   ROS package name: mobile_robot_state_publisher
- *
- * \author
- *   Author: Bruno Brito, email: Bruno.deBrito@tudelft.nl
- *
- * \date Date of creation: May, 2018
- *
- * \brief
- *   This package provides a generic mobile_robot_stsate_publisher
- *
- ****************************************************************/
+// ROS 2 port of the original mobile_robot_state_publisher.
+//
+// Subscribes to Gazebo Classic's /gazebo/link_states (gazebo_msgs/msg/LinkStates),
+// extracts the link whose name contains "base_link", and republishes:
+//   - nav_msgs/Odometry on /odometry/filtered (ground truth, replacing the EKF)
+//   - geometry_msgs/PoseStamped on a configurable robot_state_topic
+//   - TF: odom -> base_link (broadcast directly so simulation pose matches RViz)
+//   - static TF: odom -> map (the EKF that would normally do this is disabled)
 
-#include <ros/ros.h>
-#include <tf2_ros/transform_listener.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/TransformStamped.h>
-#include <nav_msgs/Odometry.h>
-#include <gazebo_msgs/SetLinkState.h>
-#include <gazebo_msgs/LinkStates.h>
-#include <tf/transform_broadcaster.h>
+#include <rclcpp/rclcpp.hpp>
 
-using namespace std;
+#include <gazebo_msgs/msg/link_states.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 
-geometry_msgs::Pose pos;
-geometry_msgs::Twist vel;
-nav_msgs::Odometry odom_msg;
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
 
-ros::Publisher state_pub_;
-ros::Publisher odom_pub_;
+#include <cmath>
+#include <memory>
+#include <string>
 
-ros::Time last_velocity_callback_;
-double rate_;
-
-void VelocityCallBack(const gazebo_msgs::LinkStates &msg)
+class MobileRobotStatePublisher : public rclcpp::Node
 {
-	// Update at the given rate
-	if (last_velocity_callback_ + ros::Duration(1. / rate_) > ros::Time::now())
-		return;
+public:
+    MobileRobotStatePublisher()
+        : rclcpp::Node("mobile_robot_state_publisher")
+    {
+        rate_ = this->declare_parameter<double>("rate", 100.0);
+        base_frame_ = this->declare_parameter<std::string>("base_frame", "base_link");
+        root_frame_ = this->declare_parameter<std::string>("root_frame", "map");
+        robot_state_topic_ = this->declare_parameter<std::string>("robot_state_topic", "/robot_state");
+        vel_state_topic_ = this->declare_parameter<std::string>("vel_state_topic", "/gazebo/link_states");
 
-	last_velocity_callback_ = ros::Time::now();
+        last_callback_ = this->now();
 
-	std::string str2("base_link");
+        link_sub_ = this->create_subscription<gazebo_msgs::msg::LinkStates>(
+            vel_state_topic_, rclcpp::SensorDataQoS(),
+            std::bind(&MobileRobotStatePublisher::linkStatesCallback, this, std::placeholders::_1));
 
-	bool found_index = false;
-	size_t index;
-	for (index = 0; index < msg.name.size(); index++)
-	{
+        state_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(robot_state_topic_, 1);
+        odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("/odometry/filtered", 1);
 
-		if (msg.name[index].find(str2) != std::string::npos)
-		{
-			found_index = true;
-			break;
-		}
-	}
+        tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+        static_tf_broadcaster_ = std::make_unique<tf2_ros::StaticTransformBroadcaster>(*this);
 
-	if (!found_index)
-	{
-		ROS_WARN_STREAM("Mobile Robot State Publisher: velocity callback() - index not found");
-		return;
-	}
+        // Identity odom->map so the EKF's normal map publication isn't needed.
+        geometry_msgs::msg::TransformStamped static_tf;
+        static_tf.header.stamp = this->now();
+        static_tf.header.frame_id = "odom";
+        static_tf.child_frame_id = "map";
+        static_tf.transform.rotation.w = 1.0;
+        static_tf_broadcaster_->sendTransform(static_tf);
 
-	geometry_msgs::PoseStamped pose_msg;
-	pose_msg.header.frame_id = "odom";
-	pose_msg.header.stamp = ros::Time::now();
+        RCLCPP_INFO(this->get_logger(), "mobile_robot_state_publisher ready (rate=%.1f Hz)", rate_);
+    }
 
-	// ROS_INFO_STREAM("fOUND IN: " << index);
-	pos = msg.pose[index];
-	odom_msg.twist.twist = msg.twist[index];
-	odom_msg.pose.pose = msg.pose[index];
-	odom_msg.child_frame_id = "base_link";
-	odom_msg.header.frame_id = "odom";
-	odom_msg.header.stamp = ros::Time::now();
+private:
+    void linkStatesCallback(gazebo_msgs::msg::LinkStates::ConstSharedPtr msg)
+    {
+        const auto stamp = this->now();
+        if ((stamp - last_callback_).seconds() < 1.0 / rate_)
+            return;
+        last_callback_ = stamp;
 
-	try
-	{
+        // Pick the entry whose name contains base_frame_ (Gazebo prefixes link
+        // names with the model namespace, e.g. "jackal::base_link").
+        std::size_t index = 0;
+        bool found = false;
+        for (std::size_t i = 0; i < msg->name.size(); ++i)
+        {
+            if (msg->name[i].find(base_frame_) != std::string::npos)
+            {
+                index = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                                 "Mobile robot state publisher: '%s' link not found in %zu entries",
+                                 base_frame_.c_str(), msg->name.size());
+            return;
+        }
 
-		/* This is done because the ukf does not match the position in Gazebo */
-		static tf::TransformBroadcaster br;
-		tf::Transform transform;
-		transform.setOrigin(tf::Vector3(pos.position.x, pos.position.y, pos.position.z));
-		tf::Quaternion q(pos.orientation.x, pos.orientation.y, pos.orientation.z, pos.orientation.w);
+        const auto &pose = msg->pose[index];
+        const auto &twist = msg->twist[index];
 
-		transform.setRotation(q);
-		br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "odom", "base_link"));
-	}
-	catch (std::runtime_error e)
-	{
-		std::cout << "mbrobot: exception in transform: " << e.what() << "\n";
-	}
+        // Odometry on the EKF topic so consumers don't need to switch sources.
+        nav_msgs::msg::Odometry odom;
+        odom.header.stamp = stamp;
+        odom.header.frame_id = "odom";
+        odom.child_frame_id = base_frame_;
+        odom.pose.pose = pose;
+        odom.twist.twist = twist;
+        odom_pub_->publish(odom);
 
-	// CONVERT FROM QUATERNION TO JOINT ANGLE ROTATION
-	// Intermidiate variables
-	double ysqr, t3, t4;
-	geometry_msgs::TransformStamped transformStamped;
+        // Direct odom->base_link TF (replaces the disabled EKF transform).
+        geometry_msgs::msg::TransformStamped tf;
+        tf.header.stamp = stamp;
+        tf.header.frame_id = "odom";
+        tf.child_frame_id = base_frame_;
+        tf.transform.translation.x = pose.position.x;
+        tf.transform.translation.y = pose.position.y;
+        tf.transform.translation.z = pose.position.z;
+        tf.transform.rotation = pose.orientation;
+        tf_broadcaster_->sendTransform(tf);
 
-	ysqr = odom_msg.pose.pose.orientation.y * odom_msg.pose.pose.orientation.y;
-	t3 = +2.0 * (odom_msg.pose.pose.orientation.w * odom_msg.pose.pose.orientation.z + odom_msg.pose.pose.orientation.x * odom_msg.pose.pose.orientation.y);
-	t4 = +1.0 - 2.0 * (ysqr + odom_msg.pose.pose.orientation.z * odom_msg.pose.pose.orientation.z);
+        // Compact PoseStamped: orientation slot carries (roll, pitch, yaw) and
+        // z-position carries planar speed, matching the legacy contract used
+        // by mpc_planner_rosnavigation's /input/state_pose subscriber.
+        tf2::Quaternion q(pose.orientation.x, pose.orientation.y,
+                          pose.orientation.z, pose.orientation.w);
+        tf2::Matrix3x3 rot(q);
+        double roll, pitch, yaw;
+        rot.getRPY(roll, pitch, yaw);
+        if (std::isnan(yaw))
+        {
+            roll = pitch = yaw = 0.0;
+        }
 
-	// Check if the Jackal flipped over (it happens)
-	tf::Quaternion q;
-	q.setX(odom_msg.pose.pose.orientation.x);
-	q.setY(odom_msg.pose.pose.orientation.y);
-	q.setZ(odom_msg.pose.pose.orientation.z);
-	q.setW(odom_msg.pose.pose.orientation.w);
-	tf::Matrix3x3 m(q);
-	double roll, pitch, yaw;
-	m.getRPY(roll, pitch, yaw);
-	if (yaw != yaw) // Check for nan
-	{
-		yaw = 0.;
-		pitch = 0.;
-		roll = 0.;
-	}
+        geometry_msgs::msg::PoseStamped state;
+        state.header.stamp = stamp;
+        state.header.frame_id = "odom";
+        state.pose.position.x = pose.position.x;
+        state.pose.position.y = pose.position.y;
+        state.pose.position.z = std::sqrt(twist.linear.x * twist.linear.x +
+                                          twist.linear.y * twist.linear.y);
+        state.pose.orientation.x = roll;
+        state.pose.orientation.y = pitch;
+        state.pose.orientation.z = yaw;
+        state_pub_->publish(state);
+    }
 
-	// Orientation
-	pose_msg.pose.orientation.x = roll;
-	pose_msg.pose.orientation.y = pitch;
-	pose_msg.pose.orientation.z = yaw;
+    double rate_{100.0};
+    std::string base_frame_;
+    std::string root_frame_;
+    std::string robot_state_topic_;
+    std::string vel_state_topic_;
 
-	// Position
-	pose_msg.pose.position.x = odom_msg.pose.pose.position.x;
-	pose_msg.pose.position.y = odom_msg.pose.pose.position.y;
+    rclcpp::Time last_callback_;
 
-	// Velocity
-	pose_msg.pose.position.z = std::sqrt(std::pow(odom_msg.twist.twist.linear.x, 2) + std::pow(odom_msg.twist.twist.linear.y, 2));
-
-	state_pub_.publish(pose_msg);
-	odom_pub_.publish(odom_msg);
-}
+    rclcpp::Subscription<gazebo_msgs::msg::LinkStates>::SharedPtr link_sub_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr state_pub_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+    std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+    std::unique_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
+};
 
 int main(int argc, char **argv)
 {
-	ros::init(argc, argv, "mobile_robot_state_publisher_node");
-	ros::NodeHandle n;
-	ros::Subscriber robot_state_sub_;
-
-	if (!n.getParam(ros::this_node::getName() + "/rate", rate_))
-	{
-		ROS_ERROR_STREAM("mobile_robot_state_publisher_node Parameter " << ros::this_node::getName() + "/rate not set");
-		return 0;
-	}
-
-	string root_frame;
-	if (!n.getParam(ros::this_node::getName() + "/root_frame", root_frame))
-	{
-		ROS_ERROR_STREAM("mobile_robot_state_publisher_node Parameter " << ros::this_node::getName() + "/root_frame not set");
-		return 0;
-	}
-
-	string base_frame;
-	if (!n.getParam(ros::this_node::getName() + "/base_frame", base_frame))
-	{
-		ROS_ERROR_STREAM("mobile_robot_state_publisher_node Parameter " << ros::this_node::getName() + "/base_frame not set");
-		return 0;
-	}
-
-	string robot_state_topic;
-	if (!n.getParam(ros::this_node::getName() + "/robot_state_topic", robot_state_topic))
-	{
-		ROS_ERROR_STREAM("mobile_robot_state_publisher_node Parameter " << ros::this_node::getName() + "/robot_state_topic not set");
-		return 0;
-	}
-
-	string vel_state_topic;
-	if (!n.getParam(ros::this_node::getName() + "/vel_state_topic", vel_state_topic))
-	{
-		ROS_ERROR_STREAM("mobile_robot_state_publisher_node Parameter " << ros::this_node::getName() + "/vel_state_topic not set");
-		return 0;
-	}
-
-	robot_state_sub_ = n.subscribe(vel_state_topic, 1, VelocityCallBack);
-
-	state_pub_ = n.advertise<geometry_msgs::PoseStamped>(robot_state_topic, 1);
-	odom_pub_ = n.advertise<nav_msgs::Odometry>("/odometry/filtered", 1);
-
-	ros::ServiceClient link_state_client_ = n.serviceClient<gazebo_msgs::SetLinkState>("/gazebo/set_link_state");
-
-	gazebo_msgs::SetLinkState link;
-	link.request.link_state.link_name = "base_link";
-
-	tf2_ros::Buffer tfBuffer;
-	tf2_ros::TransformListener tfListener(tfBuffer);
-	last_velocity_callback_ = ros::Time::now();
-	ros::spin();
-
-	// ros::Rate rate(node_rate);
-	// geometry_msgs::PoseStamped pose_msg;
-
-	// ros::Publisher odom_pub_ = n.advertise<nav_msgs::Odometry>("/odometry/filtered", 1);
-
-	// // Intermidiate variables
-	// double ysqr, t3, t4;
-	// geometry_msgs::TransformStamped transformStamped;
-	// ros::Rate r(rate);
-	// while (n.ok())
-	// {
-	/*
-	try{
-		transformStamped = tfBuffer.lookupTransform(root_frame, base_frame,
-													ros::Time(0));
-	}
-	catch (tf2::TransformException &ex) {
-		ROS_WARN("%s",ex.what());
-		ros::Duration(1.0).sleep();
-		continue;
-	}
-	//CONVERT FROM QUATERNION TO JOINT ANGLE ROTATION
-	*/
-	// pose_msg.header.frame_id = "odom";
-	// pose_msg.header.stamp = ros::Time::now();
-
-	// ysqr = odom_msg.pose.pose.orientation.y * odom_msg.pose.pose.orientation.y;
-	// t3 = +2.0 * (odom_msg.pose.pose.orientation.w * odom_msg.pose.pose.orientation.z + odom_msg.pose.pose.orientation.x * odom_msg.pose.pose.orientation.y);
-	// t4 = +1.0 - 2.0 * (ysqr + odom_msg.pose.pose.orientation.z * odom_msg.pose.pose.orientation.z);
-
-	// // pose_msg.pose.orientation.x = atan2(t3, t4);
-	// // pose_msg.pose.orientation.y = atan2(t3, t4);
-	// // pose_msg.pose.orientation.z = atan2(t3, t4);
-	// // Check if the Jackal flipped over (it happens)
-	// tf::Quaternion q;
-	// q.setX(odom_msg.pose.pose.orientation.x);
-	// q.setY(odom_msg.pose.pose.orientation.y);
-	// q.setZ(odom_msg.pose.pose.orientation.z);
-	// q.setW(odom_msg.pose.pose.orientation.w);
-	// tf::Matrix3x3 m(q);
-	// double roll, pitch, yaw;
-	// m.getRPY(roll, pitch, yaw);
-	// if (yaw != yaw) // Check for nan
-	// {
-	// 	yaw = 0.;
-	// 	pitch = 0.;
-	// 	roll = 0.;
-	// }
-
-	// // Orientation
-	// pose_msg.pose.orientation.x = roll;
-	// pose_msg.pose.orientation.y = pitch;
-	// pose_msg.pose.orientation.z = yaw;
-
-	// // Position
-	// pose_msg.pose.position.x = odom_msg.pose.pose.position.x;
-	// pose_msg.pose.position.y = odom_msg.pose.pose.position.y;
-
-	// // Velocity
-	// pose_msg.pose.position.z = std::sqrt(std::pow(odom_msg.twist.twist.linear.x, 2) + std::pow(odom_msg.twist.twist.linear.y, 2));
-
-	// state_pub_.publish(pose_msg);
-	// /*
-	// link.request.link_state.pose.position.x = transformStamped.transform.translation.x;
-	// link.request.link_state.pose.position.y = transformStamped.transform.translation.y;
-	// link.request.link_state.pose.position.z = transformStamped.transform.translation.z;
-	// link.request.link_state.pose.orientation.x = transformStamped.transform.rotation.x;
-	// link.request.link_state.pose.orientation.y = transformStamped.transform.rotation.y;
-	// link.request.link_state.pose.orientation.z = transformStamped.transform.rotation.z;
-	// link.request.link_state.pose.orientation.w = transformStamped.transform.rotation.w;
-	// link_state_client_.call(link);
-	//  */
-	// // link_state_pub_.publish(link);
-	// odom_pub_.publish(odom_msg);
-	// ros::spinOnce();
-	// r.sleep();
-	// }
-
-	return 0;
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<MobileRobotStatePublisher>());
+    rclcpp::shutdown();
+    return 0;
 }

@@ -1,10 +1,7 @@
-## Driver Parameters
-
-#publisher rate
-rate: 100
-#robot base frame
-base_frame: base_link
-#map frame
-root_frame: map
-robot_state_topic: /robot_state
-vel_state_topic: /gazebo/link_states
+mobile_robot_state_publisher:
+  ros__parameters:
+    rate: 100.0
+    base_frame: base_link
+    root_frame: map
+    robot_state_topic: /robot_state
+    vel_state_topic: /gazebo/link_states
