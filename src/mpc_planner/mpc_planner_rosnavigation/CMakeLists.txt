@@ -16,9 +16,12 @@ endif()
 
 set(DEPENDENCIES
   rclcpp
+  geometry_msgs
   nav_msgs
   std_msgs
   std_srvs
+  tf2
+  tf2_ros
   ros_tools
   mpc_planner
   mpc_planner_msgs

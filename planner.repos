@@ -23,10 +23,16 @@ repositories:
         type: git
         url: https://github.com/oscardegroot/roadmap.git
         version: a82d1cb93a60d0fdf19e8cee8bf0b63aa3b61e1d
+    # Clearpath upstream Jackal stack (foxy-devel branch — closest available
+    # to humble; minor humble patches applied locally as needed).
+    jackal:
+        type: git
+        url: https://github.com/jackal/jackal.git
+        version: foxy-devel
     jackal_simulator:
         type: git
-        url: https://github.com/oscardegroot/jackal_simulator.git
-        version: 70f32759a97c08829faa9f30805fee6b9ba2e9fa
+        url: https://github.com/jackal/jackal_simulator.git
+        version: foxy-devel
     asr_rapidxml:
         type: git
         url: https://github.com/oscardegroot/asr_rapidxml.git
@@ -35,7 +41,3 @@ repositories:
         type: git
         url: https://github.com/oscardegroot/DecompUtil.git
         version: b4211a130ada47d458105a3a29559d3f6caa52c4
-    scenario_module:
-        type: git
-        url: https://github.com/oscardegroot/scenario_module.git
-        version: c11addbb7239752d585beb181e8f9197893c6c53

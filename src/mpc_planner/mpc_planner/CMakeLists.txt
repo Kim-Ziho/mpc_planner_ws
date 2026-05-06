@@ -45,8 +45,8 @@ install(
   RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY include/${PROJECT_NAME}
-  DESTINATION include/)
+install(DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME})
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(${DEPENDENCIES})
