@@ -23,14 +23,26 @@ using namespace std::chrono_literals;
 namespace local_planner
 {
 
+    static rclcpp::NodeOptions makeNodeOptions()
+    {
+        // ros_tools::retrieveParameter declares parameters lazily on first access,
+        // so we leave automatic declaration off to avoid ParameterAlreadyDeclared.
+        // Yaml overrides loaded via launch's `parameters=[...]` still apply as
+        // initial values that the lazy declare will pick up.
+        rclcpp::NodeOptions options;
+        return options;
+    }
+
     JackalPlanner::JackalPlanner()
-        : rclcpp::Node("jackal_planner")
+        : rclcpp::Node("jackal_planner", makeNodeOptions())
     {
     }
 
     void JackalPlanner::initialize()
     {
-        // Static node pointer for ros_tools logging/visuals
+        // Static node pointer is what ros_tools logging/visuals macros dereference.
+        // Must be set before any LOG_* / VISUALS call.
+        STATIC_NODE_POINTER.init(this);
         VISUALS.init(this);
 
         // Initialize the configuration from settings.yaml

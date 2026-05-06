@@ -82,6 +82,12 @@ install(DIRECTORY acados/Solver
   DESTINATION include/${PROJECT_NAME}
   FILES_MATCHING PATTERN "*.h")
 
+# Install the acados-generated shared libraries so downstream nodes can dlopen them at runtime
+file(GLOB _solver_runtime_libs ${PROJECT_SOURCE_DIR}/acados/Solver/lib*.so)
+if(_solver_runtime_libs)
+  install(FILES ${_solver_runtime_libs} DESTINATION lib)
+endif()
+
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(${DEPENDENCIES})
 # Export absolute system include dirs (acados/blasfeo/hpipm) so downstream consumers find them

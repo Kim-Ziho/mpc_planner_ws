@@ -46,6 +46,10 @@ ament_target_dependencies(jackal_planner ${DEPENDENCIES})
 install(TARGETS jackal_planner
   DESTINATION lib/${PROJECT_NAME})
 
+install(PROGRAMS
+  scripts/goal_publisher.py
+  DESTINATION lib/${PROJECT_NAME})
+
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
 
