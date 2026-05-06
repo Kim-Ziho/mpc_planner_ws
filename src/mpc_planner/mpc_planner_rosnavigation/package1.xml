@@ -3,9 +3,9 @@
 <package format="3">
   <name>mpc_planner_rosnavigation</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>ROS Navigation wrapper of MPC Planner</description>
   <maintainer email="o.m.degroot@tudelft.nl">Oscar de Groot</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache 2.0</license>
 
   <buildtool_depend>catkin</buildtool_depend>
 
@@ -26,10 +26,11 @@
 
   <depend>nav_msgs</depend>
 
-  <!-- <exec_depend>pedestrian_simulator</exec_depend> -->
+  <exec_depend>pedestrian_simulator</exec_depend>
   <exec_depend>jackal_gazebo</exec_depend>
+  <exec_depend>jackal_navigation</exec_depend>
   <exec_depend>mobile_robot_state_publisher</exec_depend>
-  <!-- <exec_depend>roadmap</exec_depend> -->
+  <exec_depend>roadmap</exec_depend>
 
   <export>
     <nav_core plugin="${prefix}/mpc_planner_rosnavigation_plugin.xml"/>

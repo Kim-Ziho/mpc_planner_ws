@@ -6,30 +6,30 @@ export VENV_PATH="/workspace/poetry"
 # Import repositories from vcs file
 echo "Cloning repositories ..."
 mkdir -p src
-vcs import < planner.repos src --recursive 
+vcs import < planner.repos src --recursive
 # vcs import < lab.repos src --recursive # Uncomment to clone lab packages
 echo "Done cloning repositories."
 
-# Switch to ROS1 mode
-echo "Switching to ROS 1 ..."
+# Switch to ROS2 mode
+echo "Switching to ROS 2 ..."
 cd src
 cd mpc_planner
-python3 switch_to_ros.py 1
+python3 switch_to_ros.py 2
 cd ..
 
 cd ros_tools
-python3 switch_to_ros.py 1
+python3 switch_to_ros.py 2
 cd ..
 
 cd guidance_planner
-python3 switch_to_ros.py 1
+python3 switch_to_ros.py 2
 cd ..
 
 cd pedestrian_simulator
-python3 switch_to_ros.py 1
+python3 switch_to_ros.py 2
 cd ..
 cd ..
-echo "Done, all repos are in ROS1 mode."
+echo "Done, all repos are in ROS2 mode."
 
 # Install Acados
 if [ ! -d "/workspace/acados/build" ]; then

@@ -1,6 +1,6 @@
 #include "mpc_planner_modules/decomp_constraints.h"
 
-#include <costmap_2d/costmap_2d_ros.h>
+#include <nav2_costmap_2d/costmap_2d_ros.hpp>
 
 #include <mpc_planner_solver/mpc_planner_parameters.h>
 
@@ -80,7 +80,8 @@ namespace MPCPlanner
 
       s += v * _solver->dt;
     }
-    _decomp_util->dilate(path, 0, false);
+    static const std::vector<std::unique_ptr<vec_Vecf<2>>> empty_obs_path;
+    _decomp_util->dilate(path, empty_obs_path, 0., false);
 
     _decomp_util->set_constraints(_constraints, 0.); // Map is already inflated
     _polyhedrons = _decomp_util->get_polyhedrons();
@@ -133,7 +134,7 @@ namespace MPCPlanner
     {
       for (unsigned int j = 0; j < costmap.getSizeInCellsY(); j++)
       {
-        if (costmap.getCost(i, j) == costmap_2d::FREE_SPACE)
+        if (costmap.getCost(i, j) == nav2_costmap_2d::FREE_SPACE)
           continue;
 
         costmap.mapToWorld(i, j, x, y);

@@ -19,6 +19,7 @@
 #include <ros_tools/ros2_wrappers.h>
 
 #include <filesystem>
+#include <sstream>
 #define LOGGING_NAME std::filesystem::path(__FILE__).filename().replace_extension("").string()
 #define LOG_INFO(...) RCLCPP_INFO_STREAM(GET_STATIC_NODE_POINTER()->get_logger(), __VA_ARGS__)
 #define LOG_WARN(...) RCLCPP_WARN_STREAM(GET_STATIC_NODE_POINTER()->get_logger(), "\033[33m" << __VA_ARGS__ << "\033[0m")
@@ -45,10 +46,10 @@ inline void __RCLCPP_INFO_STREAM_THROTTLE(const double rate, const std::string &
     RCLCPP_INFO_STREAM_THROTTLE(GET_STATIC_NODE_POINTER()->get_logger(), clock, rate, msg);
 }
 
-#define LOG_INFO_THROTTLE(rate, ...) __RCLCPP_INFO_STREAM_THROTTLE(rate, __VA_ARGS__)
-#define LOG_WARN_THROTTLE(rate, ...) __RCLCPP_WARN_STREAM_THROTTLE(rate, __VA_ARGS__)
-#define LOG_ERROR_THROTTLE(rate, ...) RCLCPP_ERROR_STREAM_THROTTLE(GET_STATIC_NODE_POINTER()->get_logger(), rate, __VA_ARGS__)
-#define LOG_DEBUG_THROTTLE(rate, ...) RCLCPP_DEBUG_STREAM_THROTTLE(GET_STATIC_NODE_POINTER()->get_logger(), rate, __VA_ARGS__)
+#define LOG_INFO_THROTTLE(rate, ...) do { std::stringstream __ss; __ss << __VA_ARGS__; __RCLCPP_INFO_STREAM_THROTTLE(rate, __ss.str()); } while(0)
+#define LOG_WARN_THROTTLE(rate, ...) do { std::stringstream __ss; __ss << __VA_ARGS__; __RCLCPP_WARN_STREAM_THROTTLE(rate, __ss.str()); } while(0)
+#define LOG_ERROR_THROTTLE(rate, ...) do { std::stringstream __ss; __ss << __VA_ARGS__; auto __clk = *GET_STATIC_NODE_POINTER()->get_clock(); RCLCPP_ERROR_STREAM_THROTTLE(GET_STATIC_NODE_POINTER()->get_logger(), __clk, rate, __ss.str()); } while(0)
+#define LOG_DEBUG_THROTTLE(rate, ...) do { std::stringstream __ss; __ss << __VA_ARGS__; auto __clk = *GET_STATIC_NODE_POINTER()->get_clock(); RCLCPP_DEBUG_STREAM_THROTTLE(GET_STATIC_NODE_POINTER()->get_logger(), __clk, rate, __ss.str()); } while(0)
 // #else
 // #include <iostream>
 // #define LOG_INFO(...) std::cout << __VA_ARGS__ << std::endl
