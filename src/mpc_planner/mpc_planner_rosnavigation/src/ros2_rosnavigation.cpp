@@ -14,6 +14,8 @@
 #include <ros_tools/spline.h>
 #include <ros_tools/profiling.h>
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
 #include <cmath>
 #include <chrono>
 
@@ -57,6 +59,7 @@ namespace local_planner
         _prev_camera_stamp = this->now();
 
         initializeSubscribersAndPublishers();
+        initializeCostmap();
         startEnvironment();
 
         _timeout_timer.setDuration(60.);
@@ -82,6 +85,14 @@ namespace local_planner
     JackalPlanner::~JackalPlanner()
     {
         LOG_INFO("Stopping JackalPlanner node");
+        if (_costmap_ros)
+        {
+            _costmap_ros->deactivate();
+            _costmap_ros->cleanup();
+        }
+        _costmap_thread.reset();
+        _costmap_ros.reset();
+        _data.costmap = nullptr;
         BENCHMARKERS.print();
         RosTools::Instrumentor::Get().EndSession();
     }
@@ -134,6 +145,31 @@ namespace local_planner
             "/lmpcc/reset_environment", qos_one);
         _reset_simulation_client = this->create_client<std_srvs::srv::Empty>(
             "/gazebo/reset_world");
+    }
+
+    void JackalPlanner::initializeCostmap()
+    {
+        LOG_INFO("Bringing up local_costmap (nav2_costmap_2d)");
+
+        const std::string pkg_share =
+            ament_index_cpp::get_package_share_directory("mpc_planner_rosnavigation");
+        const std::string yaml_path = pkg_share + "/config/local_costmap.yaml";
+
+        rclcpp::NodeOptions opts;
+        opts.arguments({
+            "--ros-args",
+            "-r", "__node:=local_costmap",
+            "--params-file", yaml_path,
+        });
+
+        _costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(opts);
+        _costmap_thread = std::make_unique<nav2_util::NodeThread>(_costmap_ros);
+
+        _costmap_ros->configure();
+        _costmap_ros->activate();
+
+        _data.costmap = _costmap_ros->getCostmap();
+        LOG_INFO("local_costmap active");
     }
 
     void JackalPlanner::startEnvironment()
@@ -445,6 +481,11 @@ namespace local_planner
         }
 
         _planner->reset(_state, _data, success);
+
+        // RealTimeData::reset() wipes the costmap pointer; re-bind the live
+        // Costmap2D from the running Costmap2DROS so DecompConstraints stays ready.
+        if (_costmap_ros)
+            _data.costmap = _costmap_ros->getCostmap();
 
         _done = false;
         _rotate_to_goal = false;

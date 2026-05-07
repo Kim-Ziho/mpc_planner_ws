@@ -16,7 +16,11 @@ Optional args:
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.launch_description_sources import (
     PythonLaunchDescriptionSource,
     AnyLaunchDescriptionSource,
@@ -46,6 +50,15 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([pkg_rosnav, "worlds", "test.world"]),
             description="Gazebo world file passed to jackal_world.launch.py",
         ),
+    ]
+
+    # Enable the Hokuyo UST10 front laser so /front/scan feeds local_costmap.
+    # Must be set before xacro renders the URDF (jackal_description/accessories.urdf.xacro
+    # gates the lidar block on $(optenv JACKAL_LASER 0)).
+    laser_env = [
+        SetEnvironmentVariable(name="JACKAL_LASER", value="1"),
+        SetEnvironmentVariable(name="JACKAL_LASER_MODEL", value="ust10"),
+        SetEnvironmentVariable(name="JACKAL_LASER_TOPIC", value="front/scan"),
     ]
 
     jackal_world = IncludeLaunchDescription(
@@ -104,7 +117,7 @@ def generate_launch_description():
         ),
     )
 
-    return LaunchDescription(declared_args + [
+    return LaunchDescription(declared_args + laser_env + [
         jackal_world,
         pedsim,
         mobile_robot_state,

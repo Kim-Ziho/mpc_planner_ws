@@ -116,6 +116,33 @@
 4. **`roadmap_msgs`** — `rosidl_default_generators`로 재구성. `roadmap/CMakeLists2.txt`/`package2.xml` 작성.
 5. **`roadmap/roadmap`** — 본 시나리오에서 실제 노드 가동은 안 하지만 `exec_depend` 그래프 유지를 위해 빌드만 통과시킨다. 시간 절약을 위해 `package2.xml`만 만들고 노드 소스는 `COLCON_IGNORE` 처리도 검토.
 
+### Phase 4-bis — `gazebo_ros2_control` 회피 (적용분)
+
+`ros-humble-gazebo-ros2-control` 0.4.10 binary는 controller_manager를 spawn할 때 robot_state_publisher에서 받아온 URDF를 `--param robot_description:=<XML>` 형식으로 다시 직렬화해 `rcl_parse_arguments`에 넘긴다. 이 과정에서 multi-line/특수문자 URDF가 파싱되지 못해 `controller_manager` 자체가 올라오지 않고 `joint_state_broadcaster`/`jackal_velocity_controller` spawner는 무한 대기에 빠진다(`/joint_states`, `/odom` publisher 없음).
+
+대응:
+
+1. `jackal.gazebo`에서 `libgazebo_ros2_control.so` 플러그인 블록을 제거하고, **Gazebo Classic의 `libgazebo_ros_diff_drive.so` + `libgazebo_ros_joint_state_publisher.so`** 플러그인으로 교체. 4개 휠을 두 쌍의 diff drive로 묶어 `/cmd_vel` 구독, `/odom` 발행, wheel TF 발행.
+2. `jackal_control/launch/control.launch.py`에서 controller_manager spawner Node 두 개를 제거. ekf_node, imu_filter는 유지.
+3. URDF 내 `<ros2_control>` 블록은 그대로 두되 매칭 플러그인이 없어 비활성. 후속에 ros2_control이 필요해지면 source-built `gazebo_ros2_control` (≥0.7) 또는 patch 적용 버전으로 교체 가능.
+
+검증:
+- `gazebo_ros_diff_drive`가 `/cmd_vel` 구독 + `/odom` 발행 확인.
+- `/joint_states` 1 publisher 확인.
+- `map → base_link` TF 정상 연결.
+
+**Front laser 활성화 (적용분)**: `jackal_description/accessories.urdf.xacro`의 라이다 블록은 `$(optenv JACKAL_LASER 0)`로 게이트되어 있어 기본 URDF에는 라이다가 없다. `ros2_rosnavigation.launch.py`에서 `SetEnvironmentVariable`로 다음을 xacro 호출 전에 주입:
+
+```python
+SetEnvironmentVariable(name="JACKAL_LASER", value="1"),
+SetEnvironmentVariable(name="JACKAL_LASER_MODEL", value="ust10"),
+SetEnvironmentVariable(name="JACKAL_LASER_TOPIC", value="front/scan"),
+```
+
+→ Hokuyo UST10 (`libgazebo_ros_ray_sensor.so`)이 `front_laser` frame에서 `/front/scan` LaserScan을 50Hz로 발행, `local_costmap`의 `obstacle_layer`가 구독해 cost를 마킹한다. `front_mount → front_laser_mount → front_laser` TF도 함께 설정된다.
+
+별개로 발견한 회귀: `JackalPlanner::reset()`이 `_planner->reset(_state, _data, …)` 안에서 `RealTimeData::reset()`을 호출하는데, 이게 `*this = RealTimeData()`로 모든 멤버를 리셋해 `costmap` 포인터까지 nullptr로 날린다. 60초 timeout 또는 골 도달 시 reset이 발생하면 `DecompConstraints::isDataReady`가 그 이후 영원히 "missing Costmap"을 보고함. → `JackalPlanner::reset()`에서 `_planner->reset(...)` 직후 `_data.costmap = _costmap_ros->getCostmap()`로 다시 바인딩하도록 수정.
+
 ### Phase 4 — Jackal 시뮬레이터 포팅
 
 **A안: 상류 Clearpath ROS2 패키지 채택 (권장)**
@@ -154,6 +181,7 @@
    - `tf2_ros::Buffer::lookupTransform(target, source, ros::Time(0))` → `lookupTransform(target, source, tf2::TimePointZero)`
 6. **Costmap**
    - `costmap_2d::Costmap2DROS` → `nav2_costmap_2d::Costmap2DROS`. 헤더 경로/네임스페이스 변경 외에 의미는 동일.
+   - **Phase 5 진행 중 적용분**: `JackalPlanner`(standalone `rclcpp::Node`) 안에서 `nav2_costmap_2d::Costmap2DROS`를 lifecycle 노드로 직접 인스턴스화하고, `nav2_util::NodeThread`로 별도 스레드에서 spin. `configure() → activate()` 후 `getCostmap()`을 `_data.costmap`에 연결. 파라미터는 `config/local_costmap.yaml`(노드명 `local_costmap`)을 `NodeOptions::arguments({"--params-file", ...})`로 로드. 소멸자에서 `deactivate → cleanup` 순서로 정리.
 7. **launch/config**
    - `ros1_rosnavigation.launch` → `ros2_rosnavigation.launch.py`
    - `odom_navigation_demo.launch`(move_base 띄움) → Nav2 bringup 사용. `nav2_bringup/launch/bringup_launch.py`를 include하고, `controller_server`의 `FollowPath` 컨트롤러를 본 플러그인으로 지정한다.

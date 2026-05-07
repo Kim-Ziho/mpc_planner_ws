@@ -16,6 +16,9 @@
 
 #include <tf2_ros/transform_broadcaster.h>
 
+#include <nav2_costmap_2d/costmap_2d_ros.hpp>
+#include <nav2_util/node_thread.hpp>
+
 #include <mpc_planner_msgs/msg/obstacle_array.hpp>
 
 #include <mpc_planner_rosnavigation/rosnavigation_ros2_reconfigure.h>
@@ -74,6 +77,10 @@ namespace local_planner
         std::shared_ptr<tf2_ros::TransformBroadcaster> _camera_pub;
         rclcpp::Time _prev_camera_stamp;
 
+        // Costmap (Nav2): own lifecycle node spun on its own thread
+        std::shared_ptr<nav2_costmap_2d::Costmap2DROS> _costmap_ros;
+        std::unique_ptr<nav2_util::NodeThread> _costmap_thread;
+
         // State
         std::unique_ptr<MPCPlanner::Planner> _planner;
         std::unique_ptr<RosnavigationReconfigure> _reconfigure;
@@ -99,6 +106,7 @@ namespace local_planner
 
         // Helpers
         void initializeSubscribersAndPublishers();
+        void initializeCostmap();
         void startEnvironment();
         void rotateToGoal(geometry_msgs::msg::Twist &cmd_vel);
         void runMPC(geometry_msgs::msg::Twist &cmd_vel);

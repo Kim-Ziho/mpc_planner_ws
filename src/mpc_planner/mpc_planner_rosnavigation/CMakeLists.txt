@@ -22,6 +22,8 @@ set(DEPENDENCIES
   std_srvs
   tf2
   tf2_ros
+  nav2_costmap_2d
+  nav2_util
   ros_tools
   mpc_planner
   mpc_planner_msgs

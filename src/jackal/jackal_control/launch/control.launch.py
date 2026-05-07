@@ -74,8 +74,12 @@ def generate_launch_description():
     ])
 
     # ROS2 Controllers
+    # When is_sim=True we drive the robot with libgazebo_ros_diff_drive (declared
+    # in jackal.gazebo) instead of ros2_control / controller_manager, because
+    # gazebo_ros2_control 0.4.10 in Humble fails to parse the inline URDF
+    # parameter override. The hardware-interface ros2_control_node only runs
+    # off-sim (UnlessCondition).
     control_group_action = GroupAction([
-        # ROS2 Control
         Node(
             package='controller_manager',
             executable='ros2_control_node',
@@ -87,22 +91,6 @@ def generate_launch_description():
             },
             condition=UnlessCondition(is_sim)
         ),
-
-        # Joint State Broadcaster
-        Node(
-            package='controller_manager',
-            executable='spawner.py',
-            arguments=['joint_state_broadcaster'],
-            output='screen',
-        ),
-
-        # Velocity Controller
-        Node(
-            package='controller_manager',
-            executable='spawner.py',
-            arguments=['jackal_velocity_controller'],
-            output='screen',
-        )
     ])
 
     ld = LaunchDescription()

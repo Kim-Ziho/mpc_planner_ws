@@ -16,9 +16,14 @@ endif()
 
 set(DEPENDENCIES
   rclcpp
+  geometry_msgs
   nav_msgs
   std_msgs
   std_srvs
+  tf2
+  tf2_ros
+  nav2_costmap_2d
+  nav2_util
   ros_tools
   mpc_planner
   mpc_planner_msgs
@@ -41,6 +46,10 @@ target_include_directories(jackal_planner PUBLIC
 ament_target_dependencies(jackal_planner ${DEPENDENCIES})
 
 install(TARGETS jackal_planner
+  DESTINATION lib/${PROJECT_NAME})
+
+install(PROGRAMS
+  scripts/goal_publisher.py
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
