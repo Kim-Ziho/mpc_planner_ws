@@ -25,24 +25,19 @@
 
 ## 남은 작업 (우선순위 순)
 
-### 1. Reference path 공급원 마련 — **최우선, M5 unblock**
+### 1. Reference path 공급원 마련 — **완료**
 
-**문제**: `JackalPlanner`가 `/input/reference_path`(`nav_msgs/Path`)를 구독하지만 발행하는 노드가 없음. ROS1에서는 `roadmap` 패키지가 담당했으나, 본 워크스페이스의 `roadmap`은 `exec_depend` 전용으로 빌드만 통과시켜 두었고 ROS2 노드 포팅은 안 되어 있음 (`CLAUDE.md` 참고).
+**문제**: `JackalPlanner`가 `/input/reference_path`(`nav_msgs/Path`)를 구독하지만 발행하는 노드가 없었음. ROS1에서는 `roadmap` 패키지가 담당했으나, 본 워크스페이스의 `roadmap`은 `exec_depend` 전용.
 
-**옵션**:
+**채택안**: Nav2 `planner_server` + `NavfnPlanner`. `goal_publisher.py`가 `ComputePathToPose` 액션으로 path를 받아 `/input/reference_path`로 republish.
 
-| 옵션 | 난이도 | 장점 | 단점 |
-|------|--------|------|------|
-| (a) `roadmap` 노드 ROS2 포팅 | 중-고 | ROS1 시연과 동일 동작, 향후 다중 골/경로 시 재사용 | 작업량 큼, 본 시연 범위 초과 |
-| (b) `goal_publisher.py` 확장 — 골 publish 시 직선 path도 함께 발행 | 저 | 즉시 구현 가능, 외부 의존 없음 | reference path가 항상 직선 |
-| (c) 별도 simple `reference_path_publisher` 노드 신설 | 저 | 책임 분리 | 새 노드 추가 |
+**구현**:
+- `config/nav2_planner.yaml` 신설: `planner_server`(GridBased=NavfnPlanner) + `global_costmap`(rolling window 80m × 80m, `/front/scan` 기반 obstacle/inflation layer) + `lifecycle_manager_navigation`
+- `ros2_rosnavigation.launch.py`에 `planner_server`, `lifecycle_manager` Node 추가 (autostart)
+- `goal_publisher.py`: `/odometry/filtered` 구독 → 현재 pose 캐시 → reset 콜백에서 `ComputePathToPose` 액션 호출(`use_start=True`, `planner_id="GridBased"`) → 결과를 `/input/reference_path`로 publish
+- `package.xml`/`package2.xml`에 `nav2_planner`, `nav2_lifecycle_manager`, `nav2_navfn_planner`, `nav2_msgs`, `rclpy` exec_depend 추가
 
-**추천**: 옵션 (b). `goal_publisher.py`에 다음을 추가:
-- `/odometry/filtered` 구독해 현재 pose 추적
-- 새 goal 선택 시 `current_pose → goal` 직선 path를 N개 waypoint로 샘플링해 `/input/reference_path`에 publish
-- frame_id는 `map`
-
-**완료 조건**: planner의 missing 리스트에서 `Reference Path` 사라짐.
+**검증**: 1회 launch에서 `Managed nodes are active`, `Published reference path with 584 waypoints` 1회, `failed to create plan` 0, path 발행 이후 `missing Reference Path` 경고 0회.
 
 ---
 
@@ -118,7 +113,7 @@
 
 ## 추천 진행 순서
 
-1. **#1 reference path** (옵션 b: `goal_publisher.py` 확장) — 30분 ~ 1시간
+1. ~~**#1 reference path** — 완료 (Nav2 planner_server + navfn 채택)~~
 2. **#2 end-to-end 검증** — solver/launch 디버깅 포함 1~2시간
 3. **#5 플랜 문서 정합화** — 30분
 4. **#3 RViz config** — GUI 환경 필요. 가능하면 후속.
