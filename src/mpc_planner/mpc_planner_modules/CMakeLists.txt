@@ -7,6 +7,10 @@ endif()
 
 option(USE_ROS2 "Use ROS2 CMake" ON)
 
+# decomp_util's ellipsoid_decomp.h has two dilate() overloads gated on DECOMP_OLD.
+# We want the OLD signature dilate(path, offset, is_circle_only) — see CMakeLists1.txt.
+add_definitions(-DDECOMP_OLD)
+
 find_package(OpenMP)
 if(OPENMP_FOUND)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")

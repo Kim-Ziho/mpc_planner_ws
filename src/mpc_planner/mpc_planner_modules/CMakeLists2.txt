@@ -7,6 +7,10 @@ endif()
 
 option(USE_ROS2 "Use ROS2 CMake" ON)
 
+# decomp_util's ellipsoid_decomp.h has two dilate() overloads gated on DECOMP_OLD.
+# We want the OLD signature dilate(path, offset, is_circle_only) — see CMakeLists1.txt.
+add_definitions(-DDECOMP_OLD)
+
 find_package(OpenMP)
 if(OPENMP_FOUND)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
@@ -22,6 +26,7 @@ set(DEPENDENCIES
   mpc_planner_types
   mpc_planner_util
   mpc_planner_solver
+  nav2_costmap_2d
 )
 
 # find dependencies
@@ -55,8 +60,8 @@ install(
   RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY include/${PROJECT_NAME}
-  DESTINATION include/)
+install(DIRECTORY include/
+  DESTINATION include/${PROJECT_NAME})
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(${DEPENDENCIES})

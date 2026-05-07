@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 
+import math
 import random
 
 import rclpy
-from rclpy.action import ActionClient
 from rclpy.node import Node
 
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry, Path
-from nav2_msgs.action import ComputePathToPose
 
 
 # Bounds for random goal generation (matches the ROS1 implementation).
 X_MIN, X_MAX, Y_MIN, Y_MAX = 25.5, 25.6, 25.5, 25.6
+
+# Dense straight-line reference path so the MPC's contouring spline stays smooth.
+# Nav2 NavfnPlanner produces a grid-quantized path that triggers QP failures in
+# the MPC; the test scenario is an open world, so a straight reference is fine.
+PATH_RESOLUTION_M = 0.1
 
 
 class RandomGoalPublisher(Node):
@@ -25,9 +29,7 @@ class RandomGoalPublisher(Node):
         self.create_subscription(Empty, "/lmpcc/reset_environment", self.reset_callback, 10)
         self.create_subscription(Odometry, "/odometry/filtered", self.odom_callback, 10)
 
-        self._planner_client = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
         self._latest_pose = None
-        self._pending_goal = None
 
     def odom_callback(self, msg: Odometry):
         pose = PoseStamped()
@@ -53,56 +55,48 @@ class RandomGoalPublisher(Node):
         goal.pose.orientation.w = 1.0
 
         self.goal_pub.publish(goal)
-        self._pending_goal = goal
-        self._request_path(goal)
+        self._publish_straight_line_path(goal)
 
-    def _request_path(self, goal: PoseStamped):
+    def _publish_straight_line_path(self, goal: PoseStamped):
         if self._latest_pose is None:
             self.get_logger().warn(
-                "No odometry yet; cannot request reference path. Will retry on next reset."
+                "No odometry yet; cannot publish reference path. Will retry on next reset."
             )
             return
 
-        if not self._planner_client.wait_for_server(timeout_sec=2.0):
-            self.get_logger().warn("planner_server action not available; reference path not requested.")
-            return
+        sx = self._latest_pose.pose.position.x
+        sy = self._latest_pose.pose.position.y
+        gx = goal.pose.position.x
+        gy = goal.pose.position.y
 
-        start = PoseStamped()
-        start.header.frame_id = "map"
-        start.header.stamp = self.get_clock().now().to_msg()
-        start.pose = self._latest_pose.pose
+        dx = gx - sx
+        dy = gy - sy
+        dist = math.hypot(dx, dy)
+        n_points = max(2, int(dist / PATH_RESOLUTION_M) + 1)
 
-        request = ComputePathToPose.Goal()
-        request.goal = goal
-        request.start = start
-        request.use_start = True
-        request.planner_id = "GridBased"
+        yaw = math.atan2(dy, dx)
+        qz = math.sin(0.5 * yaw)
+        qw = math.cos(0.5 * yaw)
 
-        future = self._planner_client.send_goal_async(request)
-        future.add_done_callback(self._on_goal_response)
-
-    def _on_goal_response(self, future):
-        handle = future.result()
-        if handle is None or not handle.accepted:
-            self.get_logger().warn("ComputePathToPose goal rejected.")
-            return
-        result_future = handle.get_result_async()
-        result_future.add_done_callback(self._on_path_result)
-
-    def _on_path_result(self, future):
-        result_wrapper = future.result()
-        if result_wrapper is None:
-            self.get_logger().warn("ComputePathToPose returned no result.")
-            return
-        path = result_wrapper.result.path
-        if not path.poses:
-            self.get_logger().warn("ComputePathToPose returned an empty path.")
-            return
+        path = Path()
         path.header.frame_id = "map"
         path.header.stamp = self.get_clock().now().to_msg()
+
+        for i in range(n_points):
+            t = i / float(n_points - 1)
+            ps = PoseStamped()
+            ps.header = path.header
+            ps.pose.position.x = sx + t * dx
+            ps.pose.position.y = sy + t * dy
+            ps.pose.position.z = 0.0
+            ps.pose.orientation.z = qz
+            ps.pose.orientation.w = qw
+            path.poses.append(ps)
+
         self.path_pub.publish(path)
         self.get_logger().info(
-            f"Published reference path with {len(path.poses)} waypoints."
+            f"Published straight-line reference path with {n_points} waypoints "
+            f"({dist:.2f} m)."
         )
 
 

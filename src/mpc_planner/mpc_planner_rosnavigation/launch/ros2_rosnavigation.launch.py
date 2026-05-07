@@ -78,11 +78,9 @@ def generate_launch_description():
     guidance_params = PathJoinSubstitution(
         [pkg_rosnav, "config", "ros2_guidance_planner.yaml"]
     )
-    nav2_planner_params = PathJoinSubstitution(
-        [pkg_rosnav, "config", "nav2_planner.yaml"]
-    )
 
-    jackal_planner = Node(
+    import os as _os
+    jackal_planner_kwargs = dict(
         package="mpc_planner_rosnavigation",
         executable="jackal_planner",
         name="jackal_planner",
@@ -95,22 +93,13 @@ def generate_launch_description():
             ("/output/command", "/cmd_vel"),
         ],
     )
-
-    planner_server = Node(
-        package="nav2_planner",
-        executable="planner_server",
-        name="planner_server",
-        output="screen",
-        parameters=[nav2_planner_params],
-    )
-
-    lifecycle_manager = Node(
-        package="nav2_lifecycle_manager",
-        executable="lifecycle_manager",
-        name="lifecycle_manager_navigation",
-        output="screen",
-        parameters=[nav2_planner_params],
-    )
+    # Set JACKAL_PLANNER_GDB=1 to wrap the planner with gdb for crash diagnosis.
+    if _os.environ.get("JACKAL_PLANNER_GDB") == "1":
+        jackal_planner_kwargs["prefix"] = (
+            "gdb -batch -ex 'set pagination off' -ex run "
+            "-ex 'thread apply all bt full' -ex 'quit' --args"
+        )
+    jackal_planner = Node(**jackal_planner_kwargs)
 
     goal_publisher = Node(
         package="mpc_planner_rosnavigation",
@@ -140,8 +129,6 @@ def generate_launch_description():
         jackal_world,
         pedsim,
         mobile_robot_state,
-        planner_server,
-        lifecycle_manager,
         jackal_planner,
         goal_publisher,
         rviz,

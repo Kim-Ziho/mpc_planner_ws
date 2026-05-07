@@ -12,9 +12,6 @@ endif()
 add_compile_options(-Wall -Wno-deprecated-declarations -O3)
 
 set(DECOMP_OLD TRUE)
-if(DECOMP_OLD)
-  add_definitions(-DDECOMP_OLD)
-endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(eigen3_cmake_module REQUIRED)
@@ -38,6 +35,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:include>"
 )
+if(DECOMP_OLD)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC DECOMP_OLD)
+endif()
 target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 ament_target_dependencies(${PROJECT_NAME} ros_tools)
 

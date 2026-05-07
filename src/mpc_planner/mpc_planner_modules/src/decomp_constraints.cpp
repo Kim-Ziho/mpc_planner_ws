@@ -80,8 +80,7 @@ namespace MPCPlanner
 
       s += v * _solver->dt;
     }
-    static const std::vector<std::unique_ptr<vec_Vecf<2>>> empty_obs_path;
-    _decomp_util->dilate(path, empty_obs_path, 0., false);
+    _decomp_util->dilate(path, 0., false);
 
     _decomp_util->set_constraints(_constraints, 0.); // Map is already inflated
     _polyhedrons = _decomp_util->get_polyhedrons();
