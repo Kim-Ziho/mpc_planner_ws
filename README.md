@@ -8,6 +8,14 @@
 4. task(Ctrl+Shift+B): ROS Navigation: Build
 5. task(Ctrl+Shift+B): ROS Navigation: Run Simulator
 
+> **ROS Distribution:** This branch (`ros2`) is set up for **ROS 2 Humble + colcon**. The `setup.sh` script auto-runs `switch_to_ros.py 2` during bootstrap. Each package keeps both `CMakeLists1.txt`/`package1.xml` (ROS 1) and `CMakeLists.txt`/`package.xml` (ROS 2 active). Use `python3 src/mpc_planner/switch_to_ros.py 1` to revert to the ROS 1 (Noetic + catkin) setup. Migration status: see `docs/ros2_migration_plan.md` and `docs/ros2_migration_remaining.md`.
+>
+> Manual run on this branch:
+> ```bash
+> source install/setup.bash && source fix_console.sh
+> ros2 launch mpc_planner_rosnavigation ros2_rosnavigation.launch.py
+> ```
+
 # MPC Planner Workspace (VSCode Docker)
 This repository provides a complete VSCode docker environment for running MPC planner `mpc_planner` (see https://github.com/tud-amr/mpc_planner) and global guidance planner `guidance_planner` (see https://github.com/tud-amr/guidance_planner) that together make up **Topology-Driven MPC** (**T-MPC++**). 
 

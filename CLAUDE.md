@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 이 저장소는 **T-MPC++ planner** 워크스페이스다. `mpc_planner`, `guidance_planner`, `pedestrian_simulator`, `roadmap`, `jackal_simulator`를 묶어 Topology-Driven MPC를 ROS Navigation Stack 위에서 시연한다. 워크스페이스는 `ros1_rosnavigation.launch` 실행에 필요한 패키지만 남도록 **이미 경량화된 상태**다 (`docs/lightweight_plan.md`).
 
-현재 소스는 **ROS1 (Noetic) + catkin** 모드로 빌드된다. 다만 devcontainer 베이스 이미지가 `osrf/ros:humble-desktop-full`이고 현재 git 브랜치가 `ros2`라는 점에서, **ROS2 Humble + colcon으로의 마이그레이션이 진행 중**이다.
+현재 `ros2` 브랜치에서는 **ROS2 Humble + colcon** 모드로 빌드된다. devcontainer 베이스 이미지는 `osrf/ros:humble-desktop-full`. 마이그레이션 진행 상태는 `docs/ros2_migration_plan.md`와 `docs/ros2_migration_remaining.md`에 정리되어 있다 (M0~M4 완료, M5/M6 부분 완료). ROS1(Noetic + catkin) 빌드 파일도 `CMakeLists1.txt` / `package1.xml` 형태로 함께 보존되어 있어 `switch_to_ros.py 1`로 전환 가능.
 
 ## 자주 쓰는 명령
 
@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cd src/mpc_planner && python3 -m poetry run python mpc_planner_rosnavigation/scripts/generate_rosnavigation_solver.py
 ```
 
-**빌드** — `build.sh`가 ROS 환경, `ACADOS_SOURCE_DIR`, `LD_LIBRARY_PATH`까지 세팅하고 `catkin build mpc_planner_<system>`을 실행한다:
+**빌드** — `build.sh`가 ROS 환경, `ACADOS_SOURCE_DIR`, `LD_LIBRARY_PATH`까지 세팅하고 `colcon build --packages-up-to mpc_planner_<system>`을 실행한다:
 ```bash
 ./build.sh rosnavigation              # 빌드만
 ./build.sh rosnavigation true         # 솔버 생성 후 빌드
@@ -31,8 +31,8 @@ cd src/mpc_planner && python3 -m poetry run python mpc_planner_rosnavigation/scr
 
 **ROS Navigation 시뮬레이터 실행**:
 ```bash
-source devel/setup.bash && source fix_console.sh
-roslaunch mpc_planner_rosnavigation ros1_rosnavigation.launch
+source install/setup.bash && source fix_console.sh
+ros2 launch mpc_planner_rosnavigation ros2_rosnavigation.launch.py
 ```
 
 **테스트** — `solver_generator`의 pytest 스위트, 커버리지 70% 이상 통과 조건:
@@ -45,7 +45,7 @@ cd src/mpc_planner && python3 -m poetry run python -m pytest solver_generator/te
 **환경 부트스트랩** (1회):
 ```bash
 ./setup_poetry.sh   # poetry 의존성만
-./setup.sh          # 전체: vcs import, switch_to_ros.py 1, acados 빌드, poetry install, rosdep
+./setup.sh          # 전체: vcs import, switch_to_ros.py 2 (ROS2 활성화), acados 빌드, poetry install, rosdep
 ```
 
 VSCode 작업(`Ctrl+Shift+B`)은 동일 명령들을 래핑한다. 전체 목록은 `.vscode/tasks.json` 참고 (`ROS Navigation: …`, `JackalSimulator: …`, `Jackal: …`, `Run Tests`).
@@ -54,12 +54,12 @@ VSCode 작업(`Ctrl+Shift+B`)은 동일 명령들을 래핑한다. 전체 목록
 
 ### `src/mpc_planner/`의 계층 구조
 
-플래너는 여러 catkin 패키지로 분리되어 있다:
+플래너는 여러 ament/catkin 패키지로 분리되어 있다 (각 패키지가 ROS1·ROS2 빌드 파일을 모두 들고 있다):
 
 - **`mpc_planner_solver`** — Acados(기본) 또는 Forces Pro 래퍼. **솔버 생성 단계에서 만들어지는 C++ 산출물**(`mpc_planner_parameters.{h,cpp}`, `mpc_planner_generated.h`, `acados/`)을 담는다. 이 파일들은 gitignore되어 있다.
 - **`mpc_planner_modules`** — 비용/제약 모듈(contouring, ellipsoid/decomp/guidance/linearized constraints, MPC base, path reference velocity). 파이썬 측(`scripts/`, 솔버 생성 시 최적화 문제를 정의)과 C++ 측(`src/`, 런타임에서 사용)이 한 패키지에 공존한다. 어떤 C++ 소스를 컴파일할지는 `modules.cmake`의 `MODULE_SOURCES`가 결정한다 — 파이썬에는 있지만 `MODULE_SOURCES`에 없는 모듈(예: `scenario_constraints`)은 빌드되지 않는다.
 - **`mpc_planner`, `mpc_planner_types`, `mpc_planner_util`, `mpc_planner_msgs`** — 공통 코어: 타입, 유틸, 메시지 정의, 런타임.
-- **`mpc_planner_rosnavigation`** — ROS Navigation 래퍼. 플래너를 `nav_core::BaseLocalPlanner` 플러그인으로 등록한다(`mpc_planner_rosnavigation_plugin.xml`). 런치 체인: `odom_navigation_demo.launch`(move_base + costmap) + `pedestrian_simulator` + `jackal_gazebo` + `mobile_robot_state_publisher` + RViz.
+- **`mpc_planner_rosnavigation`** — ROS Navigation 래퍼. ROS2에서는 standalone `rclcpp::Node`(`JackalPlanner`, `src/ros2_rosnavigation.cpp`)로 동작하며 내부에서 `nav2_costmap_2d::Costmap2DROS`를 lifecycle 노드로 직접 인스턴스화한다. ROS1에서는 `nav_core::BaseLocalPlanner` 플러그인으로 `move_base`에 로드되었다(`mpc_planner_rosnavigation_plugin.xml`, `src/ros1_rosnavigation.cpp`). 런치 체인 (ROS2): `jackal_world.launch.py` (Gazebo Classic + diff_drive + UST10 laser) + `pedestrian_simulator/ros2_simulation.launch` + `goal_publisher.py` (직선 reference path 발행) + `mobile_robot_state_publisher` + RViz2.
 - **`solver_generator/`** — 파이썬 코드젠 도구. `<pkg>/scripts/generate_<system>_solver.py`와 `<pkg>/config/settings.yaml`을 입력받아 Acados/Forces Pro C++을 생성한다.
 
 보조 패키지는 `src/`의 형제 디렉토리로 존재: `guidance_planner`, `pedestrian_simulator`, `pedsim_original`, `roadmap`, `ros_tools`, `decomp_util`, `asr_rapidxml`, `jackal_simulator/*`.
@@ -85,7 +85,9 @@ VSCode 작업(`Ctrl+Shift+B`)은 동일 명령들을 래핑한다. 전체 목록
 
 ### 런타임 데이터 흐름 (rosnavigation)
 
-`move_base`가 `mpc_planner_rosnavigation_plugin.xml`로 등록된 `nav_core::BaseLocalPlanner` 플러그인을 호출한다. 레퍼런스 경로는 `roadmap`에서 받고(`/input/reference_path` → `roadmap/reference` 리맵), 동적 장애물은 `pedestrian_simulator`, 골은 `goal_publisher.py`가 발행한다.
+**ROS2 (`ros2_rosnavigation.launch.py`)**: standalone `JackalPlanner` 노드가 control loop를 직접 돌린다. 입력은 `/odometry/filtered`(state), `/move_base_simple/goal`, `/pedestrian_simulator/trajectory_predictions`(dynamic obstacles), `/input/reference_path`(`goal_publisher.py`가 직선 경로로 발행), `/front/scan`(local_costmap이 obstacle layer로 mark). 출력은 `/cmd_vel`이 `gazebo_ros_diff_drive`에 직접 연결된다.
+
+**ROS1 (`ros1_rosnavigation.launch`)**: `move_base`가 `mpc_planner_rosnavigation_plugin.xml`로 등록된 `nav_core::BaseLocalPlanner` 플러그인을 호출한다. 레퍼런스 경로는 `roadmap`에서 받고(`/input/reference_path` → `roadmap/reference` 리맵), 동적 장애물은 `pedestrian_simulator`, 골은 `goal_publisher.py`가 발행한다.
 
 ## 주의사항
 
@@ -93,5 +95,6 @@ VSCode 작업(`Ctrl+Shift+B`)은 동일 명령들을 래핑한다. 전체 목록
 - **솔버 생성물은 gitignore 대상이다** — 클론·브랜치 전환 후에는 솔버를 다시 생성해야 빌드가 통과한다. 정확한 경로는 `.gitignore` 참고.
 - **Forces Pro**는 선택 사항이고 라이선스가 필요하다. 기본은 Acados. `settings.yaml`의 `solver_settings.solver`로 선택한다.
 - **`scenario_module`은 제거되었다** (`docs/lightweight_plan.md` 참고). `mpc_planner_modules/src/scenario_constraints.cpp`는 남아 있지만 `MODULE_SOURCES`에 없어 컴파일되지 않는다. 다시 활성화하려면 의존 패키지도 함께 복원해야 한다.
-- **`roadmap`은 `exec_depend` 전용**이다 — 여기서는 어떤 노드도 빌드/실행하지 않지만 런치 리맵 대상이므로 패키지를 삭제하지 않는다.
+- **`roadmap`은 `exec_depend` 전용**이다 — 여기서는 어떤 노드도 빌드/실행하지 않지만 런치 리맵 대상(ROS1)이므로 패키지를 삭제하지 않는다. ROS2에서는 `goal_publisher.py`가 reference path를 직접 만들어 발행한다.
+- **devcontainer 환경에서 acados 환경이 필요하면 `source fix_console.sh`를 먼저 실행한다** (RCUTILS console format, `ACADOS_SOURCE_DIR`, `LD_LIBRARY_PATH`).
 - 빌드 타입 기본값은 `RelWithDebInfo`다. 변경하려면 `build.sh`의 `BUILD_TYPE`을 수정한다.

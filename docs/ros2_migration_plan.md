@@ -158,6 +158,15 @@ SetEnvironmentVariable(name="JACKAL_LASER_TOPIC", value="front/scan"),
 
 이 단계가 마이그레이션의 본체.
 
+> **결정 (적용분)**: 아래 항목은 본래 `nav2_core::Controller` 플러그인으로 등록해 `controller_server` 아래 wire하는 경로를 처방했지만, **최종적으로는 standalone `rclcpp::Node`(`JackalPlanner`)** 경로를 채택했다. 이유:
+> - controller_server lifecycle / GoalChecker 인터페이스를 따라가지 않아도 본 시연 시나리오(고정 random goal + 직선 reference path)에는 충분.
+> - costmap을 Node 안에서 직접 `nav2_costmap_2d::Costmap2DROS` lifecycle로 인스턴스화하고 `nav2_util::NodeThread`로 spin하는 게 controller_server 위에 얹는 것보다 단순.
+> - reference_path 공급도 `goal_publisher.py`가 직접 `nav_msgs/Path`를 구성해 발행 (Nav2 `NavigateToPose` 액션 미사용).
+>
+> Trade-off: BT (behavior tree) 기반 fault recovery, GoalChecker 플러그인, controller_server의 multi-controller 스왑 등 Nav2 기능을 못 쓰지만, 본 워크스페이스 범위에서는 부담일 뿐이라 단순화 쪽이 정합. 잔여·후속 작업은 `docs/ros2_migration_remaining.md` 참고.
+>
+> 아래 1~9항은 본래 처방. 실제 구현에서는 1~3, 8의 일부, 9가 standalone 노드 형식으로 흡수되었다 (4~7은 standalone 노드 안에서 동일하게 적용).
+
 1. **플러그인 인터페이스 교체**
    - `nav_core::BaseLocalPlanner` → `nav2_core::Controller`
    - 가상 함수 시그니처 변경:
@@ -374,8 +383,8 @@ controller_server:
 | M1 | 코어 + ros_tools + guidance_planner + pedestrian_simulator 빌드 통과 | `colcon build --packages-up-to mpc_planner_modules` 성공 |
 | M2 | 보조 라이브러리(`asr_rapidxml`, `decomp_util`, `pedsim_original`, `roadmap*`) 빌드 통과 | `colcon build` 전체 ROS2 패키지 그린 |
 | M3 | Jackal 시뮬레이터 통합 (A안 또는 B안) | `ros2 launch jackal_gazebo jackal_world.launch.py` 단독 기동 OK |
-| M4 | `mpc_planner_rosnavigation` Nav2 컨트롤러 포팅 | controller_server에 플러그인이 active 상태로 로드 |
-| M5 | 통합 시나리오 동작 | `ros2_rosnavigation.launch.py`로 골 도달까지 정상 주행 |
+| M4 | `mpc_planner_rosnavigation` standalone 노드 포팅 | `JackalPlanner`(`rclcpp::Node`)가 기동되고 내부 `nav2_costmap_2d::Costmap2DROS` lifecycle이 active. controller_server 플러그인 경로는 채택하지 않음 (Phase 5 도입부 결정 참고) |
+| M5 | 통합 시나리오 동작 | `ros2_rosnavigation.launch.py`로 골 도달까지 정상 주행. **현재 부분 완료**: segfault 수정·직선 reference path 공급으로 일부 사이클은 성공해 robot이 진행하지만 acados QP 실패율이 높아 일관된 골 도달은 미달성. `docs/ros2_migration_remaining.md` #5 참고 |
 | M6 | 문서/태스크 정리 | README, CLAUDE.md, tasks.json이 ROS2 기준으로 일관 |
 
 ---
