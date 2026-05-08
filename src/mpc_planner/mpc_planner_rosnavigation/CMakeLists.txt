@@ -58,6 +58,7 @@ install(TARGETS jackal_planner costmap_pair_node
 
 install(PROGRAMS
   scripts/goal_publisher.py
+  scripts/pedsim_starter.py
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

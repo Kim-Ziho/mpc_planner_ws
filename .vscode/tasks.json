@@ -54,7 +54,7 @@
         },
         {
             "label": "ROS Navigation: Run Jackal World only",
-            "detail": "Standalone jackal_world bringup with RViz + local/global costmap (component test)",
+            "detail": "Standalone jackal_world + pedsim bringup with RViz + local/global costmap (component test, no MPC)",
             "command": "source install/setup.bash && source fix_console.sh && ros2 launch mpc_planner_rosnavigation jackal_world_test.launch.py",
             "type": "shell",
             "group": {
