@@ -75,7 +75,7 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Spawn robot
+    # Spawn robot at origin with +45 deg yaw (pi/4 rad).
     spawn_robot = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
@@ -83,7 +83,8 @@ def generate_launch_description():
         arguments=['-entity',
                    'jackal',
                    '-topic',
-                   'robot_description'],
+                   'robot_description',
+                   '-Y', '0.7853981633974483'],
         output='screen',
     )
 

@@ -45,7 +45,15 @@ target_include_directories(jackal_planner PUBLIC
 )
 ament_target_dependencies(jackal_planner ${DEPENDENCIES})
 
-install(TARGETS jackal_planner
+add_executable(costmap_pair_node src/costmap_pair_node.cpp)
+ament_target_dependencies(costmap_pair_node
+  rclcpp
+  nav2_costmap_2d
+  nav2_util
+  ament_index_cpp
+)
+
+install(TARGETS jackal_planner costmap_pair_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS

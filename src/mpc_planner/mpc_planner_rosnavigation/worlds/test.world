@@ -20,7 +20,7 @@
     </light>
     <model name='ground_plane'>
       <static>1</static>
-      <link name='link'>
+      <link name='link'> 
         <collision name='collision'>
           <geometry>
             <plane>
