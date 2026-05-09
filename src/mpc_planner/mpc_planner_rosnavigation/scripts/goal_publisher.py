@@ -30,12 +30,20 @@ class RandomGoalPublisher(Node):
         self.create_subscription(Odometry, "/odometry/filtered", self.odom_callback, 10)
 
         self._latest_pose = None
+        # Without an initial fire the planner sits on "missing Reference Path"
+        # until JackalPlanner's 60s timeout publishes /lmpcc/reset_environment.
+        # Trigger a goal as soon as the first odom arrives so the planner has
+        # a path from t=0.
+        self._initial_goal_sent = False
 
     def odom_callback(self, msg: Odometry):
         pose = PoseStamped()
         pose.header = msg.header
         pose.pose = msg.pose.pose
         self._latest_pose = pose
+        if not self._initial_goal_sent:
+            self._initial_goal_sent = True
+            self.reset_callback(None)
 
     def reset_callback(self, _msg):
         x = random.uniform(X_MIN, X_MAX)

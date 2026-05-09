@@ -1,10 +1,13 @@
 """Top-level launch for the ROS Navigation scenario on ROS 2 Humble.
 
 Brings up:
-  - Jackal in Gazebo Classic (Clearpath jackal_gazebo)
+  - jackal_world.launch.py (Gazebo Classic + Jackal + diff_drive + UST10 laser)
+  - map -> odom static TF (identity, since no SLAM/AMCL in this scenario)
   - pedestrian_simulator
-  - mpc_planner_rosnavigation::jackal_planner (standalone rclcpp node)
-  - goal_publisher.py (random goal generator)
+  - mpc_planner_rosnavigation::jackal_planner (standalone rclcpp node) -- it
+    brings up its own local_costmap internally and handshakes pedsim, so the
+    pedsim_starter helper used by jackal_world_test.launch.py is not needed
+  - goal_publisher.py (random goal generator + straight-line reference path)
   - rviz2
 
 Use:
@@ -30,11 +33,17 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 
+# Package share dirs do not contain `worlds/` for some sibling packages, and
+# the working jackal_world_test bringup pulls the world directly from the
+# source tree; mirror that pattern so the world file resolves the same way
+# in both setups.
+WORKSPACE_PKG_DIR = "/workspace/src/mpc_planner/mpc_planner_rosnavigation"
+
+
 def generate_launch_description():
     pkg_rosnav = FindPackageShare("mpc_planner_rosnavigation")
     pkg_pedsim = FindPackageShare("pedestrian_simulator")
     pkg_jackal_gazebo = FindPackageShare("jackal_gazebo")
-    pkg_mrsp = FindPackageShare("mobile_robot_state_publisher")
 
     pedestrian_scenario = LaunchConfiguration("pedestrian_scenario")
     world_path = LaunchConfiguration("world_path")
@@ -47,7 +56,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "world_path",
-            default_value=PathJoinSubstitution([pkg_rosnav, "worlds", "test.world"]),
+            default_value=f"{WORKSPACE_PKG_DIR}/worlds/test.world",
             description="Gazebo world file passed to jackal_world.launch.py",
         ),
     ]
@@ -66,6 +75,20 @@ def generate_launch_description():
             PathJoinSubstitution([pkg_jackal_gazebo, "launch", "jackal_world.launch.py"])
         ),
         launch_arguments={"world_path": world_path}.items(),
+    )
+
+    # JackalPlanner brings up its own local_costmap with global_frame=map, but
+    # the EKF only publishes odom -> base_link (world_frame=odom). Without a
+    # map -> odom link the costmap times out during activate() with
+    # "Could not find a connection between 'map' and 'base_link'". A dedicated
+    # static publisher resolves this before JackalPlanner starts; this
+    # mirrors the working jackal_world_test bringup.
+    map_to_odom = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="map_to_odom",
+        output="screen",
+        arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
     )
 
     pedsim = IncludeLaunchDescription(
@@ -119,16 +142,10 @@ def generate_launch_description():
         output="screen",
     )
 
-    mobile_robot_state = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_mrsp, "launch", "mobile_robot_publisher.launch.py"])
-        ),
-    )
-
     return LaunchDescription(declared_args + laser_env + [
         jackal_world,
+        map_to_odom,
         pedsim,
-        mobile_robot_state,
         jackal_planner,
         goal_publisher,
         rviz,
