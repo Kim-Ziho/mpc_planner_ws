@@ -59,6 +59,7 @@ install(TARGETS jackal_planner costmap_pair_node
 install(PROGRAMS
   scripts/goal_publisher.py
   scripts/pedsim_starter.py
+  scripts/navfn_goal_caller.py
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
@@ -68,6 +69,9 @@ install(DIRECTORY config
   DESTINATION share/${PROJECT_NAME})
   
 install(DIRECTORY rviz
+  DESTINATION share/${PROJECT_NAME})
+
+install(DIRECTORY worlds
   DESTINATION share/${PROJECT_NAME})
 
 ament_export_dependencies(${DEPENDENCIES})

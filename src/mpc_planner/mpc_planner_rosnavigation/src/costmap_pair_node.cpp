@@ -1,11 +1,12 @@
-// Standalone bringup of two nav2_costmap_2d::Costmap2DROS instances
-// (local_costmap + global_costmap), using the same NodeOptions trick that
-// JackalPlanner::initializeCostmap uses. The stock "nav2_costmap_2d"
-// executable hardcodes the node name and ignores __node remap, which makes
-// running two instances + lifecycle_manager unworkable.
+// Standalone bringup of a nav2_costmap_2d::Costmap2DROS local_costmap
+// instance, using the same NodeOptions trick that JackalPlanner::initializeCostmap
+// uses. The stock "nav2_costmap_2d" executable hardcodes the node name and
+// ignores __node remap, which makes running an instance under an external
+// lifecycle_manager unworkable.
 //
 // Used by jackal_world_test.launch.py for component-level testing of jackal
-// motion under cmd_vel without the full MPC stack.
+// motion under cmd_vel without the full MPC stack. The global_costmap there
+// is owned by nav2_planner's planner_server.
 
 #include <chrono>
 #include <csignal>
@@ -54,17 +55,12 @@ int main(int argc, char ** argv)
   auto local_costmap = bringUpCostmap("local_costmap", pkg_share + "/config/local_costmap.yaml");
   auto local_thread = std::make_unique<nav2_util::NodeThread>(local_costmap);
 
-  auto global_costmap = bringUpCostmap("global_costmap", pkg_share + "/config/global_costmap.yaml");
-  auto global_thread = std::make_unique<nav2_util::NodeThread>(global_costmap);
-
   auto idle = std::make_shared<rclcpp::Node>("costmap_pair_node");
   RCLCPP_INFO(idle->get_logger(),
-              "local_costmap and global_costmap are active. Spinning idle node.");
+              "local_costmap is active. Spinning idle node.");
 
   rclcpp::spin(idle);
 
-  global_costmap->deactivate();
-  global_costmap->cleanup();
   local_costmap->deactivate();
   local_costmap->cleanup();
 
