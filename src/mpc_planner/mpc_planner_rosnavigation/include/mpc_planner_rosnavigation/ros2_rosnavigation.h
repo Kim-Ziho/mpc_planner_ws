@@ -2,6 +2,7 @@
 #define __ROS2_ROSNAVIGATION_PLANNER_H__
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
@@ -18,6 +19,7 @@
 
 #include <nav2_costmap_2d/costmap_2d_ros.hpp>
 #include <nav2_util/node_thread.hpp>
+#include <nav2_msgs/action/compute_path_to_pose.hpp>
 
 #include <mpc_planner_msgs/msg/obstacle_array.hpp>
 
@@ -70,6 +72,9 @@ namespace local_planner
         rclcpp::Client<std_srvs::srv::Empty>::SharedPtr _ped_start_client;
         rclcpp::Client<std_srvs::srv::Empty>::SharedPtr _reset_simulation_client;
 
+        // Action client for Nav2 NavfnPlanner global planning
+        rclcpp_action::Client<nav2_msgs::action::ComputePathToPose>::SharedPtr _compute_path_client;
+
         // Timer
         rclcpp::TimerBase::SharedPtr _timer;
 
@@ -116,6 +121,13 @@ namespace local_planner
         void publishPose();
         void publishCamera();
         void visualize();
+
+        // Nav2 NavfnPlanner integration (Option C in
+        // docs/nav2_planner_integration_plan.md)
+        void requestGlobalPlan(const geometry_msgs::msg::PoseStamped &goal);
+        void onPlanResult(
+            const rclcpp_action::ClientGoalHandle<
+                nav2_msgs::action::ComputePathToPose>::WrappedResult &result);
     };
 } // namespace local_planner
 

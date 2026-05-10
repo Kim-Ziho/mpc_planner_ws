@@ -145,6 +145,12 @@ namespace local_planner
             "/lmpcc/reset_environment", qos_one);
         _reset_simulation_client = this->create_client<std_srvs::srv::Empty>(
             "/gazebo/reset_world");
+
+        // Nav2 NavfnPlanner action client. The reference path used by the MPC
+        // is sourced from planner_server's grid-based plan rather than a
+        // straight-line path published externally.
+        _compute_path_client = rclcpp_action::create_client<
+            nav2_msgs::action::ComputePathToPose>(this, "/compute_path_to_pose");
     }
 
     void JackalPlanner::initializeCostmap()
@@ -362,6 +368,60 @@ namespace local_planner
         _data.goal(1) = msg->pose.position.y;
         _data.goal_received = true;
         _rotate_to_goal = true;
+
+        requestGlobalPlan(*msg);
+    }
+
+    void JackalPlanner::requestGlobalPlan(const geometry_msgs::msg::PoseStamped &goal)
+    {
+        if (!_compute_path_client)
+            return;
+
+        // Non-blocking readiness check; planner_server may not be up yet on
+        // the first goalCallback during launch.
+        if (!_compute_path_client->action_server_is_ready())
+        {
+            LOG_WARN_THROTTLE(5000,
+                "compute_path_to_pose action server not ready; skipping global plan request.");
+            return;
+        }
+
+        nav2_msgs::action::ComputePathToPose::Goal action_goal;
+        action_goal.goal = goal;
+        action_goal.goal.header.stamp = this->now();
+        if (action_goal.goal.header.frame_id.empty())
+            action_goal.goal.header.frame_id = "map";
+        action_goal.use_start = false;
+        action_goal.planner_id = "GridBased";
+
+        auto opts = rclcpp_action::Client<
+            nav2_msgs::action::ComputePathToPose>::SendGoalOptions();
+        opts.result_callback = std::bind(&JackalPlanner::onPlanResult, this,
+                                         std::placeholders::_1);
+        _compute_path_client->async_send_goal(action_goal, opts);
+        LOG_MARK("compute_path_to_pose goal dispatched");
+    }
+
+    void JackalPlanner::onPlanResult(
+        const rclcpp_action::ClientGoalHandle<
+            nav2_msgs::action::ComputePathToPose>::WrappedResult &result)
+    {
+        if (result.code != rclcpp_action::ResultCode::SUCCEEDED)
+        {
+            LOG_WARN("Global plan request did not succeed (code="
+                     << static_cast<int>(result.code) << ")");
+            return;
+        }
+        if (!result.result || result.result->path.poses.empty())
+        {
+            LOG_WARN("Global plan returned an empty path");
+            return;
+        }
+
+        auto path_ptr = std::make_shared<nav_msgs::msg::Path>(result.result->path);
+        if (path_ptr->header.frame_id.empty())
+            path_ptr->header.frame_id = "map";
+        pathCallback(path_ptr);
     }
 
     bool JackalPlanner::isPathTheSame(nav_msgs::msg::Path::ConstSharedPtr msg)

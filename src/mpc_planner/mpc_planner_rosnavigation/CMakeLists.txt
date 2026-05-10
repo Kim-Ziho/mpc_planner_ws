@@ -16,6 +16,7 @@ endif()
 
 set(DEPENDENCIES
   rclcpp
+  rclcpp_action
   geometry_msgs
   nav_msgs
   std_msgs
@@ -24,6 +25,7 @@ set(DEPENDENCIES
   tf2_ros
   nav2_costmap_2d
   nav2_util
+  nav2_msgs
   ros_tools
   mpc_planner
   mpc_planner_msgs
@@ -59,7 +61,6 @@ install(TARGETS jackal_planner costmap_pair_node
 install(PROGRAMS
   scripts/goal_publisher.py
   scripts/pedsim_starter.py
-  scripts/navfn_goal_caller.py
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch

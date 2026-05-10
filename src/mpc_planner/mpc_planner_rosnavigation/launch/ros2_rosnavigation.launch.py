@@ -6,8 +6,15 @@ Brings up:
   - pedestrian_simulator
   - mpc_planner_rosnavigation::jackal_planner (standalone rclcpp node) -- it
     brings up its own local_costmap internally and handshakes pedsim, so the
-    pedsim_starter helper used by jackal_world_test.launch.py is not needed
-  - goal_publisher.py (random goal generator + straight-line reference path)
+    pedsim_starter helper used by jackal_world_test.launch.py is not needed.
+    On goalCallback it requests a global plan from planner_server via the
+    ComputePathToPose action and uses the result as the MPC reference path
+    (Phase 1 / Option C in docs/nav2_planner_integration_plan.md).
+  - planner_server (Nav2 NavfnPlanner) + lifecycle_manager_navfn so the global
+    plan is grid-based; the embedded global_costmap covers the test scenario
+    (60x60, origin (-5,-5)).
+  - goal_publisher.py (random goal generator only -- the reference path is
+    produced by NavfnPlanner)
   - rviz2
 
 Use:
@@ -131,6 +138,32 @@ def generate_launch_description():
         output="screen",
     )
 
+    # Nav2 NavfnPlanner global planner. JackalPlanner consumes the plan via
+    # the ComputePathToPose action (sent from goalCallback) so the MPC
+    # reference path is grid-based instead of the straight line that
+    # goal_publisher.py used to publish.
+    planner_params = PathJoinSubstitution(
+        [pkg_rosnav, "config", "planner_server.yaml"]
+    )
+    planner_server = Node(
+        package="nav2_planner",
+        executable="planner_server",
+        name="planner_server",
+        output="screen",
+        parameters=[planner_params],
+    )
+    lifecycle_manager_navfn = Node(
+        package="nav2_lifecycle_manager",
+        executable="lifecycle_manager",
+        name="lifecycle_manager_navfn",
+        output="screen",
+        parameters=[{
+            "use_sim_time": True,
+            "autostart": True,
+            "node_names": ["planner_server"],
+        }],
+    )
+
     rviz = Node(
         package="rviz2",
         executable="rviz2",
@@ -146,6 +179,8 @@ def generate_launch_description():
         jackal_world,
         map_to_odom,
         pedsim,
+        planner_server,
+        lifecycle_manager_navfn,
         jackal_planner,
         goal_publisher,
         rviz,

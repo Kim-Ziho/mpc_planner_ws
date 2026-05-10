@@ -6,8 +6,9 @@ visualization without the full MPC stack. Brings up:
   - map -> odom static TF (identity, since no SLAM/AMCL in this scenario)
   - nav2_costmap_2d "local_costmap" via costmap_pair_node
   - nav2_planner (NavfnPlanner) which owns its own embedded global_costmap;
-    lifecycle_manager auto-activates it. navfn_goal_caller.py drives it with
-    a fixed goal so /plan is populated for RViz.
+    lifecycle_manager auto-activates it. Trigger plans manually from RViz
+    via the "2D Goal Pose" tool (publishes /move_base_simple/goal); the
+    planner_server then publishes the result on /plan.
   - pedestrian_simulator (marker-only; not spawned in Gazebo, so it does not
     show up in /front/scan or the costmaps -- this is by design)
   - pedsim_starter.py: replicates JackalPlanner::startEnvironment() so pedsim
@@ -132,13 +133,6 @@ def generate_launch_description():
         }],
     )
 
-    navfn_goal_caller = Node(
-        package="mpc_planner_rosnavigation",
-        executable="navfn_goal_caller.py",
-        name="navfn_goal_caller",
-        output="screen",
-    )
-
     rviz = Node(
         package="rviz2",
         executable="rviz2",
@@ -161,7 +155,6 @@ def generate_launch_description():
             pedsim_starter,
             planner_server,
             lifecycle_manager_navfn,
-            navfn_goal_caller,
             rviz,
         ]
     )
