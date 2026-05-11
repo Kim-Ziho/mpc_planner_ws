@@ -1,0 +1,56 @@
+# Nav2 demo parameters (A* global planner only).
+#
+# This demo uses Nav2's planner_server for the A*-based global plan and
+# JackalPlanner (mpc_planner_rosnavigation) as the local controller, so the
+# controller_server / behavior_server / bt_navigator stack is omitted.
+# JackalPlanner brings up its own local_costmap from local_costmap.yaml.
+
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_navfn_planner/NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: true
+      rolling_window: false
+      width: 60
+      height: 60
+      origin_x: -30.0
+      origin_y: -30.0
+      resolution: 0.1
+      robot_radius: 0.325
+      transform_tolerance: 0.5
+      plugins: ["obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /front/scan
+          sensor_frame: front_laser
+          max_obstacle_height: 2.0
+          min_obstacle_height: -2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 8.5
+          raytrace_min_range: 0.0
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.5
+      always_send_full_costmap: true

@@ -68,6 +68,21 @@
             }
         },
         {
+            "label": "ROS Navigation: Run Nav2 Demo (A* + RPP)",
+            "detail": "Jackal in test.world with Nav2 NavfnPlanner (A*) global + RegulatedPurePursuitController local. Send goals via RViz 'Nav2 Goal' tool.",
+            "command": "source install/setup.bash && source fix_console.sh && ros2 launch mpc_planner_rosnavigation nav2_demo.launch.py",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true
+            }
+        },
+        {
             "label": "Run Tests",
             "command": "source install/setup.bash && cd src/mpc_planner && python3 -m poetry run python -m pytest solver_generator/test/ --cov-report term --cov-config=solver_generator/test/.coveragerc --cov --cov-fail-under=70",
             "type": "shell",
