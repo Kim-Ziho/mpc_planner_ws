@@ -23,9 +23,8 @@
 
 #include <mpc_planner_msgs/msg/obstacle_array.hpp>
 
+#include <mpc_planner_rosnavigation/mpc_core.h>
 #include <mpc_planner_rosnavigation/rosnavigation_ros2_reconfigure.h>
-#include <mpc_planner_solver/solver_interface.h>
-#include <mpc_planner_types/realtime_data.h>
 
 #include <ros_tools/profiling.h>
 
@@ -33,11 +32,6 @@
 #include <mutex>
 
 #define CAMERA_BUFFER 10
-
-namespace MPCPlanner
-{
-    class Planner;
-}
 
 namespace local_planner
 {
@@ -86,14 +80,9 @@ namespace local_planner
         std::shared_ptr<nav2_costmap_2d::Costmap2DROS> _costmap_ros;
         std::unique_ptr<nav2_util::NodeThread> _costmap_thread;
 
-        // State
-        std::unique_ptr<MPCPlanner::Planner> _planner;
+        // MPC core (no rclcpp ownership; Node feeds it data/state).
+        std::unique_ptr<MPCCore> _core;
         std::unique_ptr<RosnavigationReconfigure> _reconfigure;
-        MPCPlanner::RealTimeData _data;
-        MPCPlanner::State _state;
-        bool _enable_output{false};
-        bool _rotate_to_goal{false};
-        bool _done{false};
         std::mutex _reset_mutex;
 
         RosTools::Timer _timeout_timer;
@@ -113,14 +102,10 @@ namespace local_planner
         void initializeSubscribersAndPublishers();
         void initializeCostmap();
         void startEnvironment();
-        void rotateToGoal(geometry_msgs::msg::Twist &cmd_vel);
-        void runMPC(geometry_msgs::msg::Twist &cmd_vel);
-        bool isGoalReached();
-        bool isPathTheSame(nav_msgs::msg::Path::ConstSharedPtr msg);
+        void runOnce();
         void reset(bool success = true);
         void publishPose();
         void publishCamera();
-        void visualize();
 
         // Nav2 NavfnPlanner integration (Option C in
         // docs/nav2_planner_integration_plan.md)

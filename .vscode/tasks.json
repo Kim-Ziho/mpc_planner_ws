@@ -83,6 +83,21 @@
             }
         },
         {
+            "label": "ROS Navigation: Run Nav2 Full Stack (MPC plugin)",
+            "detail": "Phase 2 / Option A: Nav2 bt_navigator + planner_server + controller_server (MPCController plugin) + behavior_server + scenario_orchestrator. See docs/nav2_full_plugin_migration_plan.md.",
+            "command": "source install/setup.bash && source fix_console.sh && ros2 launch mpc_planner_rosnavigation ros2_nav2_full.launch.py",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "focus": true
+            }
+        },
+        {
             "label": "Run Tests",
             "command": "source install/setup.bash && cd src/mpc_planner && python3 -m poetry run python -m pytest solver_generator/test/ --cov-report term --cov-config=solver_generator/test/.coveragerc --cov --cov-fail-under=70",
             "type": "shell",

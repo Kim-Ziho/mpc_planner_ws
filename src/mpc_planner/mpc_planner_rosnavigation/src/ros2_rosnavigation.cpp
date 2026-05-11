@@ -1,7 +1,6 @@
 #include <mpc_planner_rosnavigation/ros2_rosnavigation.h>
 
 #include <mpc_planner/planner.h>
-#include <mpc_planner/data_preparation.h>
 
 #include <mpc_planner_util/parameters.h>
 #include <mpc_planner_util/load_yaml.hpp>
@@ -10,8 +9,6 @@
 #include <ros_tools/logging.h>
 #include <ros_tools/convertions.h>
 #include <ros_tools/math.h>
-#include <ros_tools/data_saver.h>
-#include <ros_tools/spline.h>
 #include <ros_tools/profiling.h>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -47,12 +44,9 @@ namespace local_planner
         STATIC_NODE_POINTER.init(this);
         VISUALS.init(this);
 
-        // Initialize the configuration from settings.yaml
-        Configuration::getInstance().initialize(SYSTEM_CONFIG_PATH(__FILE__, "settings"));
+        _core = std::make_unique<MPCCore>();
+        _core->configure(SYSTEM_CONFIG_PATH(__FILE__, "settings"));
 
-        _data.robot_area = {Disc(0., CONFIG["robot_radius"].as<double>())};
-
-        _planner = std::make_unique<Planner>();
         _reconfigure = std::make_unique<RosnavigationReconfigure>(this);
 
         _camera_pub = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -92,7 +86,8 @@ namespace local_planner
         }
         _costmap_thread.reset();
         _costmap_ros.reset();
-        _data.costmap = nullptr;
+        if (_core)
+            _core->setCostmap(nullptr);
         BENCHMARKERS.print();
         RosTools::Instrumentor::Get().EndSession();
     }
@@ -174,7 +169,7 @@ namespace local_planner
         _costmap_ros->configure();
         _costmap_ros->activate();
 
-        _data.costmap = _costmap_ros->getCostmap();
+        _core->setCostmap(_costmap_ros->getCostmap());
         LOG_INFO("local_costmap active");
     }
 
@@ -205,144 +200,52 @@ namespace local_planner
             _reset_simulation_pub->publish(std_msgs::msg::Empty());
             rclcpp::sleep_for(1s);
         }
-        _enable_output = CONFIG["enable_output"].as<bool>();
+        _core->setEnableOutput(CONFIG["enable_output"].as<bool>());
         LOG_INFO("Environment ready.");
     }
 
     void JackalPlanner::loop()
     {
         geometry_msgs::msg::Twist cmd_vel;
-        if (_rotate_to_goal)
-            rotateToGoal(cmd_vel);
-        else
-            runMPC(cmd_vel);
-
-        _cmd_pub->publish(cmd_vel);
-
-        publishPose();
-        publishCamera();
-
-        isGoalReached();
-    }
-
-    void JackalPlanner::rotateToGoal(geometry_msgs::msg::Twist &cmd_vel)
-    {
-        LOG_INFO_THROTTLE(1500, "Rotating to the goal");
-        if (!_data.goal_received)
-        {
-            LOG_INFO("Waiting for the goal");
-            return;
-        }
-        double goal_angle = 0.;
-
-        if (_data.reference_path.x.size() > 2)
-            goal_angle = std::atan2(_data.reference_path.y[2] - _state.get("y"),
-                                    _data.reference_path.x[2] - _state.get("x"));
-        else
-            goal_angle = std::atan2(_data.goal(1) - _state.get("y"),
-                                    _data.goal(0) - _state.get("x"));
-
-        double angle_diff = goal_angle - _state.get("psi");
-        if (angle_diff > M_PI)
-            angle_diff -= 2 * M_PI;
-
-        if (std::abs(angle_diff) > M_PI / 4.)
-        {
-            cmd_vel.linear.x = 0.0;
-            if (_enable_output)
-                cmd_vel.angular.z = 1.5 * RosTools::sgn(angle_diff);
-            else
-                cmd_vel.angular.z = 0.;
-        }
-        else
-        {
-            LOG_SUCCESS("Robot rotated and is ready to follow the path");
-            _rotate_to_goal = false;
-        }
-    }
-
-    void JackalPlanner::runMPC(geometry_msgs::msg::Twist &cmd_vel)
-    {
-        RealTimeData data = _data;
-        State state = _state;
-
-        data.planning_start_time = std::chrono::system_clock::now();
-
-        LOG_MARK("============= Loop =============");
 
         if (_timeout_timer.hasFinished())
         {
             reset(false);
             cmd_vel.linear.x = 0.;
             cmd_vel.angular.z = 0.;
+            _cmd_pub->publish(cmd_vel);
+            publishPose();
+            publishCamera();
             return;
         }
 
-        if (CONFIG["debug_output"].as<bool>())
-            state.print();
-
-        auto &loop_benchmarker = BENCHMARKERS.getBenchmarker("loop");
-        loop_benchmarker.start();
-
-        auto output = _planner->solveMPC(state, data);
-
-        LOG_MARK("Success: " << output.success);
-
-        if (_enable_output && output.success)
-        {
-            cmd_vel.linear.x = _planner->getSolution(1, "v");
-            cmd_vel.angular.z = _planner->getSolution(0, "w");
-        }
+        MPCCommand cmd;
+        if (_core->isRotating())
+            _core->rotateToGoal(cmd);
         else
-        {
-            const double deceleration = CONFIG["deceleration_at_infeasible"].as<double>();
-            const double dt = 1. / CONFIG["control_frequency"].as<double>();
-            const double velocity = _state.get("v");
-            const double velocity_after_braking = velocity - deceleration * dt;
-            cmd_vel.linear.x = std::max(velocity_after_braking, 0.);
-            cmd_vel.angular.z = 0.0;
-        }
+            cmd = _core->solve();
 
-        loop_benchmarker.stop();
+        cmd_vel.linear.x = cmd.v;
+        cmd_vel.angular.z = cmd.w;
+        _cmd_pub->publish(cmd_vel);
 
-        if (CONFIG["recording"]["enable"].as<bool>() && output.success)
-        {
-            auto &data_saver = _planner->getDataSaver();
-            data_saver.AddData("input_a", state.get("a"));
-            data_saver.AddData("input_v", _planner->getSolution(1, "v"));
-            data_saver.AddData("input_w", _planner->getSolution(0, "w"));
-            _planner->saveData(state, data);
-        }
+        publishPose();
+        publishCamera();
 
-        if (output.success)
-        {
-            _planner->visualize(state, data);
-            visualize();
-        }
-
-        LOG_MARK("============= End Loop =============");
-    }
-
-    bool JackalPlanner::isGoalReached()
-    {
-        bool goal_reached = _planner && _planner->isObjectiveReached(_state, _data) && !_done;
-        if (goal_reached)
-        {
-            LOG_SUCCESS("Goal Reached!");
-            _done = true;
-            reset();
-        }
-        return goal_reached;
+        if (_core->checkGoalReached())
+            reset(true);
     }
 
     void JackalPlanner::stateCallback(nav_msgs::msg::Odometry::ConstSharedPtr msg)
     {
         LOG_MARK("State callback");
-        _state.set("x", msg->pose.pose.position.x);
-        _state.set("y", msg->pose.pose.position.y);
-        _state.set("psi", RosTools::quaternionToAngle(msg->pose.pose.orientation));
-        _state.set("v", std::sqrt(std::pow(msg->twist.twist.linear.x, 2.) +
-                                  std::pow(msg->twist.twist.linear.y, 2.)));
+        State s = _core->state();
+        s.set("x", msg->pose.pose.position.x);
+        s.set("y", msg->pose.pose.position.y);
+        s.set("psi", RosTools::quaternionToAngle(msg->pose.pose.orientation));
+        s.set("v", std::sqrt(std::pow(msg->twist.twist.linear.x, 2.) +
+                             std::pow(msg->twist.twist.linear.y, 2.)));
+        _core->setState(s);
 
         if (std::abs(msg->pose.pose.orientation.x) > (M_PI / 8.) ||
             std::abs(msg->pose.pose.orientation.y) > (M_PI / 8.))
@@ -355,19 +258,19 @@ namespace local_planner
     void JackalPlanner::statePoseCallback(geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
     {
         LOG_MARK("State pose callback");
-        _state.set("x", msg->pose.position.x);
-        _state.set("y", msg->pose.position.y);
-        _state.set("psi", msg->pose.orientation.z);
-        _state.set("v", msg->pose.position.z);
+        State s = _core->state();
+        s.set("x", msg->pose.position.x);
+        s.set("y", msg->pose.position.y);
+        s.set("psi", msg->pose.orientation.z);
+        s.set("v", msg->pose.position.z);
+        _core->setState(s);
     }
 
     void JackalPlanner::goalCallback(geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
     {
         LOG_MARK("Goal callback");
-        _data.goal(0) = msg->pose.position.x;
-        _data.goal(1) = msg->pose.position.y;
-        _data.goal_received = true;
-        _rotate_to_goal = true;
+        _core->setGoal(msg->pose.position.x, msg->pose.position.y);
+        _core->requestRotation();
 
         requestGlobalPlan(*msg);
     }
@@ -418,108 +321,27 @@ namespace local_planner
             return;
         }
 
-        auto path_ptr = std::make_shared<nav_msgs::msg::Path>(result.result->path);
-        if (path_ptr->header.frame_id.empty())
-            path_ptr->header.frame_id = "map";
-        pathCallback(path_ptr);
-    }
-
-    bool JackalPlanner::isPathTheSame(nav_msgs::msg::Path::ConstSharedPtr msg)
-    {
-        if (_data.reference_path.x.size() != msg->poses.size())
-            return false;
-
-        const int num_points = std::min(2, (int)_data.reference_path.x.size());
-        for (int i = 0; i < num_points; i++)
-        {
-            if (!_data.reference_path.pointInPath(i, msg->poses[i].pose.position.x,
-                                                  msg->poses[i].pose.position.y))
-                return false;
-        }
-        return true;
+        _core->setReferencePath(result.result->path);
     }
 
     void JackalPlanner::pathCallback(nav_msgs::msg::Path::ConstSharedPtr msg)
     {
         LOG_MARK("Path callback");
-        const int downsample = CONFIG["downsample_path"].as<double>();
-
-        if (isPathTheSame(msg) || (int)msg->poses.size() < downsample + 1)
-            return;
-
-        _data.reference_path.clear();
-
-        int count = 0;
-        for (auto &pose : msg->poses)
-        {
-            if (count % downsample == 0 || count == (int)msg->poses.size() - 1)
-            {
-                _data.reference_path.x.push_back(pose.pose.position.x);
-                _data.reference_path.y.push_back(pose.pose.position.y);
-                _data.reference_path.psi.push_back(RosTools::quaternionToAngle(pose.pose.orientation));
-            }
-            count++;
-        }
-
-        _planner->onDataReceived(_data, "reference_path");
+        _core->setReferencePath(*msg);
     }
 
     void JackalPlanner::obstacleCallback(mpc_planner_msgs::msg::ObstacleArray::ConstSharedPtr msg)
     {
         LOG_MARK("Obstacle callback");
-        _data.dynamic_obstacles.clear();
-
-        for (auto &obstacle : msg->obstacles)
-        {
-            _data.dynamic_obstacles.emplace_back(
-                obstacle.id,
-                Eigen::Vector2d(obstacle.pose.position.x, obstacle.pose.position.y),
-                RosTools::quaternionToAngle(obstacle.pose),
-                CONFIG["obstacle_radius"].as<double>());
-            auto &dynamic_obstacle = _data.dynamic_obstacles.back();
-
-            if (obstacle.probabilities.size() == 0)
-                continue;
-
-            if (obstacle.probabilities.size() == 1)
-            {
-                dynamic_obstacle.prediction = Prediction(PredictionType::GAUSSIAN);
-
-                const auto &mode = obstacle.gaussians[0];
-                for (size_t k = 0; k < mode.mean.poses.size(); k++)
-                {
-                    dynamic_obstacle.prediction.modes[0].emplace_back(
-                        Eigen::Vector2d(mode.mean.poses[k].pose.position.x,
-                                        mode.mean.poses[k].pose.position.y),
-                        RosTools::quaternionToAngle(mode.mean.poses[k].pose.orientation),
-                        mode.major_semiaxis[k],
-                        mode.minor_semiaxis[k]);
-                }
-
-                if (mode.major_semiaxis.back() == 0. ||
-                    !CONFIG["probabilistic"]["enable"].as<bool>())
-                    dynamic_obstacle.prediction.type = PredictionType::DETERMINISTIC;
-                else
-                    dynamic_obstacle.prediction.type = PredictionType::GAUSSIAN;
-            }
-            else
-            {
-                ROSTOOLS_ASSERT(false, "Multiple modes not yet supported");
-            }
-        }
-        ensureObstacleSize(_data.dynamic_obstacles, _state);
-
-        if (CONFIG["probabilistic"]["propagate_uncertainty"].as<bool>())
-            propagatePredictionUncertainty(_data.dynamic_obstacles);
-
-        _planner->onDataReceived(_data, "dynamic obstacles");
+        _core->setObstacles(*msg);
     }
 
     void JackalPlanner::collisionCallback(std_msgs::msg::Float64::ConstSharedPtr msg)
     {
-        _data.intrusion = (float)msg->data;
-        if (_data.intrusion > 0.)
-            LOG_INFO_THROTTLE(500, "Collision detected (Intrusion: " << _data.intrusion << ")");
+        _core->data().intrusion = (float)msg->data;
+        if (_core->data().intrusion > 0.)
+            LOG_INFO_THROTTLE(500, "Collision detected (Intrusion: "
+                                       << _core->data().intrusion << ")");
     }
 
     void JackalPlanner::reset(bool success)
@@ -540,24 +362,17 @@ namespace local_planner
             _y_buffer[i] = 0.;
         }
 
-        _planner->reset(_state, _data, success);
-
-        // RealTimeData::reset() wipes the costmap pointer; re-bind the live
-        // Costmap2D from the running Costmap2DROS so DecompConstraints stays ready.
-        if (_costmap_ros)
-            _data.costmap = _costmap_ros->getCostmap();
-
-        _done = false;
-        _rotate_to_goal = false;
+        _core->reset(success);
         _timeout_timer.start();
     }
 
     void JackalPlanner::publishPose()
     {
+        const auto &state = _core->state();
         geometry_msgs::msg::PoseStamped pose;
-        pose.pose.position.x = _state.get("x");
-        pose.pose.position.y = _state.get("y");
-        pose.pose.orientation = RosTools::angleToQuaternion(_state.get("psi"));
+        pose.pose.position.x = state.get("x");
+        pose.pose.position.y = state.get("y");
+        pose.pose.orientation = RosTools::angleToQuaternion(state.get("psi"));
         pose.header.stamp = this->now();
         pose.header.frame_id = "map";
         _pose_pub->publish(pose);
@@ -571,13 +386,14 @@ namespace local_planner
             return;
         _prev_camera_stamp = stamp;
 
+        const auto &state = _core->state();
         for (int i = 0; i < CAMERA_BUFFER - 1; i++)
         {
             _x_buffer[i] = _x_buffer[i + 1];
             _y_buffer[i] = _y_buffer[i + 1];
         }
-        _x_buffer[CAMERA_BUFFER - 1] = _state.get("x");
-        _y_buffer[CAMERA_BUFFER - 1] = _state.get("y");
+        _x_buffer[CAMERA_BUFFER - 1] = state.get("x");
+        _y_buffer[CAMERA_BUFFER - 1] = state.get("y");
         double camera_x = 0., camera_y = 0.;
         for (int i = 0; i < CAMERA_BUFFER; i++)
         {
@@ -595,17 +411,6 @@ namespace local_planner
         msg.transform.rotation.w = 1.0;
 
         _camera_pub->sendTransform(msg);
-    }
-
-    void JackalPlanner::visualize()
-    {
-        auto &publisher = VISUALS.getPublisher("angle");
-        auto &line = publisher.getNewLine();
-        line.addLine(
-            Eigen::Vector2d(_state.get("x"), _state.get("y")),
-            Eigen::Vector2d(_state.get("x") + 1.0 * std::cos(_state.get("psi")),
-                            _state.get("y") + 1.0 * std::sin(_state.get("psi"))));
-        publisher.publish();
     }
 
 } // namespace local_planner

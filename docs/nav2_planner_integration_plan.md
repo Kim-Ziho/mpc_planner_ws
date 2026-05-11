@@ -339,5 +339,9 @@ ros2 daemon stop && ros2 daemon start
 ## 8. 추적 사항
 
 - 1단계 검증 후 §7-1 후속 항목 진척 상황을 본 문서에서 추적, 또는 별도 issue로 분리.
-- 2단계 진입 시 별도 plan 문서로 분기(`docs/nav2_full_plugin_migration_plan.md` 권장).
+- 2단계는 `docs/nav2_full_plugin_migration_plan.md`로 분기 (2026-05-11 M-A~M-E 완료, M-F 진행 중).
+  - `MPCCore` 추출 → 두 런치(`ros2_rosnavigation.launch.py` standalone + `ros2_nav2_full.launch.py` full-stack)가 동일 MPC 코드 공유.
+  - `MPCController` plugin (`nav2_core::Controller`) → controller_server에서 로드.
+  - `scenario_orchestrator` 노드 → pedsim/Gazebo/timeout/camera/`NavigateToPose` 변환.
+- §7-1의 grid-path QP 실패는 두 런치 모두에 남아 있는 별도 후속 작업.
 - `docs/ros2_migration_remaining.md`의 M5/M6 항목과 cross-reference 유지.

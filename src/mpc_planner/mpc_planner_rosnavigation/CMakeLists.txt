@@ -17,6 +17,7 @@ endif()
 set(DEPENDENCIES
   rclcpp
   rclcpp_action
+  rclcpp_lifecycle
   geometry_msgs
   nav_msgs
   std_msgs
@@ -26,6 +27,8 @@ set(DEPENDENCIES
   nav2_costmap_2d
   nav2_util
   nav2_msgs
+  nav2_core
+  pluginlib
   ros_tools
   mpc_planner
   mpc_planner_msgs
@@ -40,12 +43,31 @@ include_directories(
   include
 )
 
-add_executable(jackal_planner src/ros2_rosnavigation.cpp)
+add_executable(jackal_planner
+  src/ros2_rosnavigation.cpp
+  src/mpc_core.cpp
+)
 target_include_directories(jackal_planner PUBLIC
 "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
 "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
 )
 ament_target_dependencies(jackal_planner ${DEPENDENCIES})
+
+# Nav2 controller plugin built as a SHARED library so controller_server can
+# load it via pluginlib. Shares mpc_core with the standalone jackal_planner
+# executable above so MPC math has one home.
+add_library(mpc_controller_plugin SHARED
+  src/mpc_controller_plugin.cpp
+  src/mpc_core.cpp
+)
+target_include_directories(mpc_controller_plugin PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+)
+ament_target_dependencies(mpc_controller_plugin ${DEPENDENCIES})
+
+pluginlib_export_plugin_description_file(
+  nav2_core mpc_planner_rosnavigation_plugin.xml)
 
 add_executable(costmap_pair_node src/costmap_pair_node.cpp)
 ament_target_dependencies(costmap_pair_node
@@ -55,8 +77,34 @@ ament_target_dependencies(costmap_pair_node
   ament_index_cpp
 )
 
-install(TARGETS jackal_planner costmap_pair_node
+add_executable(scenario_orchestrator src/scenario_orchestrator.cpp)
+ament_target_dependencies(scenario_orchestrator
+  rclcpp
+  rclcpp_action
+  geometry_msgs
+  nav_msgs
+  std_msgs
+  std_srvs
+  tf2_ros
+  nav2_msgs
+  mpc_planner_util
+  ament_index_cpp
+)
+
+install(TARGETS jackal_planner costmap_pair_node scenario_orchestrator
   DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS mpc_controller_plugin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+install(DIRECTORY include/
+  DESTINATION include)
+
+install(FILES mpc_planner_rosnavigation_plugin.xml
+  DESTINATION share/${PROJECT_NAME})
 
 install(PROGRAMS
   scripts/goal_publisher.py

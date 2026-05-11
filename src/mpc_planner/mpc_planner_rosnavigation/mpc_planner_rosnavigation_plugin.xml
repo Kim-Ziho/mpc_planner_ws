@@ -1,7 +1,12 @@
-<library path="lib/libmpc_planner_rosnavigation">
-        <class name ="local_planner/ROSNavigationPlanner" type ="local_planner::ROSNavigationPlanner" base_class_type= "nav_core::BaseLocalPlanner">
-                <description>
-                        Topology-Driven Model Predictive Control (T-MPC) ROS Navigation Plugin
-                </description>
-        </class>
+<library path="mpc_controller_plugin">
+  <class name="local_planner/MPCController"
+         type="local_planner::MPCController"
+         base_class_type="nav2_core::Controller">
+    <description>
+      Topology-Driven Model Predictive Control (T-MPC) controller plugin for
+      Nav2 controller_server. Consumes a global plan via setPlan() and
+      computes (v, w) commands via solveMPC. See
+      docs/nav2_full_plugin_migration_plan.md for design context.
+    </description>
+  </class>
 </library>

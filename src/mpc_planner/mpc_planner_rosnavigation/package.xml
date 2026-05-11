@@ -23,6 +23,9 @@
   <depend>nav2_util</depend>
   <depend>nav2_msgs</depend>
   <depend>rclcpp_action</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>nav2_core</depend>
+  <depend>pluginlib</depend>
 
   <exec_depend>jackal_gazebo</exec_depend>
   <exec_depend>pedestrian_simulator</exec_depend>
@@ -41,5 +44,6 @@
 
   <export>
     <build_type>ament_cmake</build_type>
+    <nav2_core plugin="${prefix}/mpc_planner_rosnavigation_plugin.xml" />
   </export>
 </package>
