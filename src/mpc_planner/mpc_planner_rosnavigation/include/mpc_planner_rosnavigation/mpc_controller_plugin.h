@@ -80,6 +80,14 @@ namespace local_planner
         double _speed_limit{0.0};
         bool _speed_limit_percent{false};
 
+        // Track previous goal so setPlan only triggers rotateToGoal when the
+        // task target actually changes. bt_navigator re-issues setPlan on
+        // every replan tick and an unconditional requestRotation() pinned the
+        // robot at v=0 forever (see Phase 2 e2e validation).
+        bool _has_last_goal{false};
+        double _last_goal_x{0.0};
+        double _last_goal_y{0.0};
+
         void obstacleCallback(mpc_planner_msgs::msg::ObstacleArray::ConstSharedPtr msg);
     };
 } // namespace local_planner

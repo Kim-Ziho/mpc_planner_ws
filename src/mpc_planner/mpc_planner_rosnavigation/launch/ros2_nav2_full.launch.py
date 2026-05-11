@@ -9,10 +9,10 @@ Stack:
   - behavior_server (spin/backup/wait)    -- recovery
   - bt_navigator                          -- behaviour tree
   - lifecycle_manager_navigation          -- activates the whole stack
-  - scenario_orchestrator                 -- pedsim handshake + scenario reset
-                                            + /move_base_simple/goal ->
-                                            NavigateToPose translation
-  - goal_publisher.py                     -- random goal generator
+  - scenario_orchestrator                 -- pedsim handshake + auto random
+                                            goal generator (auto-loop:
+                                            reach -> reset gazebo -> new goal)
+                                            + RViz "2D Goal Pose" override
   - rviz2
 
 The standalone JackalPlanner Node bring-up (ros2_rosnavigation.launch.py)
@@ -50,6 +50,7 @@ def generate_launch_description():
 
     world_path = LaunchConfiguration("world_path")
     pedestrian_scenario = LaunchConfiguration("pedestrian_scenario")
+    gazebo_gui = LaunchConfiguration("gui")
 
     declared_args = [
         DeclareLaunchArgument(
@@ -61,6 +62,11 @@ def generate_launch_description():
             "pedestrian_scenario",
             default_value="open_space/24.xml",
             description="Pedestrian scenario XML under pedestrian_simulator/scenarios",
+        ),
+        DeclareLaunchArgument(
+            "gui",
+            default_value="false",
+            description="Launch the Gazebo client (gzclient). RViz is the primary visualization, so gzclient is disabled by default. Pass gui:=true to re-enable.",
         ),
     ]
 
@@ -74,7 +80,10 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([pkg_jackal_gazebo, "launch", "jackal_world.launch.py"])
         ),
-        launch_arguments={"world_path": world_path}.items(),
+        launch_arguments={
+            "world_path": world_path,
+            "gui": gazebo_gui,
+        }.items(),
     )
 
     # Identity static TF so Nav2 nodes that run in the map frame can lock onto
@@ -97,6 +106,13 @@ def generate_launch_description():
     nav2_params = PathJoinSubstitution(
         [pkg_rosnav, "config", "nav2_full.yaml"]
     )
+    # MPCController plugin runs inside controller_server's process, so the
+    # guidance_planner.* parameters that the standalone JackalPlanner loaded
+    # must be declared on controller_server too. The /**: wildcard at the top
+    # of this yaml means controller_server picks them up automatically.
+    guidance_params = PathJoinSubstitution(
+        [pkg_rosnav, "config", "ros2_guidance_planner.yaml"]
+    )
 
     planner_server = Node(
         package="nav2_planner",
@@ -111,8 +127,14 @@ def generate_launch_description():
         executable="controller_server",
         name="controller_server",
         output="screen",
-        parameters=[nav2_params],
-        remappings=[("cmd_vel", "/cmd_vel")],
+        parameters=[nav2_params, guidance_params],
+        remappings=[
+            ("cmd_vel", "/cmd_vel"),
+            # Plugin subscribes to /input/obstacles (legacy MPC topic). The
+            # pedestrian_simulator publishes on its own namespace; bridge them
+            # the same way the standalone JackalPlanner did via launch remap.
+            ("/input/obstacles", "/pedestrian_simulator/trajectory_predictions"),
+        ],
     )
 
     behavior_server = Node(
@@ -153,13 +175,11 @@ def generate_launch_description():
         executable="scenario_orchestrator",
         name="scenario_orchestrator",
         output="screen",
-    )
-
-    goal_publisher = Node(
-        package="mpc_planner_rosnavigation",
-        executable="goal_publisher.py",
-        name="goal_publisher",
-        output="screen",
+        # Must follow Gazebo's clock so /set_pose calls (EKF reset) carry a
+        # stamp the EKF accepts; otherwise the EKF's time frame jumps to
+        # wall clock and Nav2 stops seeing robot motion despite the robot
+        # physically driving in Gazebo.
+        parameters=[{"use_sim_time": True}],
     )
 
     rviz = Node(
@@ -168,7 +188,7 @@ def generate_launch_description():
         name="rviz2",
         arguments=[
             "-d",
-            PathJoinSubstitution([pkg_rosnav, "rviz", "ros2_3d.rviz"]),
+            PathJoinSubstitution([pkg_rosnav, "rviz", "ros2_nav2_full.rviz"]),
         ],
         output="screen",
     )
@@ -186,7 +206,6 @@ def generate_launch_description():
             bt_navigator,
             lifecycle_manager,
             scenario_orchestrator,
-            goal_publisher,
             rviz,
         ]
     )

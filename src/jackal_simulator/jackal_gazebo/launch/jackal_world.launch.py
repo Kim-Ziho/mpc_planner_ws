@@ -20,6 +20,12 @@ def generate_launch_description():
         description='Gazebo world file forwarded to gazebo.launch.py',
     )
 
+    declare_gui = DeclareLaunchArgument(
+        'gui',
+        default_value='true',
+        description='Whether to launch gzclient (Gazebo GUI). Forwarded to gazebo.launch.py.',
+    )
+
     gazebo_launch = PathJoinSubstitution(
         [FindPackageShare('jackal_gazebo'),
         'launch',
@@ -28,11 +34,15 @@ def generate_launch_description():
 
     gazebo_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([gazebo_launch]),
-        launch_arguments={'world_path': LaunchConfiguration('world_path')}.items(),
+        launch_arguments={
+            'world_path': LaunchConfiguration('world_path'),
+            'gui': LaunchConfiguration('gui'),
+        }.items(),
     )
 
     ld = LaunchDescription()
     ld.add_action(declare_world_path)
+    ld.add_action(declare_gui)
     ld.add_action(gazebo_sim)
 
     return ld

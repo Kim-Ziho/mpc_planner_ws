@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import EnvironmentVariable, FindExecutable, LaunchConfiguration, PathJoinSubstitution
 
@@ -13,6 +14,8 @@ from ament_index_python.packages import get_package_share_directory
 ARGUMENTS = [
     DeclareLaunchArgument('world_path', default_value='',
                           description='The world path, by default is empty.world'),
+    DeclareLaunchArgument('gui', default_value='true',
+                          description='Whether to launch gzclient (Gazebo GUI).'),
 ]
 
 
@@ -69,10 +72,11 @@ def generate_launch_description():
         output='screen',
     )
 
-    # Gazebo client
+    # Gazebo client (headless if gui:=false)
     gzclient = ExecuteProcess(
         cmd=['gzclient'],
         output='screen',
+        condition=IfCondition(LaunchConfiguration('gui')),
     )
 
     # Spawn robot at origin with +45 deg yaw (pi/4 rad).

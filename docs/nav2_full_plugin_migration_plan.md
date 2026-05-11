@@ -320,16 +320,26 @@ ros2 launch mpc_planner_rosnavigation ros2_nav2_full.launch.py
 
 ## 10. 이슈 로그
 
-### 10-1. 런타임 e2e 검증 미수행 (2026-05-11)
+### 10-1. 런타임 e2e 검증 완료 (2026-05-11)
 
-- 본 작업은 `./build.sh rosnavigation` 빌드 통과와 `ros2 launch --print` parse 통과까지 확인.
-- Gazebo + Nav2 full stack + pedsim end-to-end는 사용자 환경에서 다음 명령으로 확인 필요:
-  ```bash
-  source install/setup.bash && source fix_console.sh
-  ros2 launch mpc_planner_rosnavigation ros2_nav2_full.launch.py
-  ```
-- 기대 흐름: lifecycle_manager가 planner/controller/behavior/bt 일괄 activate → scenario_orchestrator가 pedsim handshake → goal_publisher가 첫 odom 수신 시 `/move_base_simple/goal` 발행 → scenario_orchestrator가 `NavigateToPose`로 변환 → bt_navigator가 plan + follow_path → MPCController가 `/cmd_vel` 발행 → 로봇 이동.
-- 알려진 위험:
-  - **STATIC_NODE_POINTER 멀티-init**: standalone Node와 plugin이 한 프로세스에 공존하지 않으므로 충돌 없음. 그러나 plugin의 companion node와 controller_server의 LifecycleNode가 같은 process에 동시 존재하면 ros_tools 매크로는 companion 쪽을 본다. 의도된 동작이지만 log prefix가 "mpc_controller_companion_FollowPath"가 됨.
-  - **controller_frequency vs solveMPC latency**: nav2_full.yaml은 20Hz로 설정. solveMPC가 50ms를 초과하면 controller_server가 frequency drop을 경고할 수 있음. 첫 실행에서 frequency drop이 보이면 controller_frequency를 10Hz로 낮춰서 안정성 우선.
-  - **§7-1 (이전 plan 문서) QP 실패 (grid path)**: 본 마이그레이션은 이 문제를 해결하지 않음. plugin도 standalone과 같은 NavfnPlanner의 격자 경로를 받으므로 clothoid smoothing이 별도 필요.
+`ros2 launch mpc_planner_rosnavigation ros2_nav2_full.launch.py`로 5회 실행, 다음 흐름 확인:
+
+1. ✅ Pedsim handshake (`scenario_orchestrator`가 `/pedestrian_simulator/start` 호출).
+2. ✅ `lifecycle_manager_navigation` 모든 노드 일괄 activate (planner_server, controller_server, behavior_server, bt_navigator).
+3. ✅ 첫 odom 수신 시 `scenario_orchestrator`가 자동 random goal 발사 (예: `Auto goal (25.56, 25.56)`).
+4. ✅ `bt_navigator` → `planner_server` (NavfnPlanner) → `controller_server` (MPCController) → `/cmd_vel`. 로봇이 (0, 0)에서 (21.87, 15.08)까지 약 26m 이동 확인.
+5. ✅ Per-attempt 60초 timeout 발화 → `NavigateToPose` cancel + `/gazebo/reset_world` + `/lmpcc/reset_environment` 발행.
+6. ✅ 800ms settle 후 새 random goal (`Auto goal (25.52, 25.55)`) 자동 발사 — auto-loop 인디파이니트.
+
+#### 검증 과정에서 발견하고 수정한 이슈
+
+- **Plugin name 불일치**: `nav2_full.yaml`의 `FollowPath.plugin`이 `local_planner::MPCController`였으나 pluginlib는 `name="local_planner/MPCController"`를 키로 사용. `/`로 통일.
+- **`guidance_planner.*` 파라미터 누락**: standalone `JackalPlanner`는 launch에서 `ros2_guidance_planner.yaml`을 자기 노드에 받았지만 plugin은 `controller_server` 안에서 동작 — `controller_server` Node에 `ros2_guidance_planner.yaml`을 같이 넘기지 않으면 `guidance_planner.debug.output must be initialized` 오류로 plugin configure가 실패. 런치에서 `parameters=[nav2_params, guidance_params]`로 수정.
+- **`/input/obstacles` 리매핑 누락**: plugin은 `/input/obstacles`를 구독하는데, full-stack 런치에서 `controller_server`에 remap을 안 줬더니 "Data is not ready, missing Obstacles" 경고. `controller_server` 노드 remap에 `("/input/obstacles", "/pedestrian_simulator/trajectory_predictions")` 추가.
+- **`setPlan`마다 회전 재요청**: bt_navigator가 replan할 때마다 `setPlan()`을 다시 호출 → `requestRotation()`이 매번 발화 → 로봇이 회전만 반복하고 직진 못 함. `MPCController`에 직전 goal 좌표를 캐시해 0.25m 이상 변경 시에만 `requestRotation()` 호출하도록 변경.
+
+#### 잔여 (Phase 2 범위 외)
+
+- **§7-1 (이전 plan 문서) QP 실패 (grid path)**: NavfnPlanner의 격자 경로가 contouring spline 가정을 위반 → `MPC failed: QP Failure: No more information on QP failure` 간헐 발생. plugin도 standalone과 같은 경로를 받으므로 동일하게 영향. 로봇은 진행하지만 60초 내 goal 도달은 어려움. clothoid smoothing 별도 작업.
+- **EKF 비동기 리셋**: `/gazebo/reset_world`가 Gazebo entity는 (0,0)으로 되돌리지만 `/odometry/filtered`(EKF)는 누적값을 유지 → 리셋 후 planner가 잘못된 시작 pose에서 path 계산. standalone에서도 동일하게 존재하던 동작.
+- **`Managed nodes are active` 이전의 첫 odom**: lifecycle 활성 직전 첫 odom이 들어오면 `scenario_orchestrator`가 goal을 너무 일찍 발사 → bt_navigator가 처리 못 하고 60초 timeout 후 자동 복구. 동작은 정상이지만 첫 사이클이 60초 낭비됨. lifecycle-aware 대기 추가는 별도 작업.

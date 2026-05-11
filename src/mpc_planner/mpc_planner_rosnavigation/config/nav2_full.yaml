@@ -69,21 +69,34 @@ controller_server:
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 0.3
+    # Generous failure_tolerance: the MPC plugin can take a few seconds of
+    # intermittent QP failures (§7-1 grid-path issue) before recovering. The
+    # Nav2 default of 0.3s aborts the action before the MPC ever stabilises,
+    # which lets the scenario_orchestrator's 800ms relaunch chain into a
+    # tight Begin-navigating -> Aborting feedback loop.
+    failure_tolerance: 30.0
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.5
-      movement_time_allowance: 10.0
+      # 0.1 m / 30 s -- the MPC sometimes inches forward during QP failures.
+      # Don't abort early; the orchestrator's own 60s timeout handles a
+      # truly stuck robot.
+      required_movement_radius: 0.1
+      movement_time_allowance: 30.0
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.5
+      # 2.0 m tolerance per user request: snapping the goal earlier prevents
+      # the MPC from spinning in place around the goal point when grid-path
+      # QP failures (§7-1) leave it unable to settle on the last few cm.
+      # yaw is generously relaxed (~180 deg) so heading mismatch alone never
+      # blocks the goal-reached signal.
+      xy_goal_tolerance: 2.0
+      yaw_goal_tolerance: 3.14
       stateful: True
     FollowPath:
-      plugin: "local_planner::MPCController"
+      plugin: "local_planner/MPCController"
 
 local_costmap:
   local_costmap:

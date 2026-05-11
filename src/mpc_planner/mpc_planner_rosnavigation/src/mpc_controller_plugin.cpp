@@ -88,11 +88,24 @@ namespace local_planner
 
         _core->setReferencePath(path);
 
-        if (!path.poses.empty())
+        if (path.poses.empty())
+            return;
+
+        const auto &last = path.poses.back().pose.position;
+        _core->setGoal(last.x, last.y);
+
+        // Only request rotation when the goal actually changes. bt_navigator
+        // re-sends setPlan() on every replan; an unconditional requestRotation
+        // makes computeVelocityCommands return v=0 forever.
+        constexpr double kGoalChangeSqr = 0.25 * 0.25; // 0.25 m
+        const double dx = last.x - _last_goal_x;
+        const double dy = last.y - _last_goal_y;
+        if (!_has_last_goal || (dx * dx + dy * dy) > kGoalChangeSqr)
         {
-            const auto &last = path.poses.back().pose.position;
-            _core->setGoal(last.x, last.y);
             _core->requestRotation();
+            _has_last_goal = true;
+            _last_goal_x = last.x;
+            _last_goal_y = last.y;
         }
     }
 

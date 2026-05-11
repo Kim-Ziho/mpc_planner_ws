@@ -29,6 +29,7 @@ set(DEPENDENCIES
   nav2_msgs
   nav2_core
   pluginlib
+  robot_localization
   ros_tools
   mpc_planner
   mpc_planner_msgs
@@ -87,6 +88,7 @@ ament_target_dependencies(scenario_orchestrator
   std_srvs
   tf2_ros
   nav2_msgs
+  robot_localization
   mpc_planner_util
   ament_index_cpp
 )
