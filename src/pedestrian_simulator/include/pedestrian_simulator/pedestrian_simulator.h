@@ -27,6 +27,14 @@ public:
     void Reset();
     void ResetToStart();
 
+    /** @brief When paused, Loop() still publishes predictions but skips the
+     *  physical advance of pedestrians (pedsim_manager_ Update + per-ped
+     *  Update). Used by the scenario orchestrator to keep predictions
+     *  flowing (so the MPC's data-ready check passes) while the robot is
+     *  still waiting on Nav2 to issue its first cmd_vel. */
+    void SetPaused(bool paused) { paused_ = paused; }
+    bool IsPaused() const { return paused_; }
+
     std::vector<Prediction> GetPedestrians();
     std::vector<Prediction> GetPredictions();
 
@@ -53,6 +61,7 @@ private:
     // geometry_msgs::Pose origin_;
 
     std::vector<std::unique_ptr<Pedestrian>> pedestrians_;
+    bool paused_{false};
 
     std::vector<double> colors_ = {217, 83, 25, 0, 114, 189, 119, 172, 48, 126, 47, 142, 237, 177, 32, 77, 190, 238, 162, 19, 47, 256, 153, 256, 0, 103, 256};
 };

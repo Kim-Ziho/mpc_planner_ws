@@ -36,6 +36,13 @@ void ROSPedestrianSimulator::InitializePublishersAndSubscribers()
     reset_to_start_sub_ = this->create_subscription<std_msgs::msg::Empty>(
         "/pedestrian_simulator/reset_to_start", 1,
         std::bind(&ROSPedestrianSimulator::ResetToStartCallback, this, std::placeholders::_1));
+    // transient_local matches the orchestrator's publisher -- the last
+    // pause/resume command is replayed if pedsim subscribes after the
+    // orchestrator already announced its initial state.
+    paused_sub_ = this->create_subscription<std_msgs::msg::Bool>(
+        "/pedestrian_simulator/paused",
+        rclcpp::QoS(1).transient_local(),
+        std::bind(&ROSPedestrianSimulator::PausedCallback, this, std::placeholders::_1));
     robot_state_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
         "/robot_state", 1,
         std::bind(&ROSPedestrianSimulator::RobotStateCallback, this, std::placeholders::_1));
@@ -109,6 +116,11 @@ void ROSPedestrianSimulator::ResetToStartCallback(std_msgs::msg::Empty::SharedPt
 {
     (void)msg;
     _simulator->ResetToStart();
+}
+
+void ROSPedestrianSimulator::PausedCallback(std_msgs::msg::Bool::SharedPtr msg)
+{
+    _simulator->SetPaused(msg->data);
 }
 void ROSPedestrianSimulator::RobotStateCallback(geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {

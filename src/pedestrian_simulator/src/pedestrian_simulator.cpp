@@ -121,20 +121,28 @@ void PedestrianSimulator::Reset()
 
 void PedestrianSimulator::Loop()
 {
-    // Moving pedsim agents
-    if (pedsim_manager_)
-        pedsim_manager_->Update(CONFIG.delta_t_);
-
-    if (CONFIG.debug_output_)
-        LOG_INFO("PedestrianSimulator: Update");
-
-    for (std::unique_ptr<Pedestrian> &ped : pedestrians_)
-        ped->PreUpdateComputations();
-
-    for (std::unique_ptr<Pedestrian> &ped : pedestrians_)
+    // Skip physical advance when paused, but still fall through to
+    // PublishDebugVisuals/Visualize* so the orchestrator and the MPC
+    // continue receiving data flagged as fresh. The robot's first goal
+    // can drive Nav2 to first-cmd before pedestrians actually start
+    // walking, eliminating the "pedestrians lead by ~1-2s" sync gap.
+    if (!paused_)
     {
-        ped->Update();
-        // ped->MoveFrame(vehicle_speed_);
+        // Moving pedsim agents
+        if (pedsim_manager_)
+            pedsim_manager_->Update(CONFIG.delta_t_);
+
+        if (CONFIG.debug_output_)
+            LOG_INFO("PedestrianSimulator: Update");
+
+        for (std::unique_ptr<Pedestrian> &ped : pedestrians_)
+            ped->PreUpdateComputations();
+
+        for (std::unique_ptr<Pedestrian> &ped : pedestrians_)
+        {
+            ped->Update();
+            // ped->MoveFrame(vehicle_speed_);
+        }
     }
 
     PublishDebugVisuals();

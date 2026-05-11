@@ -6,15 +6,25 @@
 //
 // Responsibilities:
 //   - Pedsim handshake on startup (/pedestrian_simulator/{horizon,
-//     integrator_step, clock_frequency, start}).
+//     integrator_step, clock_frequency, start}). Pedsim is started
+//     immediately so /pedestrian_simulator/trajectory_predictions flows
+//     -- the MPC plugin's isDataReady check needs obstacles before it
+//     will produce a cmd_vel. Pedsim is launched paused
+//     (/pedestrian_simulator/paused = true) so its Loop publishes
+//     predictions but pedestrians do not physically advance. The pause is
+//     lifted from onOdom() the moment the robot crosses the motion
+//     threshold, so pedestrians and the robot start walking in the same
+//     odom tick.
 //   - Generate random goals in [X_MIN, X_MAX] x [Y_MIN, Y_MAX] and send them
 //     to bt_navigator via the NavigateToPose action. Manual goals from RViz
 //     ("2D Goal Pose") on /move_base_simple/goal still work and interrupt the
 //     auto-loop.
 //   - On NavigateToPose result (SUCCEEDED / ABORTED / CANCELED): call
-//     /gazebo/reset_world, publish /lmpcc/reset_environment (pedsim restarts
-//     its scenario), and after a short settle delay send the next random
-//     goal. This forms the auto-loop the user expects.
+//     /reset_world, pause + reset pedsim
+//     (/pedestrian_simulator/{paused,reset}; new pedestrians stay frozen at
+//     their fresh spawns until motion detection resumes them), then after a
+//     short settle delay send the next random goal. This forms the auto-loop
+//     the user expects.
 //   - Per-attempt 60s timeout: cancel the action, then run the same reset
 //     path so a stuck attempt does not deadlock the scenario.
 //   - Camera TF map -> camera (rolling-average smoothing) so RViz's camera
@@ -28,6 +38,7 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/empty.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <std_msgs/msg/float64.hpp>
@@ -104,8 +115,25 @@ public:
             "/pedestrian_simulator/integrator_step", qos);
         _ped_clock_frequency_pub = create_publisher<std_msgs::msg::Float32>(
             "/pedestrian_simulator/clock_frequency", qos);
+        // /pedestrian_simulator/reset is what the ROS2 pedsim node actually
+        // subscribes to (calls Reset(): re-randomizes start, goal, velocity
+        // for each pedestrian -> brand new scenario). The legacy ROS1 topic
+        // /lmpcc/reset_environment has no subscriber in the ROS2 build, so
+        // publishing there silently dropped every reset request.
         _reset_simulation_pub = create_publisher<std_msgs::msg::Empty>(
-            "/lmpcc/reset_environment", qos);
+            "/pedestrian_simulator/reset", qos);
+        // Pause/resume control. Pedsim is started immediately at startup so
+        // /pedestrian_simulator/trajectory_predictions is flowing (the MPC's
+        // isDataReady check requires obstacles before it will produce a
+        // cmd_vel; without that it never commands the robot, never crosses
+        // the motion threshold, and the auto-loop deadlocks). Pedsim is
+        // launched paused (Loop publishes predictions but skips the physical
+        // advance), and we unpause from onOdom() the moment the robot
+        // actually starts rolling -- so pedestrians and the robot begin
+        // walking in the same odom tick.
+        _ped_paused_pub = create_publisher<std_msgs::msg::Bool>(
+            "/pedestrian_simulator/paused",
+            rclcpp::QoS(1).transient_local());
 
         // /goal_pose is the canonical Nav2 goal topic. The orchestrator sends
         // goals via the NavigateToPose action, but publishing them here too
@@ -178,21 +206,31 @@ public:
         _initial_goal_sent = true;
         _kickoff_timer->cancel();
         RCLCPP_INFO(get_logger(),
-                    "Lifecycle active and odom received; starting pedsim + first goal");
-        // Sync: pedestrians and robot begin moving at the same instant.
-        startPedsim();
+                    "Lifecycle active and odom received; sending first goal "
+                    "(pedsim paused until robot motion is observed)");
+        // Pedsim is already started (configurePedsim called startPedsim) but
+        // is paused -- pedestrians don't physically advance until onOdom()
+        // sees the robot crossing the motion threshold and resumes pedsim.
+        _waiting_for_robot_motion = true;
         sendRandomGoal();
     }
 
 private:
-    // Configure pedsim (horizon / integrator_step / clock_frequency) and
-    // wait for its /pedestrian_simulator/start service to be ready -- but do
-    // NOT actually start it. Pedestrians should begin moving at the same
-    // instant the robot does (first auto goal), which is the job of
-    // startPedsim().
+    // Configure pedsim (horizon / integrator_step / clock_frequency), put
+    // it in paused mode (so its Loop publishes predictions but pedestrians
+    // do not physically advance), and call the start service so the Loop
+    // timer actually runs. Without start, pedsim never publishes
+    // trajectory_predictions and the MPC blocks on missing obstacles. The
+    // pause is lifted from onOdom() the first time the robot crosses the
+    // motion threshold for the current goal, so pedestrians and the robot
+    // start walking in the same odom tick.
     void configurePedsim()
     {
         RCLCPP_INFO(get_logger(), "Configuring pedestrian simulator");
+        // Publish paused=true with transient_local QoS so pedsim sees it on
+        // its first subscribe (the Bool subscriber comes up after this
+        // publisher in launch ordering otherwise the message is dropped).
+        pausePedsim();
         for (int i = 0; i < 20; ++i)
         {
             std_msgs::msg::Int32 horizon_msg;
@@ -209,27 +247,27 @@ private:
 
             if (_ped_start_client->wait_for_service(200ms))
             {
-                RCLCPP_INFO(get_logger(), "Pedestrian simulator configured (start deferred until first goal)");
+                RCLCPP_INFO(get_logger(), "Pedestrian simulator configured (paused; will start service)");
                 _pedsim_configured = true;
+                startPedsim();
                 return;
             }
-            _reset_simulation_pub->publish(std_msgs::msg::Empty());
             rclcpp::sleep_for(1s);
         }
         RCLCPP_WARN(get_logger(),
                     "Pedestrian simulator did not respond in 20 attempts");
     }
 
-    // Kick pedsim into motion. Called once just before the first auto goal
-    // dispatches, so dynamic obstacles and the robot start at the same time.
+    // Call /pedestrian_simulator/start so pedsim's update timer begins
+    // running. Pedestrians don't physically advance while paused -- but
+    // the Loop runs and predictions get published, which is what the MPC
+    // needs to pass its data-ready check.
     void startPedsim()
     {
         if (_pedsim_started)
             return;
         if (!_ped_start_client->service_is_ready())
         {
-            // Configure path hasn't finished yet; very early launch can hit
-            // this. The next checkInitialKickoff tick will retry.
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                 "/pedestrian_simulator/start not ready yet");
             return;
@@ -237,7 +275,37 @@ private:
         auto request = std::make_shared<std_srvs::srv::Empty::Request>();
         _ped_start_client->async_send_request(request);
         _pedsim_started = true;
-        RCLCPP_INFO(get_logger(), "Pedestrian simulator started in sync with robot");
+        RCLCPP_INFO(get_logger(),
+                    "Pedestrian simulator started (paused -- predictions only)");
+    }
+
+    void pausePedsim()
+    {
+        std_msgs::msg::Bool b;
+        b.data = true;
+        _ped_paused_pub->publish(b);
+        _pedsim_paused = true;
+    }
+
+    void resumePedsim()
+    {
+        std_msgs::msg::Bool b;
+        b.data = false;
+        _ped_paused_pub->publish(b);
+        _pedsim_paused = false;
+        RCLCPP_INFO(get_logger(),
+                    "Pedestrian simulator resumed in sync with robot motion");
+    }
+
+    // Re-randomize pedestrian start/goal/velocity for the next attempt.
+    // Pedsim's update timer keeps running across resets, so this just snaps
+    // every pedestrian to a fresh spawn. Called immediately at /reset_world
+    // time WHILE PAUSED, so the new pedestrians sit at their spawn poses
+    // until resumePedsim() fires from motion detection.
+    void resetPedsim()
+    {
+        _reset_simulation_pub->publish(std_msgs::msg::Empty());
+        RCLCPP_INFO(get_logger(), "Pedestrian scenario reset (paused)");
     }
 
     void onGoal(geometry_msgs::msg::PoseStamped::ConstSharedPtr msg)
@@ -248,6 +316,13 @@ private:
                     "Manual goal received frame=%s position=(%.2f, %.2f)",
                     msg->header.frame_id.c_str(),
                     msg->pose.position.x, msg->pose.position.y);
+        // If pedsim is currently paused (e.g. a manual goal arrives during
+        // initial bring-up before the first auto goal), arm the motion
+        // trigger so pedestrians start walking when the robot does. A
+        // mid-run manual goal (pedsim already running) doesn't touch
+        // pedsim state.
+        if (_pedsim_paused)
+            _waiting_for_robot_motion = true;
         sendNavigateGoal(*msg);
     }
 
@@ -297,6 +372,11 @@ private:
             action_goal.pose.header.frame_id = "map";
 
         _goal_in_flight = true;
+        // _waiting_for_robot_motion is armed by callers that want the next
+        // robot motion to trigger a pedsim start/reset. Initial kickoff and
+        // post-reset relaunch arm it; ABORT retry does not (pedsim state
+        // should survive those); a manual goal arms it only if pedsim has
+        // not been started yet.
 
         auto opts = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
         opts.goal_response_callback =
@@ -432,6 +512,8 @@ private:
             _restart_timer->cancel();
             _relaunch_pending = false;
             _goal_reached_locally = false;
+            // Arm motion-based pedsim re-randomization for the new attempt.
+            _waiting_for_robot_motion = true;
             sendRandomGoal();
         });
     }
@@ -451,7 +533,15 @@ private:
         // republishes wheel encoders from the post-reset pose so EKF
         // naturally converges, provided this node runs with
         // use_sim_time:=true (set in the launch file).
-        _reset_simulation_pub->publish(std_msgs::msg::Empty());
+        //
+        // Pedsim sequence: pause -> reset (re-randomize spawns) -> wait for
+        // robot motion -> resume. Pausing before the reset means the new
+        // pedestrian spawns sit still until resumePedsim() fires from
+        // onOdom() motion detection, even though pedsim's update timer is
+        // still ticking. resetPedsim() keeps publishing predictions for
+        // the MPC's data-ready check.
+        pausePedsim();
+        resetPedsim();
 
         for (int i = 0; i < CAMERA_BUFFER; ++i)
         {
@@ -467,6 +557,26 @@ private:
         // finished activating -- sending earlier gets the goal rejected and
         // wastes the first 60s on the timeout fallback.
         _have_odom = true;
+
+        // Motion-based pedsim resume: an upstream caller armed
+        // _waiting_for_robot_motion before the goal was dispatched. Hold
+        // pedsim paused until the robot's measured linear speed exceeds
+        // MOTION_TRIGGER_SPEED, then unpause -- so pedestrians and the
+        // robot begin walking in (almost) the same odom tick instead of
+        // pedestrians getting a ~1-2s head start while Nav2 spins up its
+        // first cmd_vel for the new goal. Pedsim itself was already started
+        // (and possibly reset) before the goal was dispatched.
+        if (_waiting_for_robot_motion)
+        {
+            constexpr double MOTION_TRIGGER_SPEED = 0.05;  // m/s
+            const double vx = msg->twist.twist.linear.x;
+            const double vy = msg->twist.twist.linear.y;
+            if (vx * vx + vy * vy > MOTION_TRIGGER_SPEED * MOTION_TRIGGER_SPEED)
+            {
+                _waiting_for_robot_motion = false;
+                resumePedsim();
+            }
+        }
 
         // Independent goal-reached detection: orchestrator measures the
         // straight-line distance from the robot's current pose to the
@@ -544,6 +654,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _ped_integrator_step_pub;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr _ped_clock_frequency_pub;
     rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr _reset_simulation_pub;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr _ped_paused_pub;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr _goal_pose_pub;
 
     rclcpp::Client<std_srvs::srv::Empty>::SharedPtr _ped_start_client;
@@ -572,6 +683,16 @@ private:
     bool _have_odom{false};
     bool _pedsim_configured{false};
     bool _pedsim_started{false};
+    // Mirrors the last paused/resumed value we published. configurePedsim
+    // pauses on startup, every reset cycle pauses again, and motion
+    // detection resumes.
+    bool _pedsim_paused{true};
+    // Set true in checkInitialKickoff / resetAndRelaunch (and manual goal
+    // when pedsim is paused). Cleared in onOdom() once the robot crosses
+    // the motion threshold, at which point resumePedsim() fires. Gates
+    // pedestrian motion so they never walk in front of a stationary robot
+    // during Nav2's first-cmd latency.
+    bool _waiting_for_robot_motion{false};
 
     // Independent goal-reached detection (bypasses the bt_navigator action
     // result race). _current_goal_{x,y} tracks the active goal target;
