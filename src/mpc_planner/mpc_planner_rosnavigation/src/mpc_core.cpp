@@ -240,11 +240,12 @@ namespace local_planner
             _planner->saveData(state, data);
         }
 
-        if (output.success)
-        {
-            _planner->visualize(state, data);
-            visualizeHeading();
-        }
+        // Publish markers every cycle, including failed solves. Without this
+        // the visualization stays empty during the infeasible/brake-only
+        // window (mpc_wall_collision_analysis.md §5-6), which is exactly when
+        // it is needed for debugging.
+        _planner->visualize(state, data);
+        visualizeHeading();
 
         LOG_MARK("============= End Loop =============");
         return cmd;

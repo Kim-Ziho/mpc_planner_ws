@@ -145,12 +145,21 @@ def generate_launch_description():
         parameters=[nav2_params],
     )
 
+    # Inject the custom 20Hz-replanning BT so bt_navigator stops gating
+    # ComputePathToPose at 1Hz. yaml doesn't expand $(find-pkg-share ...),
+    # so the absolute path is computed here.
+    bt_xml_20hz = PathJoinSubstitution(
+        [pkg_rosnav, "behavior_trees", "replanning_20hz.xml"]
+    )
     bt_navigator = Node(
         package="nav2_bt_navigator",
         executable="bt_navigator",
         name="bt_navigator",
         output="screen",
-        parameters=[nav2_params],
+        parameters=[
+            nav2_params,
+            {"default_nav_to_pose_bt_xml": bt_xml_20hz},
+        ],
     )
 
     lifecycle_manager = Node(

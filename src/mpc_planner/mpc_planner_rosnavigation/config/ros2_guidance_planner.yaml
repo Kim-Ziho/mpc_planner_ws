@@ -3,7 +3,7 @@
       guidance_planner:
         debug:
           output: false
-          visuals: false
+          visuals: true
       
         T: 4.0 # Time horizon [s]
         N: 20  # Discrete time steps [#]
@@ -55,8 +55,8 @@
       
         visuals:
           transparency: 0.5 # The least transparent the obstacle visualization is (0-1)
-          visualize_all_samples: false # Visualizes all PRM samples
-          visualize_homology: false
+          visualize_all_samples: true # Visualizes all PRM samples
+          visualize_homology: true
           show_indices: false
       
         enable:

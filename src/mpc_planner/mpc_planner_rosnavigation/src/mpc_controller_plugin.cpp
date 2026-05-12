@@ -32,8 +32,30 @@ namespace local_planner
 
         // Stand up the ros_tools companion node first so any LOG_* / VISUALS
         // call inside MPCCore::configure has a valid singleton target.
+        // use_global_arguments(false): controller_server is launched with
+        // `-r __node:=controller_server`, a global remap. Without this flag
+        // the companion silently inherits that remap, gets renamed to
+        // "controller_server", and every viz topic lands under
+        // /controller_server/* instead of the expected companion prefix.
+        // The companion still needs the parameter overrides loaded onto
+        // controller_server (guidance_planner.*, settings.yaml mirrors) so
+        // guidance_planner's Config::Config can declare+read them via
+        // STATIC_NODE_POINTER (which points here); copy the parent's overrides.
+        std::vector<rclcpp::Parameter> companion_overrides;
+        if (auto parent_node = parent.lock())
+        {
+            const auto & inherited =
+                parent_node->get_node_parameters_interface()
+                    ->get_parameter_overrides();
+            companion_overrides.reserve(inherited.size());
+            for (const auto & kv : inherited)
+                companion_overrides.emplace_back(kv.first, kv.second);
+        }
         _companion_node = std::make_shared<rclcpp::Node>(
-            "mpc_controller_companion_" + name);
+            "mpc_controller_companion_" + name,
+            rclcpp::NodeOptions()
+                .use_global_arguments(false)
+                .parameter_overrides(companion_overrides));
         STATIC_NODE_POINTER.init(_companion_node.get());
         VISUALS.init(_companion_node.get());
 

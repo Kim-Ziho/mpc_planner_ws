@@ -7,11 +7,11 @@ Panels:
         - /Global Options1
         - /Status1
         - /LocalCostmap1
-        - /GlobalCostmap1
         - /GlobalPlan1
         - /MPC1
+        - /Guidance1
       Splitter Ratio: 0.5
-    Tree Height: 250
+    Tree Height: 450
   - Class: rviz_common/Views
     Expanded:
       - /Current View1
@@ -24,7 +24,7 @@ Visualization Manager:
       Cell Size: 1
       Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
-      Enabled: true
+      Enabled: false
       Line Style:
         Line Width: 0.029999999329447746
         Value: Lines
@@ -37,85 +37,21 @@ Visualization Manager:
       Plane: XY
       Plane Cell Count: 30
       Reference Frame: <Fixed Frame>
-      Value: true
+      Value: false
     - Class: rviz_default_plugins/TF
-      Enabled: true
+      Enabled: false
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        base_link:
-          Value: true
-        camera:
-          Value: true
-        chassis_link:
-          Value: true
-        front_fender_link:
-          Value: true
-        front_laser:
-          Value: true
-        front_laser_mount:
-          Value: true
-        front_left_wheel_link:
-          Value: true
-        front_mount:
-          Value: true
-        front_right_wheel_link:
-          Value: true
-        imu_link:
-          Value: true
-        map:
-          Value: true
-        mid_mount:
-          Value: true
-        navsat_link:
-          Value: true
-        odom:
-          Value: true
-        rear_fender_link:
-          Value: true
-        rear_left_wheel_link:
-          Value: true
-        rear_mount:
-          Value: true
-        rear_right_wheel_link:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        map:
-          camera:
-            {}
-          odom:
-            base_link:
-              chassis_link:
-                front_fender_link:
-                  {}
-                imu_link:
-                  {}
-                mid_mount:
-                  front_mount:
-                    front_laser_mount:
-                      front_laser:
-                        {}
-                  rear_mount:
-                    {}
-                navsat_link:
-                  {}
-                rear_fender_link:
-                  {}
-              front_left_wheel_link:
-                {}
-              front_right_wheel_link:
-                {}
-              rear_left_wheel_link:
-                {}
-              rear_right_wheel_link:
-                {}
+        {}
       Update Interval: 0
-      Value: true
+      Value: false
     - Alpha: 1
       Class: rviz_default_plugins/RobotModel
       Collision Enabled: false
@@ -223,7 +159,7 @@ Visualization Manager:
       Color: 239; 41; 41
       Color Transformer: FlatColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 0
@@ -244,7 +180,7 @@ Visualization Manager:
         Value: /front/scan
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 0.699999988079071
       Class: rviz_default_plugins/Map
       Color Scheme: costmap
@@ -291,7 +227,7 @@ Visualization Manager:
       Buffer Length: 1
       Class: rviz_default_plugins/Path
       Color: 25; 255; 0
-      Enabled: true
+      Enabled: false
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
@@ -314,11 +250,11 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /plan
-      Value: true
+      Value: false
     - Class: rviz_common/Group
       Displays:
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: HeadingArrow
           Namespaces:
             {}
@@ -328,9 +264,9 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /mpc_controller_companion_FollowPath/angle
-          Value: true
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: ContouringCurrent
           Namespaces:
             {}
@@ -339,10 +275,10 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /mpc_controller_companion_FollowPath/Contouring/current
-          Value: true
+            Value: /mpc_controller_companion_FollowPath/contouring/current
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: ContouringTrackedPath
           Namespaces:
             {}
@@ -351,10 +287,10 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /mpc_controller_companion_FollowPath/Contouring/tracked_path
-          Value: true
+            Value: /mpc_controller_companion_FollowPath/contouring/tracked_path
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: ContouringSplinePoints
           Namespaces:
             {}
@@ -363,10 +299,10 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /mpc_controller_companion_FollowPath/Contouring/glued_spline_points
-          Value: true
+            Value: /mpc_controller_companion_FollowPath/contouring/glued_spline_points
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: PathVelocity
           Namespaces:
             {}
@@ -376,9 +312,9 @@ Visualization Manager:
             History Policy: Keep Last
             Reliability Policy: Reliable
             Value: /mpc_controller_companion_FollowPath/path_velocity
-          Value: true
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
-          Enabled: true
+          Enabled: false
           Name: GuidanceOptimized
           Namespaces:
             {}
@@ -387,8 +323,8 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /mpc_controller_companion_FollowPath/GuidanceConstraints/optimized_trajectories
-          Value: true
+            Value: /mpc_controller_companion_FollowPath/guidance_constraints/optimized_trajectories
+          Value: false
         - Class: rviz_default_plugins/MarkerArray
           Enabled: false
           Name: GuidanceWarmstart
@@ -399,10 +335,206 @@ Visualization Manager:
             Durability Policy: Volatile
             History Policy: Keep Last
             Reliability Policy: Reliable
-            Value: /mpc_controller_companion_FollowPath/GuidanceConstraints/warmstart_trajectories
+            Value: /mpc_controller_companion_FollowPath/guidance_constraints/warmstart_trajectories
           Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: PlannedTrajectory
+          Namespaces:
+            "": true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/planned_trajectory
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: ContouringPath
+          Namespaces:
+            "": true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/contouring/path
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: MPCObstacles
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/obstacles
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: MPCObstaclePredictions
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/obstacle_predictions
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: RobotArea
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/robot_area
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: RobotAreaTrajectory
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/robot_area_trajectory
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: FreeSpace
+          Namespaces:
+            "": true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/free_space
+          Value: true
       Enabled: true
       Name: MPC
+    - Class: rviz_common/Group
+      Displays:
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: true
+          Name: GuidanceTrajectories
+          Namespaces:
+            "": true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/trajectories
+          Value: true
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: PRMGraph
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/graph
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: PRMStartAndGoals
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/start_and_goals
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: PRMSamples
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/samples
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: PRMSegments
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/segments
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: GuidanceGeometricPaths
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/geometric_paths
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: GuidanceSpline
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/spline
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: GuidanceObstacles3D
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/obstacles_3d
+          Value: false
+        - Class: rviz_default_plugins/MarkerArray
+          Enabled: false
+          Name: PRMHomology
+          Namespaces:
+            {}
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /mpc_controller_companion_FollowPath/guidance_planner/homology
+          Value: false
+      Enabled: true
+      Name: Guidance
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: PedsimVisualization
@@ -447,6 +579,18 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /goal_pose
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: false
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /mpc_controller_companion_FollowPath/guidance_planner/obstacles_3d
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 238; 238; 236
@@ -476,7 +620,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 18
+      Distance: 23.863239288330078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -519,12 +663,12 @@ Visualization Manager:
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1000
+  Height: 1349
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000100000000000002d800000356fc0200000002fb000000100044006900730070006c0061007900730100000069000001e80000017800fffffffb0000000a00560069006500770073010000025d000001620000012300ffffff000004240000035600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000100000000000002f4000004b3fc0200000002fb000000100044006900730070006c0061007900730100000069000002b00000017800fffffffb0000000a005600690065007700730100000325000001f70000012300ffffff0000058d000004b300000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Views:
     collapsed: false
-  Width: 1800
-  X: 0
-  Y: 54
+  Width: 2189
+  X: 346
+  Y: 442

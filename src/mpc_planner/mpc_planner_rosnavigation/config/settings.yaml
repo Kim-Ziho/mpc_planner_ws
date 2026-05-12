@@ -28,7 +28,7 @@ recording:
 
 debug_output: false
 debug_limits: false
-debug_visuals: false
+debug_visuals: true
 
 enable_output: true
 control_frequency: 20

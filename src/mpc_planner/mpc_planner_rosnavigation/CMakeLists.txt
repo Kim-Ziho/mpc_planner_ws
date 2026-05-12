@@ -126,5 +126,8 @@ install(DIRECTORY rviz
 install(DIRECTORY worlds
   DESTINATION share/${PROJECT_NAME})
 
+install(DIRECTORY behavior_trees
+  DESTINATION share/${PROJECT_NAME})
+
 ament_export_dependencies(${DEPENDENCIES})
 ament_package()

@@ -15,7 +15,7 @@ bt_navigator:
 planner_server:
   ros__parameters:
     use_sim_time: true
-    expected_planner_frequency: 1.0
+    expected_planner_frequency: 20.0
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
@@ -26,17 +26,17 @@ planner_server:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      update_frequency: 20.0
+      publish_frequency: 5.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: true
       rolling_window: false
-      width: 60
-      height: 60
+      width: 160
+      height: 160
       origin_x: -5.0
       origin_y: -5.0
-      resolution: 0.1
+      resolution: 0.2
       robot_radius: 0.325
       transform_tolerance: 0.5
       plugins: ["obstacle_layer", "inflation_layer"]
@@ -74,7 +74,7 @@ controller_server:
     # Nav2 default of 0.3s aborts the action before the MPC ever stabilises,
     # which lets the scenario_orchestrator's 800ms relaunch chain into a
     # tight Begin-navigating -> Aborting feedback loop.
-    failure_tolerance: 30.0
+    failure_tolerance: 15.0
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
@@ -101,15 +101,15 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 10.0
+      update_frequency: 20.0
       publish_frequency: 5.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: true
       rolling_window: true
-      width: 10
-      height: 10
-      resolution: 0.1
+      width: 20
+      height: 20
+      resolution: 0.2
       robot_radius: 0.325
       transform_tolerance: 0.5
       plugins: ["obstacle_layer", "inflation_layer"]
