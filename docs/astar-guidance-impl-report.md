@@ -365,3 +365,99 @@ std::unordered_map<State, PQItem, StateHash, StateEq> closed;
 
 - **헤딩을 closed set 키에서 제거**: 동일 (gx, gy, gt)에 도달하면 헤딩 무관 최초 경로만 유지 → 상태 공간 16× 축소, 각속도 연속성 일부 희생
 - **DAG A\***: gt 증가 방향 전진만 허용하므로 BFS 레이어별 전파로 우선순위 큐 제거 가능
+
+---
+
+## 13. 20Hz 달성을 위한 핫 루프 최적화 (2026-05-13)
+
+§12.4의 "즉각 적용 가능" 세 항목 중 **알고리즘 정확성을 보존하는 두 가지**(Bresenham 버퍼 재사용, 배열 기반 closed set)를 적용했다. Weighted A\*는 최적성 변경을 동반하므로 본 단계에서는 보류했다.
+
+### 13.1 변경 파일
+
+| 파일 | 변경 |
+|------|------|
+| `mpc_planner_stepmap/include/mpc_planner_stepmap/step_map.h` | `occupancyData()`, `occupancyThreshold()` 인라인 접근자 추가 — A* 핫 루프가 셀별 함수 호출 + 바운드 체크를 건너뛰고 직접 버퍼를 읽도록 함 |
+| `guidance_planner/include/guidance_planner/astar_planner.h` | `State` 구조체 / `unordered_map` 제거 → 플랫 배열 인덱스(`stateIdx`) + `PQItem`(16 B) + 인라인 `sweptCheck()` 도입. 헤더 전반 재작성 |
+| `guidance_planner/src/astar_planner.cpp` | `Init()` / `SetStepMap()` / `rebuildOffsets()` 도입, `Plan()` 핫 루프 재작성. 공개 인터페이스(`Init`, `SetStepMap`, `Plan`, `Reset`) 불변 — 호출부 수정 불필요 |
+
+### 13.2 적용한 최적화 (§12.3 원인 ↔ 본 절 해결)
+
+#### (a) Bresenham 동적 할당 제거 — `sweptCheck()` 융합
+`std::vector` 를 채워 반환하던 `bresenhamLine()` 을 헤더 인라인 함수 `sweptCheck()` 로 대체했다. 한 번의 패스 안에서 (1) Bresenham 점진, (2) 점유 확률 임계 비교, (3) 스웹 비용 누적을 모두 처리하고, 블로킹 시 즉시 `-1.0` 반환으로 단락(short-circuit) 한다.
+
+```cpp
+inline double sweptCheck(int x0, int y0, int x1, int y1, int gt) const
+{
+  const std::size_t plane = static_cast<std::size_t>(cells_x_) * cells_y_;
+  const double *occ = occ_data_ + static_cast<std::size_t>(gt) * plane;
+  const double thr = occ_threshold_;
+  /* ... Bresenham 진행 중 occ[y*X+x] 직접 참조, cost 누적 ... */
+}
+```
+
+효과: 전이 후보마다 발생하던 `new[] / delete[]` 가 사라지고, 블로킹 셀을 만나면 라인 끝까지 가지 않는다.
+
+#### (b) 배열 기반 closed/best_g
+`unordered_map<State, ...>` 2개를 다음 1D 플랫 배열로 교체했다.
+
+```cpp
+int stateIdx(int gx, int gy, int gt, int h) const {
+  return ((gt * cells_y_ + gy) * cells_x_ + gx) * num_headings_ + h;
+}
+std::vector<double> g_arr_;
+std::vector<int>    parent_arr_;
+std::vector<double> v_prev_arr_;
+```
+
+- **lazy deletion**: PQ 팝 시 `cur.g > g_arr_[idx] + 1e-9` 면 폐기. `decrease-key` 없이 정확한 A*.
+- **dirty 리스트로 점진 리셋**: `Plan()` 시작 시 직전 호출에서 건드린 인덱스만 ∞로 복구. 60×60×20×16 ≈ 1.15M 상태를 매 호출 초기화하지 않음.
+- **버퍼는 SetStepMap()에서 1회 할당**: 그리드 차원이 바뀌지 않는 한 재할당 없음.
+
+#### (c) 핫 루프 미세 최적화
+- `offset_dx_/dy_`, `v_step_table_`, `yaw_cost_table_`, `dh_offsets_` 사전 계산 → 루프 안에서 `cos/sin/round/abs` 호출 없음.
+- 바운드 체크는 부호 없는 캐스트 트릭으로 1회 비교: `static_cast<unsigned>(ni) >= cells_x_`. (음수와 오버플로를 단일 비교로 처리.)
+- `PQItem` = 16 B POD (`f, g, counter, state_idx`). 힙 이동 비용 최소화.
+
+### 13.3 보존된 알고리즘 의미
+
+- 동일한 비용 함수(`w_time·DT + w_occ·sweptCost + w_accel·|dv| + w_yaw·|dh|·bin`)
+- 동일한 admissible heuristic
+- 동일한 종료 조건(`ci==goal_gx && cj==goal_gy`)
+- 동일한 `GeometricPath` 출력 형식 (Bug-1 수정사항인 goal node `k=Config::N` 강제 유지)
+
+따라서 PRM ↔ A* 분기 동작과 다운스트림(`CubicSpline3D`, homotopy 분류 등) 모두 변경되지 않는다.
+
+### 13.4 빌드 결과
+
+`./build.sh` 환경 의존성 추가 설치:
+
+```
+sudo apt-get install -y libgsl-dev ros-noetic-costmap-2d
+```
+
+빌드 명령 및 결과:
+
+```
+catkin build guidance_planner
+  → [build] Summary: All 4 packages succeeded!
+    mpc_planner_stepmap : 3.9 s
+    guidance_planner    : 21.5 s
+    경고/에러 0
+```
+
+### 13.5 검증 상태와 남은 작업
+
+| 항목 | 상태 |
+|------|------|
+| 컴파일 (헤더/구현 정합성) | ✅ 통과 |
+| 공개 인터페이스 회귀 | ✅ 변경 없음 — `global_guidance.cpp` 수정 불필요 |
+| 런타임 wall-clock 측정 (138.9 ms → ≤50 ms) | ⏳ 미실시. `ros1_gym_cpp.launch` 재구동 또는 standalone benchmark 필요 |
+| 메모리 사용량 (≈ 1.15M × 24 B ≈ 28 MB) | 그리드 차원당 1회 할당, 호출당 추가 할당 없음 |
+
+20Hz 만족 여부는 다음 단계에서 실측한다 — 측정 시 PRM 빌드 + 다운스트림 후처리(≈14 ms)를 빼고 `Guidance Planning (Update)` 라벨만 비교하면 §12.1과 동일 조건이다.
+
+### 13.6 본 단계에서 적용하지 않은 항목
+
+- **Weighted A\*** (`ε > 1`): 최적성 손실을 동반. 위 두 최적화로 부족할 때 다음 단계로 도입.
+- **헤딩 closed-set 키 제거**: 각속도 연속성을 깨므로 보류.
+- **n_cells 이산화 ({1, 4})**: 분기 수 감소 효과는 크지만 경로 거칠어짐 — 파라미터로 노출하기 전 영향 평가 필요.

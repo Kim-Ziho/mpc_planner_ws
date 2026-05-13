@@ -1,5 +1,5 @@
 guidance_planner:
-  algorithm: STRRT   # PRM (기본) | AStar | HybridAStar | STRRT
+  algorithm: HybridAStar   # PRM (기본) | AStar | HybridAStar | STRRT
 
   astar:
     num_headings: 16    # 헤딩 이산화 bin 수 (22.5°/bin)
@@ -10,14 +10,15 @@ guidance_planner:
     w_yaw:  0.5         # |dθ| 요레이트 비용 가중치 [per rad]
 
   hybrid_astar:
-    num_heading_bins: 24  # closed-set 헤딩 이산화 bin 수 (15°/bin)
-    speed_bins: 4         # closed-set 속도 이산화 bin 수
-    n_v_samples: 3        # 속도 모션 프리미티브 수
-    n_w_samples: 7        # 각속도 모션 프리미티브 수
-    n_substeps: 5         # 유니사이클 적분 서브스텝 수
+    num_heading_bins: 16  # closed-set 헤딩 이산화 bin 수 (22.5°/bin)
+    speed_bins: 2         # closed-set 속도 이산화 bin 수
+    n_v_samples: 2        # 속도 모션 프리미티브 수
+    n_w_samples: 5        # 각속도 모션 프리미티브 수
+    n_substeps: 3         # 유니사이클 적분 서브스텝 수
     w_max: 1.5            # 최대 각속도 [rad/s]
     a_max: 8.0            # 최대 가속도 [m/s²]
     goal_tol_xy: 0.5      # 목표 도달 허용 거리 [m]
+    time_budget_ms: 45.0  # 20Hz(50ms) 보장용 탐색 시간 예산 [ms]
     w_time: 1.0
     w_occ: 5.0
     w_accel: 0.2

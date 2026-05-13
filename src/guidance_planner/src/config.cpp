@@ -103,11 +103,11 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/astar/w_accel", astar_w_accel_, 0.2);
     retrieveParameter(node, "guidance_planner/astar/w_yaw",   astar_w_yaw_,   0.5);
 
-    retrieveParameter(node, "guidance_planner/hybrid_astar/num_heading_bins", hastar_num_heading_bins_, 24);
-    retrieveParameter(node, "guidance_planner/hybrid_astar/speed_bins",       hastar_speed_bins_,       4);
-    retrieveParameter(node, "guidance_planner/hybrid_astar/n_v_samples",      hastar_n_v_samples_,      3);
-    retrieveParameter(node, "guidance_planner/hybrid_astar/n_w_samples",      hastar_n_w_samples_,      7);
-    retrieveParameter(node, "guidance_planner/hybrid_astar/n_substeps",       hastar_n_substeps_,       5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/num_heading_bins", hastar_num_heading_bins_, 16);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/speed_bins",       hastar_speed_bins_,       2);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_v_samples",      hastar_n_v_samples_,      2);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_w_samples",      hastar_n_w_samples_,      5);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/n_substeps",       hastar_n_substeps_,       3);
     retrieveParameter(node, "guidance_planner/hybrid_astar/w_max",            hastar_w_max_,            1.5);
     retrieveParameter(node, "guidance_planner/hybrid_astar/a_max",            hastar_a_max_,            8.0);
     retrieveParameter(node, "guidance_planner/hybrid_astar/goal_tol_xy",      hastar_goal_tol_xy_,      0.5);
@@ -116,6 +116,7 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/hybrid_astar/w_accel",          hastar_w_accel_,          0.2);
     retrieveParameter(node, "guidance_planner/hybrid_astar/w_yaw",            hastar_w_yaw_,            0.5);
     retrieveParameter(node, "guidance_planner/hybrid_astar/w_yaw_rate",       hastar_w_yaw_rate_,       0.1);
+    retrieveParameter(node, "guidance_planner/hybrid_astar/time_budget_ms",   hastar_time_budget_ms_,   45.0);
 
     retrieveParameter(node, "guidance_planner/st_rrt/max_iter",        strrt_max_iter_,        3000);
     retrieveParameter(node, "guidance_planner/st_rrt/steer_dt_min",    strrt_steer_dt_min_,    0.2);

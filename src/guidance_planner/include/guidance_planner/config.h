@@ -113,6 +113,7 @@ namespace GuidancePlanner
     double hastar_a_max_;
     double hastar_goal_tol_xy_;
     double hastar_w_time_, hastar_w_occ_, hastar_w_accel_, hastar_w_yaw_, hastar_w_yaw_rate_;
+    double hastar_time_budget_ms_;
 
     // ST-RRT* planner parameters
     int    strrt_max_iter_;

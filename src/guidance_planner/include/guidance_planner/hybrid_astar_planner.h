@@ -6,6 +6,8 @@
 #include <mpc_planner_stepmap/step_map.h>
 
 #include <Eigen/Dense>
+#include <array>
+#include <functional>
 #include <list>
 #include <memory>
 #include <optional>
@@ -42,14 +44,11 @@ private:
   {
     size_t operator()(const ClosedKey &s) const noexcept
     {
-      size_t seed = 0;
-      auto hc = [&](int v)
-      { seed ^= std::hash<int>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2); };
-      hc(s.i);
-      hc(s.j);
-      hc(s.k);
-      hc(s.h_bin);
-      hc(s.v_bin);
+      size_t seed = static_cast<size_t>(s.i);
+      seed = seed * 1315423911u + static_cast<size_t>(s.j);
+      seed = seed * 1315423911u + static_cast<size_t>(s.k);
+      seed = seed * 1315423911u + static_cast<size_t>(s.h_bin);
+      seed = seed * 1315423911u + static_cast<size_t>(s.v_bin);
       return seed;
     }
   };
@@ -63,59 +62,71 @@ private:
     }
   };
 
+  // 인덱스 기반 노드 풀 (shared_ptr 제거)
   struct SearchNode
   {
     double f, g;
-    int counter;
-    // 연속 상태
     double x, y, theta, v;
-    int k;
-    // 부모 참조 (경로 재구성용)
-    std::shared_ptr<SearchNode> parent;
+    int    k;
+    int    parent_idx;   // -1 = no parent
+    int    counter;
+    ClosedKey key;       // makeKey 중복 호출 방지를 위해 캐시
+  };
 
-    bool operator>(const SearchNode &o) const noexcept
+  // priority_queue 엔트리 (포인터 대신 인덱스만 보관)
+  struct PQEntry
+  {
+    double f;
+    int    counter;
+    int    idx;
+    bool operator>(const PQEntry &o) const noexcept
     {
       return f != o.f ? f > o.f : counter > o.counter;
     }
   };
 
-  struct SearchNodePtrCmp
-  {
-    bool operator()(const std::shared_ptr<SearchNode> &a,
-                    const std::shared_ptr<SearchNode> &b) const noexcept
-    {
-      return *a > *b;
-    }
-  };
+  using BestG = std::unordered_map<ClosedKey, double, ClosedKeyHash, ClosedKeyEq>;
+  using OpenPQ = std::priority_queue<PQEntry, std::vector<PQEntry>, std::greater<PQEntry>>;
 
   // ---- 헬퍼 ----
-  ClosedKey makeKey(double x, double y, double theta, double v, int k) const;
+  static constexpr int kMaxSubsteps = 16;
 
-  /** @brief 유니사이클 Euler 적분: (x,y,theta) → sub-step 위치 목록 */
-  std::vector<Eigen::Vector2d> integrate(double x, double y, double theta,
-                                          double v_cmd, double w_cmd) const;
+  ClosedKey makeKey(double x, double y, double theta, double v, int k) const;
+  void cellFromWorld(double x, double y, int &ii, int &jj) const;
+
+  /** @brief 유니사이클 Euler 적분: (x,y,theta) → sub-step 위치 목록 (스택 배열) */
+  int integrate(double x, double y, double theta,
+                double v_cmd, double w_cmd,
+                std::array<Eigen::Vector2d, kMaxSubsteps> &pts_out) const;
 
   /** @brief sub-step 위치 목록에 대해 StepMap 충돌 검사 + 점유 비용 누계 */
-  bool checkSwept(const std::vector<Eigen::Vector2d> &pts, int nk,
-                  double &occ_total) const;
+  bool checkSwept(const std::array<Eigen::Vector2d, kMaxSubsteps> &pts,
+                  int n_pts, int nk, double &occ_total) const;
 
   double heuristic(double x, double y, double gx, double gy) const;
 
-  GeometricPath reconstructPath(std::shared_ptr<SearchNode> goal_node);
+  /** @brief t=0 정적 슬라이스 위 2D Dijkstra 휴리스틱 사전 계산 */
+  void buildHeuristicMap(double gx, double gy);
 
-  void pushIfBetter(
-      std::priority_queue<std::shared_ptr<SearchNode>,
-                          std::vector<std::shared_ptr<SearchNode>>,
-                          SearchNodePtrCmp> &pq,
-      std::unordered_map<ClosedKey, double, ClosedKeyHash, ClosedKeyEq> &best_g,
-      std::shared_ptr<SearchNode> parent,
-      double v_cmd, double w_cmd,
-      double gx, double gy, int nk, int &counter);
+  GeometricPath reconstructPath(int goal_idx);
+
+  void pushIfBetter(OpenPQ &pq, BestG &best_g,
+                    int parent_idx,
+                    double v_cmd, double w_cmd,
+                    double gx, double gy, int nk, int &counter);
 
   // ---- 데이터 ----
   Config *config_{nullptr};
   std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
   std::list<Node> nodes_;  // StraightConnection의 Node* 포인터 안정성을 위한 list
+
+  // 노드 풀: Plan() 동안만 살아 있음. Init에서 capacity 사전 할당
+  std::vector<SearchNode> pool_;
+
+  // 2D Dijkstra 휴리스틱 맵 (cells_x_ * cells_y_), 도달 불가 = +inf
+  std::vector<double> heur_grid_;
+  int                 heur_cells_x_{0};
+  int                 heur_cells_y_{0};
 
   // 파라미터 (Init 시 config에서 로드)
   int    num_heading_bins_;
@@ -127,6 +138,7 @@ private:
   double a_max_;
   double goal_tol_xy_;
   double w_time_, w_occ_, w_accel_, w_yaw_, w_yaw_rate_;
+  double time_budget_ms_;
 };
 
 }  // namespace GuidancePlanner

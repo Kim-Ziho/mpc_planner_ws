@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace GuidancePlanner
 {
@@ -21,24 +22,68 @@ void AStarPlanner::Init(Config *config)
   w_accel_      = config->astar_w_accel_;
   w_yaw_        = config->astar_w_yaw_;
 
-  headings_.resize(num_headings_);
-  for (int i = 0; i < num_headings_; ++i)
-    headings_[i] = 2.0 * M_PI * i / num_headings_;
+  base_time_cost_ = w_time_ * Config::DT;
 
   const double bin_size = 2.0 * M_PI / num_headings_;
-  max_dh_bins_ = std::max(1, (int)std::floor(w_max_ * Config::DT / bin_size));
+  max_dh_bins_ = std::max(1, static_cast<int>(std::floor(w_max_ * Config::DT / bin_size)));
+
+  // dh offsets and yaw cost table can be set already (independent of step map)
+  dh_offsets_.clear();
+  yaw_cost_table_.assign(2 * max_dh_bins_ + 1, 0.0);
+  for (int dh = -max_dh_bins_; dh <= max_dh_bins_; ++dh)
+  {
+    dh_offsets_.push_back(dh);
+    yaw_cost_table_[dh + max_dh_bins_] = w_yaw_ * std::abs(dh) * bin_size;
+  }
 }
 
 void AStarPlanner::SetStepMap(std::shared_ptr<MPCPlannerStepMap::StepMap> step_map)
 {
   step_map_ = step_map;
-  if (step_map_ && step_map_->valid() && config_)
+  if (!step_map_ || !step_map_->valid() || !config_) return;
+
+  cells_x_       = step_map_->cellsX();
+  cells_y_       = step_map_->cellsY();
+  cells_t_       = step_map_->cellsT();
+  res_           = step_map_->resolution();
+  occ_data_      = step_map_->occupancyData();
+  occ_threshold_ = step_map_->occupancyThreshold();
+  n_states_      = cells_x_ * cells_y_ * cells_t_ * num_headings_;
+  res_inv_v_max_ = res_ / config_->max_velocity_;
+
+  const double bin_size = 2.0 * M_PI / num_headings_;
+  max_dh_bins_ = std::max(1, static_cast<int>(std::floor(w_max_ * Config::DT / bin_size)));
+  max_cells_   = std::max(1, static_cast<int>(std::floor(
+                     config_->max_velocity_ * Config::DT / res_ + 1e-9)));
+
+  rebuildOffsets();
+
+  // Allocate flat search buffers once. Reset() refills them per call.
+  g_arr_.assign(n_states_, std::numeric_limits<double>::infinity());
+  parent_arr_.assign(n_states_, -1);
+  v_prev_arr_.assign(n_states_, 0.0);
+  dirty_.clear();  // any stale indices from a previous (different-sized) grid are gone
+}
+
+void AStarPlanner::rebuildOffsets()
+{
+  offset_dx_.assign(num_headings_ * max_cells_, 0);
+  offset_dy_.assign(num_headings_ * max_cells_, 0);
+  v_step_table_.assign(max_cells_, 0.0);
+
+  for (int h = 0; h < num_headings_; ++h)
   {
-    const double bin_size = 2.0 * M_PI / num_headings_;
-    max_dh_bins_ = std::max(1, (int)std::floor(w_max_ * Config::DT / bin_size));
-    max_cells_   = std::max(1, (int)std::floor(
-                       config_->max_velocity_ * Config::DT / step_map_->resolution() + 1e-9));
+    const double theta = 2.0 * M_PI * h / num_headings_;
+    const double c = std::cos(theta);
+    const double s = std::sin(theta);
+    for (int nc = 1; nc <= max_cells_; ++nc)
+    {
+      offset_dx_[h * max_cells_ + (nc - 1)] = static_cast<int>(std::round(c * nc));
+      offset_dy_[h * max_cells_ + (nc - 1)] = static_cast<int>(std::round(s * nc));
+    }
   }
+  for (int nc = 1; nc <= max_cells_; ++nc)
+    v_step_table_[nc - 1] = static_cast<double>(nc) * res_ / Config::DT;
 }
 
 void AStarPlanner::Reset()
@@ -50,68 +95,10 @@ void AStarPlanner::Reset()
 
 std::pair<int, int> AStarPlanner::cellFromWorld(const Eigen::Vector2d &world) const
 {
-  // StepMap: local(gx,gy) = (-halfLength + gx*res, -halfWidth + gy*res)
-  // worldFromCell: rot_world_from_local * local + center_world
-  // 역변환: local = localFromWorld(world)
   Eigen::Vector2d local = step_map_->localFromWorld(world);
-  int gx = (int)std::round((local.x() + step_map_->halfLength()) / step_map_->resolution());
-  int gy = (int)std::round((local.y() + step_map_->halfWidth())  / step_map_->resolution());
+  int gx = static_cast<int>(std::round((local.x() + step_map_->halfLength()) / res_));
+  int gy = static_cast<int>(std::round((local.y() + step_map_->halfWidth())  / res_));
   return {gx, gy};
-}
-
-bool AStarPlanner::inBounds(int gx, int gy, int gt) const
-{
-  return gx >= 0 && gx < step_map_->cellsX() &&
-         gy >= 0 && gy < step_map_->cellsY() &&
-         gt >= 0 && gt < step_map_->cellsT();
-}
-
-// ── Bresenham 선분 ─────────────────────────────────────────────────────────
-
-std::vector<std::pair<int, int>> AStarPlanner::bresenhamLine(
-    int x0, int y0, int x1, int y1) const
-{
-  std::vector<std::pair<int, int>> cells;
-  int dx = std::abs(x1 - x0), dy = std::abs(y1 - y0);
-  int sx = (x0 < x1) ? 1 : -1, sy = (y0 < y1) ? 1 : -1;
-  int err = dx - dy;
-  int x = x0, y = y0;
-  while (true)
-  {
-    cells.emplace_back(x, y);
-    if (x == x1 && y == y1) break;
-    int e2 = 2 * err;
-    if (e2 > -dy) { err -= dy; x += sx; }
-    if (e2 <  dx) { err += dx; y += sy; }
-  }
-  return cells;
-}
-
-// ── 비용 함수 ──────────────────────────────────────────────────────────────
-
-double AStarPlanner::heuristic(int gx, int gy, int gi, int gj) const
-{
-  double dist = std::hypot(gx - gi, gy - gj) * step_map_->resolution();
-  return dist / config_->max_velocity_;
-}
-
-bool AStarPlanner::isBlocked(const std::vector<std::pair<int, int>> &cells, int gt) const
-{
-  for (auto &[x, y] : cells)
-  {
-    if (!inBounds(x, y, gt)) return true;
-    if (step_map_->cellOccupied(x, y, gt)) return true;
-  }
-  return false;
-}
-
-double AStarPlanner::sweptCost(const std::vector<std::pair<int, int>> &cells, int gt) const
-{
-  double total = 0.0;
-  for (auto &[x, y] : cells)
-    if (inBounds(x, y, gt))
-      total += step_map_->cellCost(x, y, gt);
-  return total;
 }
 
 // ── 탐색 ───────────────────────────────────────────────────────────────────
@@ -121,43 +108,61 @@ std::optional<GeometricPath> AStarPlanner::Plan(const Eigen::Vector2d &start_xy,
                                                  double start_speed,
                                                  const Eigen::Vector2d &goal_xy)
 {
-  if (!step_map_ || !step_map_->valid())
+  if (!step_map_ || !step_map_->valid() || n_states_ == 0)
   {
     LOG_WARN("AStarPlanner::Plan — StepMap is not valid");
     return std::nullopt;
   }
 
+  // StepMap pose / dimensions can change between calls. Refresh cached pointers
+  // and grow buffers if the grid grew. (Same dimensions → no realloc.)
+  if (cells_x_ != step_map_->cellsX() || cells_y_ != step_map_->cellsY() ||
+      cells_t_ != step_map_->cellsT())
+  {
+    SetStepMap(step_map_);
+  }
+  occ_data_      = step_map_->occupancyData();
+  occ_threshold_ = step_map_->occupancyThreshold();
+
   auto [si, sj] = cellFromWorld(start_xy);
   auto [gi, gj] = cellFromWorld(goal_xy);
 
-  if (!inBounds(si, sj, 0))
+  if (si < 0 || si >= cells_x_ || sj < 0 || sj >= cells_y_)
   {
     LOG_WARN("AStarPlanner::Plan — Start position is out of StepMap bounds");
     return std::nullopt;
   }
-  gi = std::clamp(gi, 0, step_map_->cellsX() - 1);
-  gj = std::clamp(gj, 0, step_map_->cellsY() - 1);
+  gi = std::clamp(gi, 0, cells_x_ - 1);
+  gj = std::clamp(gj, 0, cells_y_ - 1);
+  goal_gx_ = gi;
+  goal_gy_ = gj;
 
-  int sh = (int)std::round(start_heading / (2.0 * M_PI) * num_headings_) % num_headings_;
+  int sh = static_cast<int>(std::round(start_heading / (2.0 * M_PI) * num_headings_)) % num_headings_;
   if (sh < 0) sh += num_headings_;
+
+  // Reset only the entries touched by the previous call. The dirty list keeps
+  // per-call reset cost proportional to the explored set, not n_states_ (~1M).
+  for (int idx : dirty_)
+  {
+    g_arr_[idx] = std::numeric_limits<double>::infinity();
+    parent_arr_[idx] = -1;
+    v_prev_arr_[idx] = 0.0;
+  }
+  dirty_.clear();
 
   using PQ = std::priority_queue<PQItem, std::vector<PQItem>, std::greater<PQItem>>;
   PQ open_pq;
-  std::unordered_map<State, double,   StateHash, StateEq> best_g;
-  std::unordered_map<State, PQItem,   StateHash, StateEq> closed;
 
   int counter = 0;
-  const State start_state{si, sj, 0, sh};
-  open_pq.push(PQItem{heuristic(si, sj, gi, gj), 0.0, counter++,
-                      start_state, start_speed, {}, false});
-  best_g[start_state] = 0.0;
+  const int start_idx = stateIdx(si, sj, 0, sh);
+  g_arr_[start_idx]      = 0.0;
+  parent_arr_[start_idx] = -1;  // root marker
+  v_prev_arr_[start_idx] = start_speed;
+  dirty_.push_back(start_idx);
 
-  // 허용 헤딩 변화 오프셋 사전 계산
-  std::vector<int> dh_offsets;
-  for (int dh = -max_dh_bins_; dh <= max_dh_bins_; ++dh)
-    dh_offsets.push_back(dh);
+  open_pq.push(PQItem{heuristic(si, sj), 0.0, counter++, start_idx});
 
-  State goal_state{-1, -1, -1, -1};
+  int goal_idx = -1;
   bool found = false;
 
   while (!open_pq.empty())
@@ -165,60 +170,68 @@ std::optional<GeometricPath> AStarPlanner::Plan(const Eigen::Vector2d &start_xy,
     PQItem cur = open_pq.top();
     open_pq.pop();
 
-    // 이미 더 좋은 경로로 처리된 경우 skip
-    {
-      auto it = best_g.find(cur.state);
-      if (it != best_g.end() && cur.g > it->second + 1e-9) continue;
-    }
-    if (closed.count(cur.state)) continue;
-    closed[cur.state] = cur;
+    // Lazy deletion: a fresher (lower-g) push superseded this entry.
+    if (cur.g > g_arr_[cur.state_idx] + 1e-9) continue;
 
-    const auto [ci, cj, ck, ch] = cur.state;
+    int ci, cj, ck, ch;
+    unpack(cur.state_idx, ci, cj, ck, ch);
 
-    // 목표 도달 판정
-    if (ci == gi && cj == gj)
+    if (ci == goal_gx_ && cj == goal_gy_)
     {
-      goal_state = cur.state;
+      goal_idx = cur.state_idx;
       found = true;
       break;
     }
 
-    if (ck >= step_map_->cellsT() - 1) continue;
+    if (ck >= cells_t_ - 1) continue;
 
-    for (int dh : dh_offsets)
+    const int nk = ck + 1;
+    const double v_prev = v_prev_arr_[cur.state_idx];
+    const double cur_g  = cur.g;
+
+    for (int dh : dh_offsets_)
     {
       const int nh = ((ch + dh) % num_headings_ + num_headings_) % num_headings_;
-      const double ntheta = headings_[nh];
+      const double yaw_cost = yaw_cost_table_[dh + max_dh_bins_];
 
-      for (int n_cells = 1; n_cells <= max_cells_; ++n_cells)
+      const int *off_dx = offset_dx_.data() + nh * max_cells_;
+      const int *off_dy = offset_dy_.data() + nh * max_cells_;
+
+      for (int nc_idx = 0; nc_idx < max_cells_; ++nc_idx)
       {
-        const int ni = ci + (int)std::round(std::cos(ntheta) * n_cells);
-        const int nj = cj + (int)std::round(std::sin(ntheta) * n_cells);
-        const int nk = ck + 1;
+        const int dx = off_dx[nc_idx];
+        const int dy = off_dy[nc_idx];
+        if (dx == 0 && dy == 0) continue;  // no movement (rare)
 
-        if (!inBounds(ni, nj, nk)) continue;
+        const int ni = ci + dx;
+        const int nj = cj + dy;
+        if (static_cast<unsigned>(ni) >= static_cast<unsigned>(cells_x_)) continue;
+        if (static_cast<unsigned>(nj) >= static_cast<unsigned>(cells_y_)) continue;
 
-        const auto swept = bresenhamLine(ci, cj, ni, nj);
-        if (isBlocked(swept, nk)) continue;
+        // Fused Bresenham + occupancy check + swept cost (single pass, no alloc)
+        const double occ_sum = sweptCheck(ci, cj, ni, nj, nk);
+        if (occ_sum < 0.0) continue;  // blocked
 
-        const double v_step  = n_cells * step_map_->resolution() / Config::DT;
-        const double dv      = std::abs(v_step - cur.v_prev);
-        const double dtheta  = std::abs(dh) * (2.0 * M_PI / num_headings_);
-        const double occ     = sweptCost(swept, nk);
+        const double v_step = v_step_table_[nc_idx];
+        const double dv     = std::abs(v_step - v_prev);
 
-        const double step_cost = w_time_ * Config::DT
-                               + w_occ_  * occ
+        const double step_cost = base_time_cost_
+                               + w_occ_   * occ_sum
                                + w_accel_ * dv
-                               + w_yaw_   * dtheta;
-        const double ng = cur.g + step_cost;
+                               + yaw_cost;
+        const double ng = cur_g + step_cost;
 
-        const State nstate{ni, nj, nk, nh};
-        auto bg_it = best_g.find(nstate);
-        if (bg_it != best_g.end() && ng >= bg_it->second - 1e-9) continue;
-        best_g[nstate] = ng;
+        const int nidx = stateIdx(ni, nj, nk, nh);
+        if (ng >= g_arr_[nidx] - 1e-9) continue;
 
-        open_pq.push(PQItem{ng + heuristic(ni, nj, gi, gj), ng, counter++,
-                            nstate, v_step, cur.state, true});
+        if (g_arr_[nidx] == std::numeric_limits<double>::infinity())
+          dirty_.push_back(nidx);
+
+        g_arr_[nidx]      = ng;
+        parent_arr_[nidx] = cur.state_idx;
+        v_prev_arr_[nidx] = v_step;
+
+        open_pq.push(PQItem{ng + heuristic(ni, nj), ng, counter++, nidx});
       }
     }
   }
@@ -229,38 +242,30 @@ std::optional<GeometricPath> AStarPlanner::Plan(const Eigen::Vector2d &start_xy,
     return std::nullopt;
   }
 
-  return reconstructPath(closed, goal_state);
+  return reconstructPath(goal_idx);
 }
 
 // ── 경로 재구성 → GeometricPath ────────────────────────────────────────────
 
-GeometricPath AStarPlanner::reconstructPath(
-    const std::unordered_map<State, PQItem, StateHash, StateEq> &closed,
-    const State &goal_state)
+GeometricPath AStarPlanner::reconstructPath(int goal_idx)
 {
-  // goal → start 역추적
-  std::vector<State> states;
-  State cur = goal_state;
-  while (true)
-  {
-    states.push_back(cur);
-    auto it = closed.find(cur);
-    if (it == closed.end() || !it->second.has_parent) break;
-    cur = it->second.parent;
-  }
-  std::reverse(states.begin(), states.end());
+  std::vector<int> idx_chain;
+  for (int idx = goal_idx; idx != -1; idx = parent_arr_[idx])
+    idx_chain.push_back(idx);
+  std::reverse(idx_chain.begin(), idx_chain.end());
 
-  // State → Node (std::list 에 저장하여 포인터 안정성 확보)
   nodes_.clear();
-  for (size_t i = 0; i < states.size(); ++i)
+  for (std::size_t i = 0; i < idx_chain.size(); ++i)
   {
-    const auto &s = states[i];
-    const Eigen::Vector2d world = step_map_->worldFromCell(s.gx, s.gy);
+    int gx, gy, gt, h;
+    unpack(idx_chain[i], gx, gy, gt, h);
+    const Eigen::Vector2d world = step_map_->worldFromCell(gx, gy);
+
     // Goal node는 PRM 관례와 동일하게 k=Config::N으로 강제
     // CubicSpline3D::ConvertToTrajectory()는 path(1.)의 시간이 정확히 Config::N임을 전제함
-    const double k_time = (i == states.size() - 1)
+    const double k_time = (i == idx_chain.size() - 1)
         ? static_cast<double>(Config::N)
-        : static_cast<double>(s.gt);
+        : static_cast<double>(gt);
     const SpaceTimePoint pt(world.x(), world.y(), k_time);
 
     NodeType type;
@@ -270,7 +275,7 @@ GeometricPath AStarPlanner::reconstructPath(
       type = NodeType::GUARD;
       id   = -1;
     }
-    else if (i == states.size() - 1)
+    else if (i == idx_chain.size() - 1)
     {
       type = NodeType::GOAL;
       id   = -2;
@@ -283,7 +288,6 @@ GeometricPath AStarPlanner::reconstructPath(
     nodes_.emplace_back(id, pt, type);
   }
 
-  // Node 포인터 벡터 → GeometricPath (StraightConnection 자동 생성)
   std::vector<Node *> ptrs;
   ptrs.reserve(nodes_.size());
   for (auto &n : nodes_)

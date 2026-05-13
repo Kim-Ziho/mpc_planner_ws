@@ -95,5 +95,6 @@
     "workbench.colorCustomizations": {
         "terminal.findMatchHighlightBackground": "#ff79c680",
         "terminal.findMatchHighlightBorder": "#ff79c6"
-    }
+    },
+    "ROS2.distro": "humble"
 }

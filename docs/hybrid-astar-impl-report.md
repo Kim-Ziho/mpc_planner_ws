@@ -434,3 +434,162 @@ HybridAStarPlanner를 별도 스레드에서 실행하고 이전 프레임 결�
 | 4 | 노드 풀 도입 | 2~5× 추가 | 중간 |
 | 5 | 2D Dijkstra 전처리 휴리스틱 | 탐색 노드 수 10× 이상 감소 가능 | 중간 |
 | 6 | 비동기 스레드 구조 | 레이턴시 은폐 | 높음 |
+
+---
+
+## 7. 20 Hz 실시간성 개선 작업 (2026-05-13 적용)
+
+§6.4 권장 우선순위 1~5를 모두 적용했다. 비동기 스레드 구조(우선순위 6)는 미적용.
+
+### 7.1 변경 파일 목록
+
+| 파일 | 변경 종류 | 비고 |
+|------|-----------|------|
+| `include/guidance_planner/hybrid_astar_planner.h` | 전면 재작성 | 노드 풀·캐시 키·고정 배열·Dijkstra 휴리스틱 |
+| `src/guidance_planner/src/hybrid_astar_planner.cpp` | 전면 재작성 | 위 자료구조 + 시간 예산 조기 종료 |
+| `include/guidance_planner/config.h` | 1 필드 추가 | `hastar_time_budget_ms_` |
+| `src/guidance_planner/src/config.cpp` | 1 파라미터 + 기본값 5종 변경 | 신규 키 로드 + §6.3 단기 튜닝 |
+| `mpc_planner_rosnavigation/config/guidance_planner.yaml` | hybrid_astar 섹션 갱신 | 파라미터 축소 + `time_budget_ms` 노출 |
+
+`global_guidance.h/.cpp`, `CMakeLists.txt`는 인터페이스 변경 없으므로 추가 수정 없음.
+
+### 7.2 코드 개선 상세
+
+#### ① 시간 예산 조기 종료 (§6.3 중기 ①)
+
+```cpp
+const auto   t_start   = std::chrono::steady_clock::now();
+const double budget_ms = time_budget_ms_;  // YAML: 45.0
+
+while (!open_pq.empty())
+{
+  if ((++pop_count & 0xFF) == 0) {          // 256회 pop마다 검사
+    const double elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - t_start).count();
+    if (elapsed > budget_ms) { budget_exceeded = true; break; }
+  }
+  // ...
+}
+```
+
+`chrono` 호출 비용을 회피하기 위해 256회 pop마다만 검사한다. 초과 시 `best_terminal` fallback으로 항상 응답 반환.
+
+#### ② `checkSwept` — `std::set` → 고정 배열 (§6.3 중기 ②)
+
+`std::vector<Eigen::Vector2d>`를 `std::array<Eigen::Vector2d, kMaxSubsteps>`로 교체:
+
+```cpp
+static constexpr int kMaxSubsteps = 16;
+
+int integrate(double x, double y, double theta,
+              double v_cmd, double w_cmd,
+              std::array<Eigen::Vector2d, kMaxSubsteps> &pts_out) const;
+
+bool checkSwept(const std::array<Eigen::Vector2d, kMaxSubsteps> &pts,
+                int n_pts, int nk, double &occ_total) const
+{
+  std::array<std::pair<int,int>, kMaxSubsteps> visited;
+  int n_visited = 0;
+  // 중복 셀 확인: O(n_substeps) 선형 탐색 (n ≤ 16이므로 std::set보다 빠르고 캐시 친화적)
+}
+```
+
+힙 할당이 0회. `n_substeps ≤ 16` 가드는 `Init`에서 `std::min(config_->hastar_n_substeps_, kMaxSubsteps)`로 강제.
+
+#### ③ 노드 풀 (§6.3 중기 ③)
+
+`std::shared_ptr<SearchNode>` 체인을 인덱스 기반 풀로 교체:
+
+```cpp
+struct SearchNode {
+  double f, g;
+  double x, y, theta, v;
+  int    k;
+  int    parent_idx;   // -1 = no parent
+  int    counter;
+  ClosedKey key;       // makeKey 결과 캐시
+};
+
+std::vector<SearchNode> pool_;  // Init에서 reserve(64k)
+
+struct PQEntry { double f; int counter; int idx; };  // 포인터 대신 풀 인덱스
+```
+
+- `std::make_shared` 호출 0회 (사전 예약된 capacity 내에서)
+- 경로 재구성은 `parent_idx` 정수 링크 역추적
+- pool reallocation 위험: pushIfBetter는 부모 상태를 로컬 복사 후 push하여 무효화된 reference 사용을 회피
+
+#### ④ stale 체크 makeKey 제거 (§6.3 중기 ④)
+
+`SearchNode`에 `ClosedKey key` 캐시 → pop 시 makeKey 재계산 없음:
+
+```cpp
+const SearchNode &cur_ref = pool_[cur_idx];
+auto it = best_g.find(cur_ref.key);    // ← 캐시된 key 사용
+if (it != best_g.end() && cur_ref.g > it->second + 1e-9) continue;
+```
+
+#### ⑤ 2D Dijkstra 사전 휴리스틱 (§6.3 장기 ①)
+
+`Plan()` 진입 시 goal 셀에서 8-connected Dijkstra로 `t=0` 정적 슬라이스 거리 맵 계산:
+
+```cpp
+void buildHeuristicMap(double gx, double gy)
+{
+  heur_grid_.assign(CX * CY, +inf);
+  heur_grid_[goal_idx] = 0.0;
+  std::priority_queue<...> pq;
+  pq.emplace(0.0, goal_idx);
+
+  const double d_card = resolution, d_diag = resolution * sqrt(2);
+  while (!pq.empty()) {
+    // 8 방향 확장, t=0 슬라이스의 cellOccupied만 차단
+  }
+}
+
+double heuristic(double x, double y, ...) const {
+  // 셀 조회 → d / max_velocity, 도달 불가 셀은 유클리드 fallback
+}
+```
+
+- admissible 보장 (동적 장애물은 t=0 슬라이스에 없으므로 거리만 짧아질 수 있음 → 하한)
+- 장애물 우회 경로를 반영해 유클리드보다 훨씬 informed
+- 전처리 비용: 공간 셀 수에 비례, 약 1~3 ms (전체 예산 45 ms의 일부)
+
+### 7.3 파라미터 튜닝 (§6.3 단기)
+
+YAML(`mpc_planner_rosnavigation`)과 `config.cpp` 기본값을 동시 조정:
+
+| 파라미터 | 이전 | 적용 | 닫힘 집합 / 분기 효과 |
+|----------|------|------|----------------------|
+| `num_heading_bins` | 24 | 16 | 닫힘 집합 33% ↓ |
+| `speed_bins` | 4 | 2 | 닫힘 집합 50% ↓ |
+| `n_v_samples` | 3 | 2 | 분기 인수 21 → 14 |
+| `n_w_samples` | 7 | 5 | 분기 인수 14 → 10 |
+| `n_substeps` | 5 | 3 | `checkSwept` 비용 40% ↓ |
+| `time_budget_ms` | — (신규) | 45.0 | 20 Hz 보장용 예산 [ms] |
+
+### 7.4 자료구조 비교
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| 노드 저장 | `std::shared_ptr<SearchNode>` 체인 | `std::vector<SearchNode>` 풀 + `parent_idx` |
+| PQ 엔트리 | `shared_ptr<SearchNode>` | `{f, counter, idx}` (PoD 12B) |
+| stale 키 | pop마다 `makeKey` 재계산 | `SearchNode.key` 캐시 |
+| `integrate` 출력 | `std::vector<Vec2>` 매번 할당 | `std::array<Vec2, 16>` 스택 |
+| `checkSwept` 중복 셀 | `std::set<pair<int,int>>` | `std::array<pair, 16>` + 선형 탐색 |
+| 휴리스틱 | `hypot / v_max` | 2D Dijkstra 거리 맵 / `v_max` |
+| 종료 조건 | open이 빌 때까지 | 시간 예산 초과 시 fallback |
+
+### 7.5 검증
+
+- syntax-only 컴파일(`g++ -std=c++17 -fsyntax-only -DMPC_PLANNER_ROS`) — `hybrid_astar_planner.cpp`, `config.cpp` 모두 오류 없음.
+- `catkin build guidance_planner` — 본 작업과 무관한 환경 문제(`ros-noetic-costmap-2d` 미설치로 `mpc_planner_stepmap` cmake 실패)로 인해 실행 시 측정은 미완. 환경 복구 후 재측정 필요.
+
+### 7.6 후속 측정 항목
+
+- [ ] 동일 gym 시나리오 10회 재측정 → §6.1 표 대비 평균/최대 (ms) 비교
+- [ ] `time_budget_ms` 초과율 (fallback 발동 빈도)
+- [ ] 노드 풀 최대 사용량 — `kNodePoolReserve = 64k` 충분성 확인
+- [ ] 휴리스틱 정확도 영향: 도달 불가 셀에서 유클리드 fallback이 발생하는 비율
+- [ ] 파라미터 축소로 인한 경로 품질(연속성, 충돌 여유) 회귀 확인

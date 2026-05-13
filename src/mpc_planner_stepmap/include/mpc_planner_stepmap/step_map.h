@@ -45,6 +45,11 @@ namespace MPCPlannerStepMap
     bool cellOccupied(int gx, int gy, int gt) const;
     void setCostCell(int gx, int gy, int gt, double cost);
 
+    // Fast accessors for hot-path callers (e.g., A*). Caller must guarantee
+    // (gx, gy, gt) lie inside the grid; no bounds check is performed.
+    const double *occupancyData() const { return occupancy_.data(); }
+    double occupancyThreshold() const { return occupancy_threshold_; }
+
   private:
     void markStaticCell(int gx, int gy);
     void markDynamicCell(int gx, int gy, int gt);
