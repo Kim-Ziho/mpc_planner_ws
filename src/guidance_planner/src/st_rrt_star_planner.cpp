@@ -465,6 +465,12 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
     }
   }
 
+  const double sample_accept_rate =
+      max_iter_ > 0 ? static_cast<double>(nodes.size() - 1) / max_iter_ : 0.0;
+  LOG_INFO("STRRT: final nodes.size() = " << nodes.size()
+           << ", iterations = " << max_iter_
+           << ", sample_accept_rate = " << sample_accept_rate);
+
   if (best_idx < 0)
   {
     LOG_WARN("STRRTStarPlanner: No path found after " << max_iter_ << " iterations");
