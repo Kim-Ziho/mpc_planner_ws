@@ -7,6 +7,7 @@
 #include <guidance_planner/astar_planner.h>
 #include <guidance_planner/hybrid_astar_planner.h>
 #include <guidance_planner/st_rrt_star_planner.h>
+#include <guidance_planner/risk_aware_strrt_planner.h>
 
 #include <guidance_planner/types/types.h>
 
@@ -173,7 +174,12 @@ namespace GuidancePlanner
     AStarPlanner astar_planner_;
     HybridAStarPlanner hybrid_astar_planner_;
     STRRTStarPlanner strrt_planner_;
+    RiskAwareSTRRTPlanner ra_strrt_planner_;
     // LearningGuidance learning_guidance_; /** @note Learning disabled */
+
+    // Risk-Aware STRRT — cached reference for tube-based goal sampling
+    std::shared_ptr<RosTools::Spline2D> ra_reference_path_;
+    double ra_spline_start_{0.0};
 
     std::unique_ptr<Reconfigure> reconfigure_;
 

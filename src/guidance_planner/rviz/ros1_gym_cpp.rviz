@@ -210,6 +210,14 @@ Visualization Manager:
       Value: true
     - Class: rviz/MarkerArray
       Enabled: true
+      Marker Topic: /gym_cpp/guidance_planner/strrt_goal
+      Name: STRRT Goal
+      Namespaces:
+        "": true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
       Marker Topic: /gym_cpp/guidance_planner/graph
       Name: Graph
       Namespaces:

@@ -76,6 +76,7 @@ add_library(${PROJECT_NAME} SHARED
   src/astar_planner.cpp
   src/hybrid_astar_planner.cpp
   src/st_rrt_star_planner.cpp
+  src/risk_aware_strrt_planner.cpp
   src/prm.cpp
   src/sampler.cpp
   src/graph.cpp

@@ -7,9 +7,12 @@
 
 #include <Eigen/Dense>
 #include <list>
+#include <memory>
 #include <optional>
 #include <random>
 #include <vector>
+
+namespace RosTools { class Spline2D; }
 
 namespace GuidancePlanner
 {
@@ -26,7 +29,9 @@ public:
   std::optional<GeometricPath> Plan(const Eigen::Vector2d &start_xy,
                                     double start_theta,
                                     double start_speed,
-                                    const Eigen::Vector2d &goal_xy);
+                                    const Eigen::Vector2d &goal_xy,
+                                    const std::shared_ptr<RosTools::Spline2D> &reference_path = nullptr,
+                                    double spline_start = 0.0);
 
 private:
   struct RRTNode
@@ -53,9 +58,18 @@ private:
 
   bool edgeCollisionFree(const RRTNode &from, double v, double w, double dt) const;
 
-  std::optional<Sample> sampleState(double t_upper,
-                                    const Eigen::Vector2d &goal_xy,
-                                    double t_min_goal) const;
+  struct SampleContext
+  {
+    double t_upper;
+    Eigen::Vector2d goal_xy;
+    double t_min_goal;
+    double x_min, x_max, y_min, y_max;
+    std::shared_ptr<RosTools::Spline2D> reference_path;
+    double cur_s;
+    double max_s;
+  };
+
+  std::optional<Sample> sampleState(const SampleContext &ctx) const;
 
   double timeAwareDist(const RRTNode &a, double x, double y, double t) const;
 
@@ -79,6 +93,7 @@ private:
   double w_time_, w_ctrl_;
   double v_max_, w_max_;
   double check_dt_;
+  double path_lat_half_width_;
 
   mutable std::mt19937 rng_;
 };

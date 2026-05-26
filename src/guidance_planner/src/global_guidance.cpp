@@ -87,6 +87,7 @@ namespace GuidancePlanner
     astar_planner_.Init(config_.get());
     hybrid_astar_planner_.Init(config_.get());
     strrt_planner_.Init(config_.get());
+    ra_strrt_planner_.Init(config_.get());
 
     // learning_guidance_.Init(nh_);
 
@@ -106,6 +107,7 @@ namespace GuidancePlanner
     astar_planner_.SetStepMap(step_map_);
     hybrid_astar_planner_.SetStepMap(step_map_);
     strrt_planner_.SetStepMap(step_map_);
+    ra_strrt_planner_.SetStepMap(step_map_);
   }
 
   void GlobalGuidance::LoadObstacles(const std::vector<Obstacle> &obstacles, const std::vector<Halfspace> &static_obstacles)
@@ -165,6 +167,10 @@ namespace GuidancePlanner
 
     ROSTOOLS_ASSERT(!goals_set_, "Please set the goals via SetGoals or LoadReferencePath, but not both!"); // Goals should be set either by SetGoals or by LoadReferencePath, not both!
     goals_set_ = true;
+
+    // Cache for Risk-Aware ST-RRT* tube sampling
+    ra_reference_path_ = reference_path;
+    ra_spline_start_   = spline_start;
 
     orientation_ = reference_path->getPathAngle(spline_start);
 
@@ -389,13 +395,73 @@ namespace GuidancePlanner
             [](const Goal &a, const Goal &b) { return a.cost < b.cost; });
         const Eigen::Vector2d goal_xy = best_goal_it->pos;
 
+        // ── RViz: STRRT goal point + goal_radius circle ────────────────────────
+        {
+          auto &goal_visuals = VISUALS.getPublisher("guidance_planner/strrt_goal");
+
+          auto &sphere = goal_visuals.getNewPointMarker("SPHERE");
+          sphere.setScale(0.5, 0.5, 0.5);
+          sphere.setColor(1.0, 0.1, 0.1, 1.0);
+          sphere.addPointMarker(Eigen::Vector3d(goal_xy.x(), goal_xy.y(), 0.1));
+
+          auto &disc = goal_visuals.getNewPointMarker("CYLINDER");
+          const double r = config_->strrt_goal_radius_;
+          disc.setScale(2.0 * r, 2.0 * r, 0.02);
+          disc.setColor(1.0, 0.2, 0.2, 0.30);
+          disc.addPointMarker(Eigen::Vector3d(goal_xy.x(), goal_xy.y(), 0.01));
+
+          goal_visuals.publish();
+        }
+
         auto opt_path = strrt_planner_.Plan(start_, orientation_,
-                                             start_velocity_.norm(), goal_xy);
+                                             start_velocity_.norm(), goal_xy,
+                                             ra_reference_path_, ra_spline_start_);
         prm_benchmarker.stop();
 
         if (!opt_path.has_value())
         {
           PRM_LOG("ST-RRT* failed to find a path");
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+        paths_ = {opt_path.value()};
+      }
+      else if (config_->algorithm_ == "RiskAwareSTRRT")
+      {
+        PRM_LOG("======== Risk-Aware ST-RRT* ==========");
+        prm_benchmarker.start();
+
+        if (!step_map_ || !step_map_->valid())
+        {
+          LOG_WARN("RiskAwareSTRRT mode requires a valid StepMap");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          outputs_.clear();
+          previous_outputs_.clear();
+          selected_id_ = -1;
+          return false;
+        }
+        if (goals_.empty() && !ra_reference_path_)
+        {
+          LOG_WARN("RiskAwareSTRRT: no goals set and no reference path");
+          prm_benchmarker.stop();
+          guidance_benchmarker.stop();
+          return false;
+        }
+
+        auto opt_path = ra_strrt_planner_.Plan(start_, orientation_,
+                                                start_velocity_.norm(),
+                                                goals_,
+                                                ra_reference_path_,
+                                                ra_spline_start_);
+        prm_benchmarker.stop();
+
+        if (!opt_path.has_value())
+        {
+          PRM_LOG("Risk-Aware ST-RRT* failed to find a path");
           guidance_benchmarker.stop();
           outputs_.clear();
           previous_outputs_.clear();
@@ -462,7 +528,8 @@ namespace GuidancePlanner
       // ================================================================
       if (paths_.empty())
       {
-        if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar")
+        if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar" &&
+            config_->algorithm_ != "STRRT" && config_->algorithm_ != "RiskAwareSTRRT")
           processing_benchmarker.stop();
         guidance_benchmarker.stop();
         outputs_.clear();
@@ -482,7 +549,7 @@ namespace GuidancePlanner
           auto &path = paths_[i];
           splines_.emplace_back(path, config_.get(), start_velocity_);
           if (config_->optimize_splines_ && config_->algorithm_ != "HybridAStar" &&
-              config_->algorithm_ != "STRRT")
+              config_->algorithm_ != "STRRT" && config_->algorithm_ != "RiskAwareSTRRT")
             splines_.back().Optimize(obstacles_);
         }
       }
@@ -498,7 +565,7 @@ namespace GuidancePlanner
           outputs_.emplace_back(paths_[i], splines_[i]);
 
         if (config_->algorithm_ == "AStar" || config_->algorithm_ == "HybridAStar" ||
-            config_->algorithm_ == "STRRT")
+            config_->algorithm_ == "STRRT" || config_->algorithm_ == "RiskAwareSTRRT")
         {
           // 단일 경로: topology class 고정
           outputs_[0].topology_class    = 0;
@@ -550,7 +617,8 @@ namespace GuidancePlanner
         }
       }
 
-      if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar")
+      if (config_->algorithm_ != "AStar" && config_->algorithm_ != "HybridAStar" &&
+          config_->algorithm_ != "STRRT" && config_->algorithm_ != "RiskAwareSTRRT")
         processing_benchmarker.stop();
       guidance_benchmarker.stop();
       PRM_LOG("=========== Done ============");
@@ -808,6 +876,9 @@ namespace GuidancePlanner
     // Forget the graph
     prm_.Reset();
     astar_planner_.Reset();
+    ra_strrt_planner_.Reset();
+    ra_reference_path_.reset();
+    ra_spline_start_ = 0.0;
 
     for (auto &obstacle : obstacles_) // Ensure that the obstacles have long enough predictions
     {

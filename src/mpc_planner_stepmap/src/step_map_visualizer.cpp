@@ -76,8 +76,17 @@ namespace MPCPlannerStepMap
           if (!vis_mask[gt])
             continue;
           double cost = map.cellCost(gx, gy, gt);
-          if (cost <= 0.0)
+          // visualize_occupied_only: 충돌 판정과 동일하게 occupancy_threshold 이상만 표시
+          // (false일 때는 기존 동작 유지 — cost > 0 인 모든 셀 표시)
+          if (params_.visualize_occupied_only)
+          {
+            if (cost < params_.occupancy_threshold)
+              continue;
+          }
+          else if (cost <= 0.0)
+          {
             continue;
+          }
 
           Eigen::Vector2d world_point = map.worldFromCell(gx, gy);
 

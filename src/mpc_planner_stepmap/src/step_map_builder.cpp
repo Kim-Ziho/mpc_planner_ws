@@ -167,6 +167,7 @@ namespace MPCPlannerStepMap
     global_nh.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     global_nh.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     global_nh.param("vis_stages", params_.vis_stages, params_.vis_stages);
+    global_nh.param("visualize_occupied_only", params_.visualize_occupied_only, params_.visualize_occupied_only);
     global_nh.param<std::string>("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
     global_nh.param("inflate_include_obstacle_radius", params_.inflate_include_obstacle_radius, params_.inflate_include_obstacle_radius);
 
@@ -187,6 +188,7 @@ namespace MPCPlannerStepMap
     nh_.param("propagate_uncertainty", params_.propagate_uncertainty, params_.propagate_uncertainty);
     nh_.param("stage_z_offset", params_.stage_z_offset, params_.stage_z_offset);
     nh_.param("vis_stages", params_.vis_stages, params_.vis_stages);
+    nh_.param("visualize_occupied_only", params_.visualize_occupied_only, params_.visualize_occupied_only);
     nh_.param<std::string>("inflate_dynamic", params_.inflate_dynamic, params_.inflate_dynamic);
     nh_.param("inflate_include_obstacle_radius", params_.inflate_include_obstacle_radius, params_.inflate_include_obstacle_radius);
 

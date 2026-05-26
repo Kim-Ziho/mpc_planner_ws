@@ -38,6 +38,8 @@ namespace MPCPlannerStepMap
     double stage_z_offset{0.0};
     // 0 = 전체 시각화, N>0 → start/terminal 포함 N개 스테이지만 시각화
     int vis_stages{0};
+    // true이면 occupancy_threshold 이상으로 점유된 셀만 시각화 (충돌 판정과 동일 기준)
+    bool visualize_occupied_only{false};
     // "none" = inflation 없음, "box" = box filter,
     // "circle_max" = 원형 커널 직접 탐색 max, "circle_sum" = 원형 커널 prefix sum
     std::string inflate_dynamic{"none"};

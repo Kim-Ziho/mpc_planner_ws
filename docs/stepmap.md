@@ -177,7 +177,7 @@ ROS 파라미터 서버의 `/guidance_planner/step_map` (또는 상위 노드) �
 | `forward_offset_ratio` | 0.25 | 전방 오프셋 = cells_x × res × ratio |
 | `gaussian_samples` | 1000 | 장애물당 샘플 수 |
 | `gaussian_sample_value` | 0.2 | 샘플당 비용 기여값 |
-| `occupancy_threshold` | 0.4 | 점유 판정 임계값 (시각화와 무관, 충돌 판정에만 사용) |
+| `occupancy_threshold` | 0.4 | 점유 판정 임계값 (충돌 판정에 사용. `visualize_occupied_only=true`이면 시각화 필터에도 사용) |
 | `dynamic_method` | `"gaussian_independent"` | `"gaussian_independent"` 또는 `"gaussian_trajectory"` |
 | `propagate_uncertainty` | false | Gaussian 불확실성 누적 전파 여부 |
 | `z_scale` | 0.5 | 시각화 큐브 Z 높이 (m/layer) |
@@ -185,6 +185,7 @@ ROS 파라미터 서버의 `/guidance_planner/step_map` (또는 상위 노드) �
 | `color_gamma` | 0.5 | 시각화 색상 gamma 보정 (1.0 = 선형, <1이면 낮은 cost 차이 강조) |
 | `stage_z_offset` | 0.0 | 시각화 스테이지 간 Z 추가 오프셋 |
 | `vis_stages` | 0 | 시각화할 시간층 수. 0 = 전체, N>0 → start/terminal 포함 N개 스테이지만 시각화 |
+| `visualize_occupied_only` | false | true → `occupancy_threshold` 이상으로 점유된 셀만 시각화 (false → cost>0 인 모든 셀) |
 | `topic` | `"guidance_planner/step_map"` | 시각화 발행 토픽 |
 | `frame_id` | `"map"` | TF 프레임 |
 
@@ -220,7 +221,7 @@ hue          = (1.0 - display_cost) * 120°
 - `color_gamma: 1.0` → 기존 선형 동작과 동일 (regression 없음)
 - 값이 작을수록 낮은 cost 간 색 차이가 커짐 (권장 범위: 0.3~0.7)
   - 색상 계산은 O(1) — HSV→RGB 수식 직접 계산, 분기 최대 1회
-- `cost <= 0.0`인 셀은 발행하지 않음 (occupancy_threshold 기반 필터링은 없음)
+- `cost <= 0.0`인 셀은 발행하지 않음. `visualize_occupied_only=true`이면 `cost >= occupancy_threshold`인 셀만 발행
 - Z 좌표: `time_scale * gt + stage_z_offset * gt` → 시간층을 Z축에 표현
 - 구독자 없으면 조기 반환 (최적화)
 

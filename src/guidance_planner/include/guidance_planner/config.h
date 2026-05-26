@@ -126,6 +126,24 @@ namespace GuidancePlanner
     double strrt_w_time_;
     double strrt_w_ctrl_;
     double strrt_check_dt_;
+    double strrt_path_lat_half_width_;
+
+    // Risk-Aware ST-RRT* planner parameters
+    int    ra_strrt_max_iter_;
+    int    ra_strrt_k_rrtstar_;
+    int    ra_strrt_max_step_cells_;
+    int    ra_strrt_initial_goal_count_;
+    int    ra_strrt_max_goal_count_;
+    int    ra_strrt_max_nodes_;
+    int    ra_strrt_cold_start_min_remaining_nodes_;
+    double ra_strrt_v_max_, ra_strrt_v_preferred_, ra_strrt_w_max_;
+    double ra_strrt_tau_hard_, ra_strrt_tau_soft_;
+    double ra_strrt_w_time_, ra_strrt_w_risk_, ra_strrt_w_progress_, ra_strrt_w_curvature_;
+    double ra_strrt_w_goal_progress_, ra_strrt_lambda_nn_;
+    double ra_strrt_tube_width_, ra_strrt_s_min_offset_;
+    double ra_strrt_t_min_, ra_strrt_t_max_;
+    double ra_strrt_time_budget_ms_;
+    bool   ra_strrt_enable_warm_start_;
   };
 }
 

@@ -3,6 +3,7 @@
 #include <guidance_planner/types/space_time_point.h>
 
 #include <ros_tools/logging.h>
+#include <ros_tools/spline.h>
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +27,7 @@ void STRRTStarPlanner::Init(Config *config)
   check_dt_     = config->strrt_check_dt_;
   v_max_        = config->max_velocity_;
   w_max_        = config->hastar_w_max_;
+  path_lat_half_width_ = config->strrt_path_lat_half_width_;
 
   rng_.seed(static_cast<uint32_t>(config->seed_ >= 0 ? config->seed_ : std::random_device{}()));
 }
@@ -128,65 +130,63 @@ bool STRRTStarPlanner::edgeCollisionFree(const RRTNode &from,
 // ── 샘플링 ────────────────────────────────────────────────────────────────────
 
 std::optional<STRRTStarPlanner::Sample>
-STRRTStarPlanner::sampleState(double t_upper,
-                               const Eigen::Vector2d &goal_xy,
-                               double t_min_goal) const
+STRRTStarPlanner::sampleState(const SampleContext &ctx) const
 {
   std::uniform_real_distribution<double> uni01(0.0, 1.0);
 
+  // ── (1) goal-bias 모드: goal 근방, 단 AABB 안으로 clamp ────────────────────
   if (uni01(rng_) < goal_bias_)
   {
-    if (t_min_goal >= t_upper)
+    if (ctx.t_min_goal >= ctx.t_upper)
       return std::nullopt;
-    std::uniform_real_distribution<double> gt_dist(t_min_goal, t_upper);
+    std::uniform_real_distribution<double> gt_dist(ctx.t_min_goal, ctx.t_upper);
     std::uniform_real_distribution<double> xy_dist(-0.3, 0.3);
-    return Sample{goal_xy.x() + xy_dist(rng_),
-                  goal_xy.y() + xy_dist(rng_),
-                  gt_dist(rng_)};
+    double x = std::min(ctx.x_max, std::max(ctx.x_min, ctx.goal_xy.x() + xy_dist(rng_)));
+    double y = std::min(ctx.y_max, std::max(ctx.y_min, ctx.goal_xy.y() + xy_dist(rng_)));
+    return Sample{x, y, gt_dist(rng_)};
   }
 
-  // StepMap 월드 범위 계산
-  double hx = step_map_ ? step_map_->halfLength() : 5.0;
-  double hy = step_map_ ? step_map_->halfWidth()  : 5.0;
-  Eigen::Vector2d cx = step_map_ ? step_map_->worldFromCell(step_map_->cellsX() / 2, 0) :
-                                    Eigen::Vector2d::Zero();
-  // worldFromCell은 로컬 좌표이므로 — 샘플링은 StepMap 커버 영역 전체에서 수행
-  // 실제로는 StepMap center를 기준으로 ±half_length/width 범위 사용
-  // StepMap이 없으면 넓은 범위 사용
-  double x_min, x_max, y_min, y_max;
-  if (step_map_ && step_map_->valid())
+  // ── (2) reference path 가 없으면 AABB 전체 균일 샘플 (기존 동작) ───────────
+  if (!ctx.reference_path || ctx.max_s <= ctx.cur_s)
   {
-    Eigen::Vector2d corner00 = step_map_->worldFromCell(0, 0);
-    Eigen::Vector2d cornerNN = step_map_->worldFromCell(step_map_->cellsX() - 1,
-                                                         step_map_->cellsY() - 1);
-    x_min = std::min(corner00.x(), cornerNN.x());
-    x_max = std::max(corner00.x(), cornerNN.x());
-    y_min = std::min(corner00.y(), cornerNN.y());
-    y_max = std::max(corner00.y(), cornerNN.y());
-  }
-  else
-  {
-    x_min = -20.0; x_max = 20.0;
-    y_min = -20.0; y_max = 20.0;
-  }
-
-  std::uniform_real_distribution<double> xd(x_min, x_max);
-  std::uniform_real_distribution<double> yd(y_min, y_max);
-
-  // 시작점은 항상 (0,0) 기준이 아니라 from.t=0인 노드 — start는 Plan() 진입 시 nodes[0]
-  // t_lower 계산은 Plan() 에서 start_xy 를 캡처하지 않으므로 단순 최소값만 사용
-  for (int retry = 0; retry < 10; ++retry)
-  {
-    double x = xd(rng_);
-    double y = yd(rng_);
-    // t_lower: 속도 v_max로 스타트에서 도달 가능한 최소 시간은 Plan()에서 계산해야 하지만
-    // sampleState는 start를 모름 → steer_dt_min 을 최소값으로 사용
+    std::uniform_real_distribution<double> xd(ctx.x_min, ctx.x_max);
+    std::uniform_real_distribution<double> yd(ctx.y_min, ctx.y_max);
     double t_lower = steer_dt_min_;
-    if (t_lower < t_upper)
-    {
-      std::uniform_real_distribution<double> td(t_lower, t_upper);
-      return Sample{x, y, td(rng_)};
-    }
+    if (t_lower >= ctx.t_upper)
+      return std::nullopt;
+    std::uniform_real_distribution<double> td(t_lower, ctx.t_upper);
+    return Sample{xd(rng_), yd(rng_), td(rng_)};
+  }
+
+  // ── (3) AABB ∩ along-reference-path 샘플 ────────────────────────────────
+  //   s ∈ [cur_s, max_s], lat ∈ [-W, W], position = ref(s) + lat·n(s)
+  //   AABB 밖이면 reject 후 재시도. t_lower = (s - cur_s) / v_max
+  std::uniform_real_distribution<double> sd(ctx.cur_s, ctx.max_s);
+  std::uniform_real_distribution<double> ld(-path_lat_half_width_, path_lat_half_width_);
+
+  for (int retry = 0; retry < 16; ++retry)
+  {
+    const double s = sd(rng_);
+    const double lat = ld(rng_);
+
+    Eigen::Vector2d p = ctx.reference_path->getPoint(s);
+    Eigen::Vector2d n = ctx.reference_path->getOrthogonal(s);
+    Eigen::Vector2d xy = p + lat * n;
+
+    if (xy.x() < ctx.x_min || xy.x() > ctx.x_max ||
+        xy.y() < ctx.y_min || xy.y() > ctx.y_max)
+      continue;  // AABB 밖 — 교집합 조건 위반
+
+    // 도달 가능 최소 시각: start → 해당 s 까지 ref 곡선거리(≈ s - cur_s) / v_max
+    // 횡방향 오프셋의 추가 거리는 무시(작은 lat 가정). 보수적으로 약간의 여유는
+    // steer_dt_min_ 로 보장.
+    const double s_offset = s - ctx.cur_s;
+    const double t_lower  = std::max(steer_dt_min_, s_offset / std::max(1e-3, v_max_));
+    if (t_lower >= ctx.t_upper)
+      continue;
+
+    std::uniform_real_distribution<double> td(t_lower, ctx.t_upper);
+    return Sample{xy.x(), xy.y(), td(rng_)};
   }
   return std::nullopt;
 }
@@ -271,7 +271,9 @@ std::optional<GeometricPath>
 STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
                         double start_theta,
                         double start_speed,
-                        const Eigen::Vector2d &goal_xy)
+                        const Eigen::Vector2d &goal_xy,
+                        const std::shared_ptr<RosTools::Spline2D> &reference_path,
+                        double spline_start)
 {
   if (!step_map_ || !step_map_->valid())
   {
@@ -283,6 +285,34 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
   const double d_sg      = std::hypot(goal_xy.x() - start_xy.x(),
                                       goal_xy.y() - start_xy.y());
   const double t_min_goal = d_sg / v_max_;
+
+  // ── StepMap AABB 미리 계산 (sample 마다 재계산 방지) ──────────────────────
+  SampleContext ctx;
+  ctx.goal_xy    = goal_xy;
+  ctx.t_min_goal = t_min_goal;
+  {
+    Eigen::Vector2d c00 = step_map_->worldFromCell(0, 0);
+    Eigen::Vector2d cNN = step_map_->worldFromCell(step_map_->cellsX() - 1,
+                                                    step_map_->cellsY() - 1);
+    ctx.x_min = std::min(c00.x(), cNN.x());
+    ctx.x_max = std::max(c00.x(), cNN.x());
+    ctx.y_min = std::min(c00.y(), cNN.y());
+    ctx.y_max = std::max(c00.y(), cNN.y());
+  }
+
+  // ── reference path 기반 s 범위 산정 ───────────────────────────────────────
+  ctx.reference_path = reference_path;
+  ctx.cur_s = spline_start;
+  if (reference_path)
+  {
+    const double s_reach = spline_start + v_max_ * t_horizon;
+    const double s_lim   = reference_path->parameterLength();
+    ctx.max_s = std::min(s_reach, s_lim);
+  }
+  else
+  {
+    ctx.max_s = spline_start;  // disables path-band branch in sampleState
+  }
 
   if (t_min_goal >= t_horizon)
   {
@@ -314,7 +344,8 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
   for (int iter = 0; iter < max_iter_; ++iter)
   {
     // 1) 샘플
-    auto smp = sampleState(t_upper, goal_xy, t_min_goal);
+    ctx.t_upper = t_upper;
+    auto smp = sampleState(ctx);
     if (!smp)
       continue;
 

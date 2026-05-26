@@ -128,5 +128,38 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/st_rrt/w_time",          strrt_w_time_,          1.0);
     retrieveParameter(node, "guidance_planner/st_rrt/w_ctrl",          strrt_w_ctrl_,          0.05);
     retrieveParameter(node, "guidance_planner/st_rrt/check_dt",        strrt_check_dt_,        0.05);
+    retrieveParameter(node, "guidance_planner/st_rrt/path_lat_half_width", strrt_path_lat_half_width_, 3.0);
+
+    // Risk-Aware ST-RRT*
+    retrieveParameter(node, "guidance_planner/ra_strrt/max_iter",            ra_strrt_max_iter_,            2000);
+    retrieveParameter(node, "guidance_planner/ra_strrt/k_rrtstar",           ra_strrt_k_rrtstar_,           10);
+    retrieveParameter(node, "guidance_planner/ra_strrt/max_step_cells",      ra_strrt_max_step_cells_,      3);
+    retrieveParameter(node, "guidance_planner/ra_strrt/initial_goal_count",  ra_strrt_initial_goal_count_,  10);
+    retrieveParameter(node, "guidance_planner/ra_strrt/max_goal_count",      ra_strrt_max_goal_count_,      50);
+    retrieveParameter(node, "guidance_planner/ra_strrt/max_nodes",           ra_strrt_max_nodes_,           4000);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cold_start_min_remaining_nodes",
+                                                                              ra_strrt_cold_start_min_remaining_nodes_, 50);
+
+    retrieveParameter(node, "guidance_planner/ra_strrt/v_max",               ra_strrt_v_max_,               3.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/v_preferred",         ra_strrt_v_preferred_,         2.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/w_max",               ra_strrt_w_max_,               2.0);
+
+    retrieveParameter(node, "guidance_planner/ra_strrt/risk/tau_hard",       ra_strrt_tau_hard_,            0.7);
+    retrieveParameter(node, "guidance_planner/ra_strrt/risk/tau_soft",       ra_strrt_tau_soft_,            0.2);
+
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/w_time",         ra_strrt_w_time_,              1.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/w_risk",         ra_strrt_w_risk_,              2.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/w_progress",     ra_strrt_w_progress_,          0.5);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/w_curvature",    ra_strrt_w_curvature_,         0.3);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/w_goal_progress",ra_strrt_w_goal_progress_,     1.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/cost/lambda_nn",      ra_strrt_lambda_nn_,           0.5);
+
+    retrieveParameter(node, "guidance_planner/ra_strrt/goal/tube_width",     ra_strrt_tube_width_,          1.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/goal/s_min_offset",   ra_strrt_s_min_offset_,        0.5);
+    retrieveParameter(node, "guidance_planner/ra_strrt/goal/t_min",          ra_strrt_t_min_,               1.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/goal/t_max",          ra_strrt_t_max_,               4.0);
+
+    retrieveParameter(node, "guidance_planner/ra_strrt/time_budget_ms",      ra_strrt_time_budget_ms_,      90.0);
+    retrieveParameter(node, "guidance_planner/ra_strrt/enable_warm_start",   ra_strrt_enable_warm_start_,   true);
   }
 }
