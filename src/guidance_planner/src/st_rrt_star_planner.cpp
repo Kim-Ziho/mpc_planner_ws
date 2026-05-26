@@ -1,4 +1,5 @@
 #include <guidance_planner/st_rrt_star_planner.h>
+#include <guidance_planner/space_time_kdtree.h>
 #include <guidance_planner/types/connection.h>
 #include <guidance_planner/types/space_time_point.h>
 
@@ -336,6 +337,12 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
   root.parent = -1;
   nodes.push_back(root);
 
+  // ── k-d 트리: nearest / radius 질의 가속 (nodes 와 동기화 유지) ────────────
+  SpaceTimeKDTree kd(v_max_);
+  kd.reserve(static_cast<size_t>(max_iter_) + 1);
+  kd.insert(root.x, root.y, root.t, 0);
+  std::vector<int> nbr;  // radius 질의 결과 재사용 버퍼
+
   int    best_idx  = -1;
   double best_cost = std::numeric_limits<double>::infinity();
   double t_upper   = t_horizon;
@@ -349,18 +356,9 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
     if (!smp)
       continue;
 
-    // 2) nearest
-    int i_near = -1;
+    // 2) nearest (k-d 트리, time-aware 메트릭)
     double best_d = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
-    {
-      double d = timeAwareDist(nodes[i], smp->x, smp->y, smp->t);
-      if (d < best_d)
-      {
-        best_d = d;
-        i_near = i;
-      }
-    }
+    int i_near = kd.nearestTimeAware(smp->x, smp->y, smp->t, &best_d);
     if (i_near < 0 || std::isinf(best_d))
       continue;
 
@@ -381,7 +379,8 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
     double best_par_cost = nodes[i_near].cost + ec_near;
     double bv = st->v, bw = st->w;
 
-    for (int j = 0; j < static_cast<int>(nodes.size()); ++j)
+    kd.radiusXY(st->x, st->y, neighbor_radius_, nbr);
+    for (int j : nbr)
     {
       const RRTNode &nj = nodes[j];
       if (nj.t >= st->t) continue;
@@ -420,10 +419,13 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
 
     int i_new = static_cast<int>(nodes.size()) - 1;
     nodes[best_par].children.push_back(i_new);
+    kd.insert(new_node.x, new_node.y, new_node.t, i_new);
 
     // 7) rewire: 미래 노드 중 비용 개선 가능한 것
-    for (int j = 0; j < i_new; ++j)
+    kd.radiusXY(new_node.x, new_node.y, neighbor_radius_, nbr);
+    for (int j : nbr)
     {
+      if (j == i_new) continue;  // 자기 자신 제외
       RRTNode &nj = nodes[j];
       if (nj.t <= new_node.t) continue;
 
@@ -475,6 +477,12 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
            << ", sample_accept_rate = " << sample_accept_rate
            << ", avg_accept_rate = " << avg_accept_rate
            << " (over " << plan_call_count_ << " plans)");
+
+  if (best_idx < 0)
+    ++plan_fail_count_;
+  const double fail_rate = static_cast<double>(plan_fail_count_) / plan_call_count_;
+  LOG_INFO("STRRT: plan failures = " << plan_fail_count_ << "/" << plan_call_count_
+           << " (fail_rate = " << fail_rate << ")");
 
   if (best_idx < 0)
   {

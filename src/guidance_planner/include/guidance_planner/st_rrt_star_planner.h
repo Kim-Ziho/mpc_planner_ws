@@ -98,6 +98,7 @@ private:
   // sample_accept_rate 누적 통계 (Plan() 호출마다 갱신)
   double accept_rate_sum_{0.0};
   int    plan_call_count_{0};
+  int    plan_fail_count_{0};  // best_idx < 0 (No path found) 누적 횟수
 
   mutable std::mt19937 rng_;
 };

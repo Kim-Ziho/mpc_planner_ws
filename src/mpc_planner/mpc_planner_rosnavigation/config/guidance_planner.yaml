@@ -26,7 +26,7 @@ guidance_planner:
     w_yaw_rate: 0.1
 
   st_rrt:
-    max_iter:        3000    # 반복 횟수 (20Hz → 50ms 예산)
+    max_iter:        1000    # 반복 횟수 (20Hz → 50ms 예산)
     steer_dt_min:    0.2     # edge 최소 시간 [s]
     steer_dt_max:    1.5     # edge 최대 시간 [s]
     neighbor_radius: 2.0     # choose-parent / rewire 반경 [m]
