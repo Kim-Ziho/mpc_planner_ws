@@ -467,9 +467,14 @@ STRRTStarPlanner::Plan(const Eigen::Vector2d &start_xy,
 
   const double sample_accept_rate =
       max_iter_ > 0 ? static_cast<double>(nodes.size() - 1) / max_iter_ : 0.0;
+  accept_rate_sum_ += sample_accept_rate;
+  ++plan_call_count_;
+  const double avg_accept_rate = accept_rate_sum_ / plan_call_count_;
   LOG_INFO("STRRT: final nodes.size() = " << nodes.size()
            << ", iterations = " << max_iter_
-           << ", sample_accept_rate = " << sample_accept_rate);
+           << ", sample_accept_rate = " << sample_accept_rate
+           << ", avg_accept_rate = " << avg_accept_rate
+           << " (over " << plan_call_count_ << " plans)");
 
   if (best_idx < 0)
   {
