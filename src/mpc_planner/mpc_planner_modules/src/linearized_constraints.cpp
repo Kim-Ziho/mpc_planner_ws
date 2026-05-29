@@ -40,10 +40,11 @@ namespace MPCPlanner
     LOG_INITIALIZED();
   }
 
-  void LinearizedConstraints::setTopologyConstraints()
+  void LinearizedConstraints::setTopologyConstraints(bool use_full_radius)
   {
     _n_discs = 1; // Only one disc is used for the topology constraints
     _use_guidance = true;
+    _topology_full_radius = use_full_radius;
   }
 
   void LinearizedConstraints::update(State &state, const RealTimeData &data, ModuleData &module_data)
@@ -97,7 +98,9 @@ namespace MPCPlanner
           _a2[d][k](obs_id) = diff_y / dist;
 
           // Compute b (evaluate point on the collision circle)
-          double radius = _use_guidance ? 1e-3 : copied_obstacle.radius;
+          // In topology mode T-MPC uses ~0 radius (Ellipsoid does the avoidance); G-MPCC uses the
+          // real radius because this tube is the only collision-avoidance constraint.
+          double radius = (_use_guidance && !_topology_full_radius) ? 1e-3 : copied_obstacle.radius;
 
           _b[d][k](obs_id) = _a1[d][k](obs_id) * obstacle_pos(0) +
                              _a2[d][k](obs_id) * obstacle_pos(1) -
@@ -137,7 +140,7 @@ namespace MPCPlanner
     {
       for (auto &obstacle : copied_obstacles)
       {
-        double radius = _use_guidance ? 1e-3 : obstacle.radius;
+        double radius = (_use_guidance && !_topology_full_radius) ? 1e-3 : obstacle.radius;
 
         dr_projection_.douglasRachfordProjection(pos, obstacle.prediction.modes[0][k - 1].position,
                                                  copied_obstacles[0].prediction.modes[0][k - 1].position,

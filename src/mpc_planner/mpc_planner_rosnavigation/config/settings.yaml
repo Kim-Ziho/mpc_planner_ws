@@ -60,7 +60,7 @@ contouring:
   dynamic_velocity_reference: false
   num_segments: 8
   preview: 0.0
-  add_road_constraints: true
+  add_road_constraints: false # G-MPCC: reference is the guidance spline, which has no aligned road bounds
 
 t-mpc:
   use_t-mpc++: true

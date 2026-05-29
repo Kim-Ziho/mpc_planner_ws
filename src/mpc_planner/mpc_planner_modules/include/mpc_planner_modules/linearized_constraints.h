@@ -20,7 +20,14 @@ namespace MPCPlanner
 
     void visualize(const RealTimeData &data, const ModuleData &module_data) override;
 
-    void setTopologyConstraints();
+    /**
+     * @brief Switch to topology-constraint mode (single disc, linearize around the solver
+     * ego-prediction / guidance trajectory).
+     * @param use_full_radius If true, use the real obstacle radius (G-MPCC, where this tube is the
+     * only collision-avoidance constraint). If false (default), use ~0 radius (T-MPC, where a
+     * separate Ellipsoid constraint handles avoidance and the tube only enforces the side).
+     */
+    void setTopologyConstraints(bool use_full_radius = false);
 
   private:
     std::vector<std::vector<Eigen::ArrayXd>> _a1, _a2, _b; // Constraints [disc x step]
@@ -28,6 +35,7 @@ namespace MPCPlanner
     double _dummy_a1{1.}, _dummy_a2{0.}, _dummy_b;
 
     bool _use_guidance{false};
+    bool _topology_full_radius{false};
     int _n_discs;
     int _n_other_halfspaces;
 

@@ -24,6 +24,7 @@ from ellipsoid_constraints import EllipsoidConstraintModule
 from gaussian_constraints import GaussianConstraintModule
 from decomp_constraints import DecompConstraintModule
 from guidance_constraints import GuidanceConstraintModule
+from guidance_reference import GuidanceReferenceModule
 from linearized_constraints import LinearizedConstraintModule
 from scenario_constraints import ScenarioConstraintModule
 
@@ -114,6 +115,34 @@ def configuration_tmpc(settings):
     return model, modules
 
 
+def configuration_gmpcc(settings):
+    # Guidance-MPCC: a single best guidance trajectory is selected before solving and used as the
+    # MPCC reference, while a single linearized "tube" keeps the MPC in its homotopy class and
+    # avoids the dynamic obstacles. Single solver (no parallel T-MPC++ optimization).
+    modules = ModuleManager()
+    model = ContouringSecondOrderUnicycleModelWithSlack()
+
+    base_module = modules.add_module(MPCBaseModule(settings))
+    base_module.weigh_variable(var_name="a", weight_names="acceleration")
+    base_module.weigh_variable(var_name="w", weight_names="angular_velocity")
+    base_module.weigh_variable(var_name="slack", weight_names="slack")
+    if not settings["contouring"]["dynamic_velocity_reference"]:
+        base_module.weigh_variable(var_name="v",
+                                   weight_names=["velocity", "reference_velocity"],
+                                   cost_function=lambda x, w: w[0] * (x - w[1]) ** 2)
+
+    # NOTE: GuidanceReference MUST be added before ContouringModule. It injects module_data.path
+    # (the best guidance spline) which Contouring then adopts as its reference path.
+    modules.add_module(GuidanceReferenceModule(settings))
+    modules.add_module(ContouringModule(settings))
+    if settings["contouring"]["dynamic_velocity_reference"]:
+        modules.add_module(PathReferenceVelocityModule(settings))
+
+    modules.add_module(DecompConstraintModule(settings))
+
+    return model, modules
+
+
 def configuration_lmpcc(settings):
     modules = ModuleManager()
     model = ContouringSecondOrderUnicycleModel()
@@ -136,6 +165,7 @@ settings = load_settings()
 
 # model, modules = configuration_safe_horizon(settings)
 # model, modules = configuration_lmpcc(settings)
-model, modules = configuration_tmpc(settings)
+# model, modules = configuration_tmpc(settings)
+model, modules = configuration_gmpcc(settings)
 
 generate_solver(modules, model, settings)

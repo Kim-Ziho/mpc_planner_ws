@@ -134,6 +134,12 @@ Each `mpc_planner_<system>` ROS node follows the same pattern:
 
 Configuration is accessed globally via the `CONFIG["key"]` macro (singleton `Configuration` loading settings.yaml via `SYSTEM_CONFIG_PATH(__FILE__, "settings")`).
 
+### Guidance Constraints (T-MPC++ Parallel Optimizer)
+`GuidanceConstraints` is the controller module that drives T-MPC++: it owns N+1 `LocalPlanner` instances (each with its own `Solver`, `LinearizedConstraints` for topology lock-in, and `EllipsoidConstraints` for obstacle avoidance), runs them in parallel via OpenMP inside its custom `optimize()` loop, and writes the best feasible solution back to the main solver.
+
+For per-planner architecture, the warm-start branches (existing-class shift vs. guidance-spline sampling), the `mapGuidanceTrajectoriesToPlanners()` consistency strategy, and the `FindBestPlanner` decision logic, see:
+**[`docs/guidance-constraints-module.md`](docs/guidance-constraints-module.md)**
+
 ### StepMap (mpc_planner_stepmap)
 `StepMapBuilder::update()` takes a `Costmap2D` + dynamic obstacle predictions and produces a `StepMap` — a 3D (x, y, t) occupancy grid used by `guidance_planner` as a collision model for PRM sampling.
 

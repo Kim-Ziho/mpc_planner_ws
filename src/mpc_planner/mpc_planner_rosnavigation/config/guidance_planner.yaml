@@ -1,5 +1,5 @@
 guidance_planner:
-  algorithm: STRRT  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
+  algorithm: PRM  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
 
   astar:
     num_headings: 16    # 헤딩 이산화 bin 수 (22.5°/bin)

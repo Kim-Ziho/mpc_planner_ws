@@ -32,6 +32,21 @@ namespace MPCPlanner
 
     LOG_DEBUG("contouring::update()");
 
+    // G-MPCC: if an upstream module (e.g. GuidanceReference) injected a reference path, adopt it as
+    // our contouring spline. Backward compatible: in other configurations module_data.path is null
+    // here (reset every tick), so we keep using our own reference path.
+    if (module_data.path != nullptr && module_data.path != _spline)
+    {
+      _spline = module_data.path;
+      _closest_segment = 0; // the injected path changes every tick; reset the segment search hint
+    }
+
+    if (_spline == nullptr)
+    {
+      LOG_MARK("Contouring has no reference path yet");
+      return;
+    }
+
     // Update the closest point
     double closest_s;
     _spline->findClosestPoint(state.getPos(), _closest_segment, closest_s);
@@ -100,6 +115,11 @@ namespace MPCPlanner
     for (int i = 0; i < _n_segments; i++)
     {
       int index = _closest_segment + i;
+
+      // Clamp to the last segment so we never index past the spline. This matters for G-MPCC where
+      // the injected guidance path can be shorter than _n_segments; we then hold the final segment.
+      if (index >= _spline->numSegments())
+        index = _spline->numSegments() - 1;
 
       _spline->getParameters(index,
                              ax, bx, cx, dx,
