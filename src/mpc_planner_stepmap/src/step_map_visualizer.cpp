@@ -95,20 +95,30 @@ namespace MPCPlannerStepMap
           marker_point.y = world_point.y();
           marker_point.z = map.layerHeight(gt) + static_cast<double>(gt) * params_.stage_z_offset;
 
-          // gamma correction: 낮은 cost 값들을 더 넓은 색 범위에 펼쳐서 구별 용이하게 함
-          // gamma < 1이면 낮은 값 → 노랑/주황으로 이동, 1.0이면 기존 선형 매핑
           std_msgs::ColorRGBA color;
-          double display_cost = std::pow(std::clamp(cost, 0.0, 1.0), params_.color_gamma);
-          double hue = (1.0 - display_cost) * 120.0;
-          double f = hue / 60.0;
-          if (hue < 60.0) { // red → yellow
-            color.r = 1.0f;
-            color.g = static_cast<float>(f);
-            color.b = 0.0f;
-          } else { // yellow → green
-            color.r = static_cast<float>(2.0 - f);
-            color.g = 1.0f;
-            color.b = 0.0f;
+          if (cost >= params_.occupancy_threshold)
+          {
+            // occupancy_threshold 이상으로 점유된 셀 → 진한 보라색으로 강조
+            color.r = 0.29f;
+            color.g = 0.0f;
+            color.b = 0.51f;
+          }
+          else
+          {
+            // gamma correction: 낮은 cost 값들을 더 넓은 색 범위에 펼쳐서 구별 용이하게 함
+            // gamma < 1이면 낮은 값 → 노랑/주황으로 이동, 1.0이면 기존 선형 매핑
+            double display_cost = std::pow(std::clamp(cost, 0.0, 1.0), params_.color_gamma);
+            double hue = (1.0 - display_cost) * 120.0;
+            double f = hue / 60.0;
+            if (hue < 60.0) { // red → yellow
+              color.r = 1.0f;
+              color.g = static_cast<float>(f);
+              color.b = 0.0f;
+            } else { // yellow → green
+              color.r = static_cast<float>(2.0 - f);
+              color.g = 1.0f;
+              color.b = 0.0f;
+            }
           }
           color.a = params_.max_alpha;
 

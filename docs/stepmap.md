@@ -197,6 +197,7 @@ ROS 파라미터 서버의 `/guidance_planner/step_map` (또는 상위 노드) �
 - 크기: `x, y = resolution`, `z = z_scale`
 - 색상: HSV 그라디언트 (`hue = (1 - display_cost) * 120°`) → cost 1.0 = 빨간색, 0.5 = 노란색, 0.0 = 초록색
   - `display_cost = pow(cost, color_gamma)` — gamma correction 적용 후 hue 계산
+  - **단, `cost >= occupancy_threshold`인 점유 셀은 진한 보라색(RGB 0.29, 0.0, 0.51)으로 강조** (그라디언트 미적용)
   - 알파: `max_alpha` 고정 (cost와 무관)
 
 ### color_gamma — 색상 Gamma 보정
@@ -222,6 +223,7 @@ hue          = (1.0 - display_cost) * 120°
 - 값이 작을수록 낮은 cost 간 색 차이가 커짐 (권장 범위: 0.3~0.7)
   - 색상 계산은 O(1) — HSV→RGB 수식 직접 계산, 분기 최대 1회
 - `cost <= 0.0`인 셀은 발행하지 않음. `visualize_occupied_only=true`이면 `cost >= occupancy_threshold`인 셀만 발행
+- `cost >= occupancy_threshold`인 셀은 그라디언트 대신 진한 보라색(RGB 0.29, 0.0, 0.51)으로 발행 — 점유 셀을 한눈에 구별
 - Z 좌표: `time_scale * gt + stage_z_offset * gt` → 시간층을 Z축에 표현
 - 구독자 없으면 조기 반환 (최적화)
 

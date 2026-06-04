@@ -243,5 +243,5 @@ return best_planner.result.exit_code;
 - **[`stepmap.md`](stepmap.md)** — `step_map_builder_` 가 만들고 가이던스 검색에 주입하는 3D 시공간 점유격자
 - **[`visibility-prm.md`](visibility-prm.md)** — `global_guidance_->Update()` 내부의 Visibility-PRM 알고리즘
 - **[`guidance-strategy.md`](guidance-strategy.md)**, **[`guidance-report.md`](guidance-report.md)** — 토폴로지 구별과 DAG-DP 등 상위 알고리즘
-- **[`guidance-mpcc-strategy.md`](guidance-mpcc-strategy.md)** — 가이드 궤적을 reference 로 따라가는 다른 전략 (`GuidanceReferenceModule`) 과의 비교
+- **[`guidance-mpcc-module.md`](guidance-mpcc-module.md)** — 가이드 궤적을 reference 로 따라가는 단일 솔버 변형 (`GuidanceReferenceModule`, G-MPCC) 과의 비교
 - **[`solver.md`](solver.md)** — `Solver` 인스턴스 자체의 인터페이스

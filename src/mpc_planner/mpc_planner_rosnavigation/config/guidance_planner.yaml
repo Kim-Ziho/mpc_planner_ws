@@ -1,5 +1,5 @@
 guidance_planner:
-  algorithm: PRM  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
+  algorithm: STRRT  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
 
   astar:
     num_headings: 16    # 헤딩 이산화 bin 수 (22.5°/bin)
@@ -148,7 +148,7 @@ guidance_planner:
     frame_id: map
     gaussian_samples: 1000         # 가우시안 샘플 수
     gaussian_sample_value: 0.001     # 샘플당 코스트 누적 값 (1000 × 0.001 = 1.0 총 확률 질량)
-    occupancy_threshold: 0.5       # 코스트가 이 값 이상이면 점유로 판단
+    occupancy_threshold: 0.9       # 코스트가 이 값 이상이면 점유로 판단
     dynamic_method: gaussian_independent  # gaussian_independent / gaussian_trajectory / (deterministic: 자동)
     propagate_uncertainty: true          # gaussian_independent에서 불확실성 누적 전파 여부
     stage_z_offset: 0.0                  # stage 간 추가 z 오프셋 [m] (0.0 = 오프셋 없음)

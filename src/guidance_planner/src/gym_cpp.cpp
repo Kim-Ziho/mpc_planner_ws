@@ -90,9 +90,9 @@ void samplePedestrians(std::vector<GuidancePlanner::Obstacle> &obstacles, std::v
         Eigen::Vector2d vel;
     };
     const std::vector<PedDef> peds = {
-        {{3.0, -2.0}, {0.0, 1.0}}, // ped 0: (3, -2) → 위쪽 이동
-        {{5.0, 2.0}, {0.0, -1.0}}, // ped 1: (5,  2) → 아래쪽 이동
-        {{7.5, -1.5}, {0.0, 1.0}}, // ped 2: (7.5,-1.5) → 위쪽 이동
+        {{2.0, -2.0}, {1.0, 0.0}},  // ped 0: (2, -2) → 위쪽 이동
+        {{5.0, 3.0}, {0.0, -1.0}},  // ped 1: (5,  3) → 아래쪽 이동
+        {{8.5, -1.5}, {-1.0, 0.0}}, // ped 2: (8.5,-1.5) → 위쪽 이동
     };
 
     for (size_t i = 0; i < peds.size(); ++i)
