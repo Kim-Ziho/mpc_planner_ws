@@ -32,16 +32,25 @@ class GuidanceReferenceModule(ConstraintModule):
 
         self.dependencies.append("guidance_planner")
 
-        # The C++ module owns a topology-mode LinearizedConstraints; pull in its source for the build
-        self.sources.append("linearized_constraints.h")
+        # use_tube=False drops the linearized "tube" entirely: dynamic collision avoidance is then
+        # handled by a downstream module (e.g. StepDecompConstraints) from the shared StepMap. This
+        # MUST match CONFIG["guidance_reference"]["use_tube"] read by the C++ side.
+        self.use_tube = True
+        if "guidance_reference" in settings and "use_tube" in settings["guidance_reference"]:
+            self.use_tube = settings["guidance_reference"]["use_tube"]
 
-        # A single linear constraint per obstacle (robot-centered), filled by the owned
-        # LinearizedConstraints in C++. Slack is used for feasibility robustness.
+        # The C++ module unconditionally references LinearizedConstraints (member, ctor) and that .cpp
+        # in turn calls setSolverParameterLinConstraint*; both must always be available to the build.
+        # So we ALWAYS compile the source and ALWAYS declare the lin_constraint parameters. Only the
+        # SOLVER constraints (get_constraints) are gated by use_tube: when false, no tube rows are added
+        # and the C++ side never constructs/sets the tube (params stay vestigial / unused).
+        self.sources.append("linearized_constraints.h")
         self.constraints.append(
             GuidanceLinearConstraints(
                 max_obstacles=settings["max_obstacles"],
                 other_halfspaces=settings["linearized_constraints"]["add_halfspaces"],
                 use_slack=True,
+                enabled=self.use_tube,
             )
         )
 
@@ -57,12 +66,16 @@ class GuidanceReferenceModule(ConstraintModule):
 # setSolverParameterLinConstraint{A1,A2,B} setters used by the C++ side.
 class GuidanceLinearConstraints:
 
-    def __init__(self, max_obstacles, other_halfspaces=0, use_slack=False):
+    def __init__(self, max_obstacles, other_halfspaces=0, use_slack=False, enabled=True):
         self.max_obstacles = max_obstacles
         self.nh = self.max_obstacles + other_halfspaces
         self.use_slack = use_slack
+        # When disabled, parameters are still declared (so the C++ build links), but no solver
+        # constraint rows are emitted (the tube is inactive).
+        self.enabled = enabled
 
     def define_parameters(self, params):
+        # Always declare the parameters so setSolverParameterLinConstraint* exist for the C++ build.
         for index in range(self.nh):
             params.add(self.constraint_name(index) + "_a1", bundle_name="lin_constraint_a1")
             params.add(self.constraint_name(index) + "_a2", bundle_name="lin_constraint_a2")
@@ -72,13 +85,20 @@ class GuidanceLinearConstraints:
         return f"lin_constraint_{index}"
 
     def get_lower_bound(self):
+        if not self.enabled:
+            return []
         return [-np.inf for _ in range(self.nh)]
 
     def get_upper_bound(self):
+        if not self.enabled:
+            return []
         return [0.0 for _ in range(self.nh)]
 
     def get_constraints(self, model, params, settings, stage_idx):
         constraints = []
+
+        if not self.enabled:
+            return constraints
 
         pos_x = model.get("x")
         pos_y = model.get("y")

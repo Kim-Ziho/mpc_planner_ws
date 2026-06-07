@@ -23,6 +23,7 @@ from path_reference_velocity import PathReferenceVelocityModule
 from ellipsoid_constraints import EllipsoidConstraintModule
 from gaussian_constraints import GaussianConstraintModule
 from decomp_constraints import DecompConstraintModule
+from step_decomp_constraints import StepDecompConstraintModule
 from guidance_constraints import GuidanceConstraintModule
 from guidance_reference import GuidanceReferenceModule
 from linearized_constraints import LinearizedConstraintModule
@@ -143,6 +144,38 @@ def configuration_gmpcc(settings):
     return model, modules
 
 
+def configuration_gmpcc_stepdecomp(settings):
+    # Guidance-MPCC with a single UNIFIED convex constraint: the best guidance trajectory is the MPCC
+    # reference (as in configuration_gmpcc), but static + dynamic collision avoidance is merged into a
+    # single per-stage convex decomposition (StepDecompConstraints) of the StepMap, replacing both the
+    # linearized "tube" (GuidanceReference use_tube=false) and the static DecompConstraints.
+    #
+    # NOTE: requires settings["guidance_reference"]["use_tube"] = false to drop the tube on both the
+    # Python (parameter) and C++ (runtime) sides.
+    modules = ModuleManager()
+    model = ContouringSecondOrderUnicycleModelWithSlack()
+
+    base_module = modules.add_module(MPCBaseModule(settings))
+    base_module.weigh_variable(var_name="a", weight_names="acceleration")
+    base_module.weigh_variable(var_name="w", weight_names="angular_velocity")
+    base_module.weigh_variable(var_name="slack", weight_names="slack")
+    if not settings["contouring"]["dynamic_velocity_reference"]:
+        base_module.weigh_variable(var_name="v",
+                                   weight_names=["velocity", "reference_velocity"],
+                                   cost_function=lambda x, w: w[0] * (x - w[1]) ** 2)
+
+    # GuidanceReference MUST precede ContouringModule (injects module_data.path) and
+    # StepDecompConstraints (injects module_data.step_map + ego-prediction warmstart).
+    modules.add_module(GuidanceReferenceModule(settings))
+    modules.add_module(ContouringModule(settings))
+    if settings["contouring"]["dynamic_velocity_reference"]:
+        modules.add_module(PathReferenceVelocityModule(settings))
+
+    modules.add_module(StepDecompConstraintModule(settings))
+
+    return model, modules
+
+
 def configuration_lmpcc(settings):
     modules = ModuleManager()
     model = ContouringSecondOrderUnicycleModel()
@@ -166,6 +199,7 @@ settings = load_settings()
 # model, modules = configuration_safe_horizon(settings)
 # model, modules = configuration_lmpcc(settings)
 # model, modules = configuration_tmpc(settings)
-model, modules = configuration_gmpcc(settings)
+# model, modules = configuration_gmpcc(settings)
+model, modules = configuration_gmpcc_stepdecomp(settings)
 
 generate_solver(modules, model, settings)

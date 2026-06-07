@@ -71,6 +71,11 @@ namespace MPCPlanner
 
         bool _enable_step_map{false};
         bool _guidance_valid{false};
+
+        // When false, no linearized "tube" is built here. Dynamic collision avoidance is then
+        // expected to be handled by a downstream module (e.g. StepDecompConstraints) that consumes
+        // the shared StepMap. Controlled by CONFIG["guidance_reference"]["use_tube"].
+        bool _use_tube{true};
     };
 } // namespace MPCPlanner
 #endif // __GUIDANCE_REFERENCE_H__

@@ -72,6 +72,16 @@ decomp:
   range: 2.0
   max_constraints: 12
 
+# Unified static+dynamic convex constraints from the StepMap (configuration_gmpcc_stepdecomp)
+step_decomp:
+  range: 2.0          # local bounding-box half-width per stage (m)
+  max_constraints: 12 # max halfspaces per stage (per disc)
+
+# Guidance-MPCC reference module
+guidance_reference:
+  use_tube: false     # false: drop the linearized tube; StepDecompConstraints handles avoidance.
+                      # MUST be true for configuration_gmpcc, false for configuration_gmpcc_stepdecomp.
+
 probabilistic:
   enable: true
   risk: 0.05

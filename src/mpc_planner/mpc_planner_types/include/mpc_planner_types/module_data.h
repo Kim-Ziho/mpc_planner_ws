@@ -16,6 +16,11 @@ namespace tk
     class spline;
 }
 
+namespace MPCPlannerStepMap
+{
+    class StepMap;
+}
+
 namespace MPCPlanner
 {
     struct ModuleData
@@ -27,6 +32,10 @@ namespace MPCPlanner
         std::shared_ptr<tk::spline> path_width_left{nullptr};
         std::shared_ptr<tk::spline> path_width_right{nullptr};
         std::shared_ptr<tk::spline> path_velocity{nullptr};
+
+        // 3D (x, y, t) occupancy grid, built once per tick (e.g. by GuidanceReference) and shared
+        // with constraint modules (e.g. StepDecompConstraints) to avoid rebuilding it.
+        std::shared_ptr<MPCPlannerStepMap::StepMap> step_map{nullptr};
 
         int current_path_segment{-1};
 

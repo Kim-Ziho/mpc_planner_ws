@@ -27,11 +27,18 @@ namespace MPCPlanner
         if (CONFIG["step_map"] && CONFIG["step_map"]["enable"])
             _enable_step_map = CONFIG["step_map"]["enable"].as<bool>();
 
+        if (CONFIG["guidance_reference"] && CONFIG["guidance_reference"]["use_tube"])
+            _use_tube = CONFIG["guidance_reference"]["use_tube"].as<bool>();
+
         // A single topology-mode linear-constraint tube around the injected guidance trajectory.
         // use_full_radius = true: this is the only dynamic collision-avoidance constraint here,
         // so it must use the real obstacle radius (T-MPC uses 1e-3 because Ellipsoid does the avoidance).
-        guidance_constraints_ = std::make_unique<LinearizedConstraints>(solver);
-        guidance_constraints_->setTopologyConstraints(true);
+        // Skipped when use_tube=false: a downstream module then handles avoidance from the shared StepMap.
+        if (_use_tube)
+        {
+            guidance_constraints_ = std::make_unique<LinearizedConstraints>(solver);
+            guidance_constraints_->setTopologyConstraints(true);
+        }
 
         if (_enable_step_map)
         {
@@ -74,6 +81,10 @@ namespace MPCPlanner
             global_guidance_->SetStepMap(nullptr);
         }
 
+        // Share the StepMap with downstream constraint modules (e.g. StepDecompConstraints) so they
+        // do not have to rebuild it. Null if the map is disabled or invalid.
+        module_data.step_map = (step_map_ && step_map_->valid()) ? step_map_ : nullptr;
+
         // 2) Start / reference velocity (constant velocity reference in v1)
         global_guidance_->SetStart(state.getPos(), state.get("psi"), state.get("v"));
         global_guidance_->SetReferenceVelocity(CONFIG["weights"]["reference_velocity"].as<double>());
@@ -111,7 +122,8 @@ namespace MPCPlanner
 
         // 6) Build the linear collision-avoidance tube around the (injected) ego-prediction.
         //    If guidance failed, this linearizes around the warmstart and still avoids obstacles.
-        guidance_constraints_->update(state, data, module_data);
+        if (_use_tube)
+            guidance_constraints_->update(state, data, module_data);
     }
 
     void GuidanceReference::setGoals(State &state, const ModuleData &module_data)
@@ -151,7 +163,8 @@ namespace MPCPlanner
 
     void GuidanceReference::setParameters(const RealTimeData &data, const ModuleData &module_data, int k)
     {
-        guidance_constraints_->setParameters(data, module_data, k);
+        if (_use_tube)
+            guidance_constraints_->setParameters(data, module_data, k);
     }
 
     bool GuidanceReference::isDataReady(const RealTimeData &data, std::string &missing_data)
@@ -162,7 +175,8 @@ namespace MPCPlanner
             missing_data += "Reference Path ";
             ready = false;
         }
-        ready = ready && guidance_constraints_->isDataReady(data, missing_data);
+        if (_use_tube)
+            ready = ready && guidance_constraints_->isDataReady(data, missing_data);
         return ready;
     }
 
@@ -180,7 +194,8 @@ namespace MPCPlanner
         if (data_name == "dynamic obstacles")
         {
             LOG_MARK("Guidance Reference: Received dynamic obstacles");
-            guidance_constraints_->onDataReceived(data, std::forward<std::string>(data_name));
+            if (_use_tube)
+                guidance_constraints_->onDataReceived(data, std::forward<std::string>(data_name));
 
             std::vector<GuidancePlanner::Obstacle> obstacles;
             for (auto &obstacle : data.dynamic_obstacles)
@@ -205,7 +220,8 @@ namespace MPCPlanner
         if (global_guidance_->Succeeded())
             global_guidance_->Visualize(CONFIG["t-mpc"]["highlight_selected"].as<bool>(), -1);
 
-        guidance_constraints_->visualize(data, module_data);
+        if (_use_tube)
+            guidance_constraints_->visualize(data, module_data);
     }
 
     void GuidanceReference::reset()

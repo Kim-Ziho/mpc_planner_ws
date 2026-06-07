@@ -8,6 +8,7 @@ namespace MPCPlanner
                 path_width_left.reset();
                 path_width_right.reset();
                 path_velocity.reset();
+                step_map.reset();
                 current_path_segment = -1;
         }
 }
