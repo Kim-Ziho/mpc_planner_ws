@@ -32,3 +32,7 @@ data/experiments/*.zip
 # Claude Code local settings
 .claude/
 
+# StepMap layer plot artifacts (gym_cpp / plot_step_map.py 런타임 출력)
+src/guidance_planner/step_map_layers.csv
+src/guidance_planner/step_map_layers.png
+

@@ -28,8 +28,12 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <std_srvs/SetBool.h>
 #include <std_srvs/Trigger.h>
+#include <ros/package.h>
 
 #include <string>
+#include <vector>
+#include <fstream>
+#include <cstdlib>
 
 using namespace GuidancePlanner;
 
@@ -90,9 +94,12 @@ void samplePedestrians(std::vector<GuidancePlanner::Obstacle> &obstacles, std::v
         Eigen::Vector2d vel;
     };
     const std::vector<PedDef> peds = {
-        {{2.0, -2.0}, {1.0, 0.0}},  // ped 0: (2, -2) → 위쪽 이동
-        {{5.0, 3.0}, {0.0, -1.0}},  // ped 1: (5,  3) → 아래쪽 이동
-        {{8.5, -1.5}, {-1.0, 0.0}}, // ped 2: (8.5,-1.5) → 위쪽 이동
+        // {{2.0, -2.0}, {1.0, 0.0}},  // ped 0: (2, -2) → 위쪽 이동
+        // {{5.0, 3.0}, {0.0, -1.0}},  // ped 1: (5,  3) → 아래쪽 이동
+        // {{8.5, -1.5}, {-1.0, 0.0}}, // ped 2: (8.5,-1.5) → 위쪽 이동
+        {{3.0, -2.0}, {0.0, 1.0}}, // ped 0: (3, -2) → 위쪽 이동
+        {{5.0, 2.0}, {0.0, -1.0}}, // ped 1: (5,  2) → 아래쪽 이동
+        {{7.5, -1.5}, {0.0, 1.0}}, // ped 2: (7.5,-1.5) → 위쪽 이동
     };
 
     for (size_t i = 0; i < peds.size(); ++i)
@@ -191,6 +198,110 @@ void robotStateCallback(const geometry_msgs::PoseStamped::ConstPtr &msg)
     tf_broadcaster_ptr_->sendTransform(tf_stamped);
 }
 
+// -----------------------------------------------------------------------
+// costmap 점유(정적 장애물) 셀 개수 카운트
+// LiDAR 스캔이 costmap 을 채웠는지 판단하는 데 사용 (워밍업 대기)
+// -----------------------------------------------------------------------
+int countOccupiedCells(const costmap_2d::Costmap2D *costmap)
+{
+    if (costmap == nullptr)
+        return 0;
+    int count = 0;
+    const unsigned int size_x = costmap->getSizeInCellsX();
+    const unsigned int size_y = costmap->getSizeInCellsY();
+    for (unsigned int ix = 0; ix < size_x; ++ix)
+        for (unsigned int iy = 0; iy < size_y; ++iy)
+            if (costmap->getCost(ix, iy) >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+                ++count;
+    return count;
+}
+
+// -----------------------------------------------------------------------
+// vis_stages 에 따라 시각화할 시간층(gt) 인덱스 선택
+// step_map_visualizer.cpp 의 로직과 동일하게 맞춤 (start/terminal 포함)
+//  - n<=0 또는 n>=cells_t : 모든 층
+//  - n==1                 : 초기 층(gt=0)만
+//  - 그 외                : i*(cells_t-1)/(n-1) 반올림으로 균등 분포
+// 반환 벡터는 시간 오름차순(첫 원소 = 초기 층).
+// -----------------------------------------------------------------------
+std::vector<int> selectVisStages(int cells_t, int vis_stages)
+{
+    std::vector<int> stages;
+    int n = vis_stages;
+    if (n <= 0 || n >= cells_t)
+    {
+        for (int gt = 0; gt < cells_t; ++gt)
+            stages.push_back(gt);
+    }
+    else if (n == 1)
+    {
+        stages.push_back(0);
+    }
+    else
+    {
+        for (int i = 0; i < n; ++i)
+            stages.push_back(static_cast<int>(std::round(i * (cells_t - 1.0) / (n - 1))));
+    }
+    return stages;
+}
+
+// -----------------------------------------------------------------------
+// StepMap 의 선택된 layer들을 CSV로 덤프 후 matplotlib 스크립트로 시각화.
+// run_once 단일 실행 시 1회 호출.
+// -----------------------------------------------------------------------
+void plotStepMapStages(const std::shared_ptr<MPCPlannerStepMap::StepMap> &map,
+                       int vis_stages, std::string output_dir, bool show)
+{
+    if (!map || !map->valid())
+    {
+        ROS_WARN("[GymCpp] StepMap invalid; skipping plot.");
+        return;
+    }
+    if (output_dir.empty())
+        output_dir = ros::package::getPath("guidance_planner");
+
+    const std::string csv_path = output_dir + "/step_map_layers.csv";
+    const std::string png_path = output_dir + "/step_map_layers.png";
+
+    const std::vector<int> stages = selectVisStages(map->cellsT(), vis_stages);
+
+    std::ofstream ofs(csv_path);
+    if (!ofs.is_open())
+    {
+        ROS_ERROR("[GymCpp] Failed to open StepMap dump file: %s", csv_path.c_str());
+        return;
+    }
+    ofs << "stage_order,gt,layer_time,gx,gy,x,y,cost\n";
+    for (size_t order = 0; order < stages.size(); ++order)
+    {
+        const int gt = stages[order];
+        const double layer_time = map->layerHeight(gt);
+        for (int gx = 0; gx < map->cellsX(); ++gx)
+        {
+            for (int gy = 0; gy < map->cellsY(); ++gy)
+            {
+                const Eigen::Vector2d w = map->worldFromCell(gx, gy);
+                const double cost = map->cellCost(gx, gy, gt);
+                ofs << order << ',' << gt << ',' << layer_time << ','
+                    << gx << ',' << gy << ','
+                    << w.x() << ',' << w.y() << ',' << cost << '\n';
+            }
+        }
+    }
+    ofs.close();
+    ROS_INFO("[GymCpp] StepMap layers dumped to %s (%zu stages).",
+             csv_path.c_str(), stages.size());
+
+    const std::string script = ros::package::getPath("guidance_planner") + "/scripts/plot_step_map.py";
+    std::string cmd = "python3 '" + script + "' '" + csv_path + "' --png '" + png_path + "'";
+    if (show)
+        cmd += " --show";
+    cmd += " &"; // 노드를 막지 않도록 백그라운드 실행
+    ROS_INFO("[GymCpp] Launching StepMap plot: %s", cmd.c_str());
+    if (std::system(cmd.c_str()) != 0)
+        ROS_WARN("[GymCpp] Failed to launch plot script (non-zero return).");
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "gym_cpp");
@@ -217,6 +328,28 @@ int main(int argc, char **argv)
     // --- StepMapBuilder ---
     ros::NodeHandle nh_private("~");
     MPCPlannerStepMap::StepMapBuilder step_map_builder(nh_private);
+
+    // gym 파라미터 (/guidance_planner/gym/* — guidance_planner.yaml 에서 로드)
+    //   run_once       : true 면 StepMap + guidance 계획을 한 번만 실행하고,
+    //                    이후에는 재계산 없이 시각화/TF 만 유지
+    //   plot_step_map  : run_once 완료 시 StepMap layer 분포를 matplotlib 로 시각화
+    //   plot_show      : 그래프 창 표시 (false 면 PNG 저장만)
+    //   plot_output_dir: CSV/PNG 저장 디렉터리 (빈 문자열이면 guidance_planner 패키지 경로)
+    ros::NodeHandle gym_nh("/guidance_planner/gym");
+    bool run_once = false;
+    gym_nh.param("run_once", run_once, false);
+    bool plot_step_map = false;
+    gym_nh.param("plot_step_map", plot_step_map, false);
+    bool plot_show = true;
+    gym_nh.param("plot_show", plot_show, true);
+    std::string plot_output_dir;
+    gym_nh.param<std::string>("plot_output_dir", plot_output_dir, std::string());
+
+    // vis_stages: step_map 시각화와 동일한 layer 선택 기준
+    int vis_stages = 0;
+    ros::param::param("/guidance_planner/step_map/vis_stages", vis_stages, 0);
+
+    bool planning_complete_ = false;
 
     // --- 로봇 상태 구독 ---
     ros::Subscriber robot_state_sub =
@@ -252,7 +385,56 @@ int main(int argc, char **argv)
     auto &benchmarker = BENCHMARKERS.getBenchmarker("GymCpp Planning");
     auto &benchmarker_guidance = BENCHMARKERS.getBenchmarker("Guidance Planning");
 
-    ROS_INFO("[GymCpp] Entering main loop (1 Hz)...");
+    // Reference path 시각화 (메인 루프와 hold 상태에서 재사용)
+    auto publishReferencePath = [&]()
+    {
+        auto &pub = VISUALS.getPublisher("reference_path");
+        auto &line = pub.getNewLine();
+        line.setColor(0.2, 0.8, 0.2, 1.0); // 초록색
+        line.setScale(0.1, 0.1);
+
+        std::vector<Eigen::Vector2d> pts;
+        reference_path->samplePoints(pts, 0.2 /*ds*/);
+        for (size_t i = 1; i < pts.size(); ++i)
+            line.addLine(Eigen::Vector3d(pts[i - 1](0), pts[i - 1](1), 0.),
+                         Eigen::Vector3d(pts[i](0), pts[i](1), 0.));
+        pub.publish();
+    };
+
+    // ------------------------------------------------------------------
+    // Costmap 워밍업: map→base_link TF 를 발행(robotStateCallback)하면서
+    // costmap 이 LiDAR 스캔으로 갱신될 시간을 준다.
+    // run_once 단일 실행 시 costmap 이 비어 정적 장애물이 누락되는 것을 방지.
+    //   - /robot_state 수신 후 일정 시간(settle) 동안 spin → costmap 다수 업데이트 보장
+    //   - 정적 장애물 유무와 무관하게 동작 (장애물 없는 씬에서 타임아웃하지 않음)
+    //   - 정적 장애물이 잡히면 그 사실을 로그로만 보고
+    // ------------------------------------------------------------------
+    {
+        ROS_INFO("[GymCpp] Warming up: publishing TF and letting costmap populate...");
+        ros::Rate warmup_rate(20.0);
+        const int settle_iters_target = 30; // /robot_state 수신 후 ~1.5s @20Hz (costmap 10Hz → 다수 업데이트)
+        const int max_iters = 200;          // 최대 ~10s 안전 캡 (/robot_state 미수신 대비)
+        int settle = 0;
+        int occupied = 0;
+        for (int i = 0; i < max_iters && !ros::isShuttingDown(); ++i)
+        {
+            ros::spinOnce(); // robotStateCallback → map→base_link TF 발행 → costmap 업데이트
+            if (robot_state_received_ && ++settle >= settle_iters_target)
+            {
+                occupied = countOccupiedCells(costmap_ros.getCostmap());
+                break;
+            }
+            warmup_rate.sleep();
+        }
+        if (!robot_state_received_)
+            ROS_WARN("[GymCpp] Warmup ended without /robot_state; will keep waiting in main loop.");
+        else if (occupied > 0)
+            ROS_INFO("[GymCpp] Costmap ready: %d occupied (static) cells.", occupied);
+        else
+            ROS_INFO("[GymCpp] Costmap warmed up; no static obstacles detected (dynamic-only scene).");
+    }
+
+    ROS_INFO("[GymCpp] Entering main loop (1 Hz)... run_once=%s", run_once ? "true" : "false");
     ros::Rate rate(1.0);
 
     while (!ros::isShuttingDown())
@@ -274,6 +456,16 @@ int main(int argc, char **argv)
             continue;
         }
         step_once_ = false;
+
+        // run_once: 1회 계획 완료 후에는 재계산 없이 시각화/TF 만 유지
+        if (run_once && planning_complete_)
+        {
+            ROS_INFO_THROTTLE(10.0, "[GymCpp] run_once: planning done. Re-publishing visualization only.");
+            guidance.Visualize();
+            publishReferencePath();
+            rate.sleep();
+            continue;
+        }
 
         ROS_INFO_STREAM("[GymCpp] Robot pose: ("
                         << robot_position_(0) << ", " << robot_position_(1)
@@ -330,18 +522,17 @@ int main(int argc, char **argv)
         guidance.Visualize();
 
         // Reference path 시각화
-        {
-            auto &pub = VISUALS.getPublisher("reference_path");
-            auto &line = pub.getNewLine();
-            line.setColor(0.2, 0.8, 0.2, 1.0); // 초록색
-            line.setScale(0.1, 0.1);
+        publishReferencePath();
 
-            std::vector<Eigen::Vector2d> pts;
-            reference_path->samplePoints(pts, 0.2 /*ds*/);
-            for (size_t i = 1; i < pts.size(); ++i)
-                line.addLine(Eigen::Vector3d(pts[i - 1](0), pts[i - 1](1), 0.),
-                             Eigen::Vector3d(pts[i](0), pts[i](1), 0.));
-            pub.publish();
+        // run_once 모드: 첫 계획 완료를 표시
+        if (run_once)
+        {
+            if (plot_step_map)
+                plotStepMapStages(step_map, vis_stages, plot_output_dir, plot_show);
+
+            planning_complete_ = true;
+            ROS_INFO("[GymCpp] run_once enabled: planning executed once. "
+                     "Holding (visualization/TF only).");
         }
 
         rate.sleep();

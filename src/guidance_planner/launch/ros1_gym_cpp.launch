@@ -45,6 +45,7 @@
         name="gym_cpp"
         respawn="false"
         output="screen">
+    <!-- run_once / 플롯 파라미터는 guidance_planner.yaml 의 guidance_planner/gym 에서 로드됨 -->
     <!-- Costmap 공통 파라미터 → /gym_cpp/local_costmap/* -->
     <rosparam command="load"
               file="$(find mpc_planner_rosnavigation)/config/costmap_common_params.yaml"

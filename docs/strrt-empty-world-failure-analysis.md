@@ -4,8 +4,101 @@
 > `STRRT: plan failures = 23/101 (fail_rate = 0.227723)` — 전방 8m의 쉬운 goal인데 실패율이 비정상적으로 높음.
 
 분석 일자: 2026-06-02
+**갱신: 2026-06-08 — 실측으로 실제 근본 원인 규명 및 해결 (아래 "✅ 최종 결론" 절 참조).**
 
 ---
+
+## ✅ 최종 결론 (2026-06-08, 실측 검증) — 이 절이 확정 결론
+
+> **요약: 실패의 정체는 §0~§4의 "좁은 시공간 깔때기 + 샘플링 운"이 아니라,
+> 증상은 같지만(둘 다 `sample_accept_rate = 0`, 즉 루트에서 트리가 못 자람)
+> 출처가 다른 두 개의 독립적 "루트 충돌" 메커니즘이었다.**
+
+### 3단계 실측 (빈 `test.world`, 연속 계획)
+
+| 단계 | fail_rate | 적용한 수정 |
+|---|---|---|
+| 직전 커밋 (`92c1aee`) | **23/101 = 0.228** | 없음 (블라인드 `sleep`, `edgeCollisionFree` `k=0`부터, `copyStaticLayer` `≥253`) |
+| ① costmap 워밍업 수정 후 | **6/50 = 0.12** | `gym_cpp.cpp` 워밍업(spinOnce + `/robot_state` 후 정착) |
+| ② edge 검사 수정 후 | **0/135 = 0** | `edgeCollisionFree` `k=1`부터 |
+| ③ 근원 차단 | — | `copyStaticLayer`가 `LETHAL_OBSTACLE`(254)만 마킹 |
+
+**결정적 근거:** 위 수정들은 **깔때기를 넓히거나 greedy goal-connect를 추가하지
+않았는데도** fail_rate가 0이 되었다. 즉 빈 공간에서 STRRT는 *루트만 가짜로 점유
+상태가 아니면 매번 goal에 도달*한다 → §1~§4의 깔때기 가설은 주 원인이 아니었다.
+(깔때기 자체는 실재하지만 — `t_min ≈ 2.67~3.33s` vs `T = 4.0s` — 구속 제약은 아님.)
+
+### 원인 1 — 시작 과도구간: `NO_INFORMATION(255)`이 StepMap을 가짜 점유로 만듦 (≈22.8%→12%)
+
+연결 고리는 `copyStaticLayer`의 임계값이다. **직전 커밋**의 코드(`step_map_builder.cpp`):
+
+```cpp
+unsigned char cost = costmap.getCost(ix, iy);
+if (cost < costmap_2d::INSCRIBED_INFLATED_OBSTACLE) continue;  // 253 미만 skip → 253/254/255 마킹
+```
+(현재는 해결 ③으로 `if (cost != costmap_2d::LETHAL_OBSTACLE) continue;` 로 수정됨 — `step_map_builder.cpp:236`)
+
+costmap_2d 값: `FREE=0`, `INSCRIBED=253`, `LETHAL=254`, **`NO_INFORMATION=255`**.
+→ **미관측 셀(255)도 `255 ≥ 253`이라 "정적 점유"로 마킹된다.**
+
+직전 커밋의 시작 코드는 콜백을 펌프하지 않는 블라인드 sleep이었다
+(`gym_cpp.cpp` `ros::Duration(2.0).sleep()`):
+
+1. `spinOnce` 없음 → `robotStateCallback` 미호출 → **`map→base_link` TF 미발행**.
+2. rolling-window costmap은 그 TF가 있어야 윈도우 배치 + LiDAR 스캔 삽입이 가능한데,
+   TF가 없어 **단 한 번도 업데이트 못 한 채 `NO_INFORMATION(255)`로 가득** 남는다.
+3. 메인 루프 진입 직후, costmap이 스캔으로 클리어되기 전의 **초기 플랜들**은
+   StepMap이 통째로 점유로 보여 루트·모든 엣지가 충돌 → 실패.
+4. 1~2초 뒤 LiDAR가 255→FREE로 클리어하면 정상화.
+
+이 **시작 과도구간 실패들이 누적 분모에 얹혀** 22.8%를 만들었다.
+
+- **해결 ①(타이밍):** 워밍업을 `spinOnce` 루프 + `/robot_state` 수신 후 ~1.5s 정착으로
+  바꿔, **costmap이 클리어된 뒤 첫 플랜**이 돌게 함 → 22.8%→12%.
+- **해결 ③(근원 차단):** `copyStaticLayer`가 `cost != LETHAL_OBSTACLE(254)`면 skip하도록
+  변경 → **255(미관측)·253(inflation) 영구 제외**. 워밍업 타이밍과 무관하게 견고.
+  (트레이드오프: costmap inflation 버퍼가 빠지므로, 정적 장애물 재사용 시 StepMap
+  정적 레이어에 robot 반경 inflation을 별도 적용 필요.)
+
+### 원인 2 — 정상 상태: 루트가 StepMap 뒤쪽 경계에서 부동소수 OOB (≈12%→0%)
+
+StepMap은 `forward_offset` 때문에 로봇 진행방향 앞쪽에 배치된다 → **로봇 시작점이
+StepMap 뒤쪽 경계 셀(`gx≈0`)에 정확히 위치**한다. 부동소수 오차로 `gx=-1`이 되면
+`StepMap::occupiedIndex`가 **격자 밖을 점유로 간주**(`step_map.cpp:305-310`) →
+루트에서 나가는 **모든 엣지가 `edgeCollisionFree`의 `k=0`(시작점 자기검사)에서 거부**
+→ `sample_accept_rate = 0` 하드 실패. 로봇이 경계에 걸쳐 있어 매 플랜 ~일정 확률로 발생.
+
+- **해결 ②:** `edgeCollisionFree`에서 **시작점 `k=0` 검사를 생략**(`k=1`부터,
+  `st_rrt_star_planner.cpp:114-122`). `from`은 항상 이미 검증된 노드(부모 엣지 종단점)
+  또는 루트(로봇 현재 위치)라 `k=0`은 중복 검사다. 루트를 **옮기지 않으므로** 뒤/옆
+  엣지는 여전히 `k≥1` 스윕 점에서 거부되어 탐색 특성이 보존된다 → 12%→0%.
+
+> **버린 대안 (중요한 교훈):** "루트를 격자 안 셀 중심으로 스냅"하는 방식은 A/B 실측에서
+> **목표 도달률을 100%→25%로 급락**시켰다. 로봇이 경계에 걸친 것이 사실은 유익한
+> "뒤쪽 벽" 역할(뒤/옆 엣지를 격자 밖=점유로 쳐내 탐색을 goal 방향으로 강제)을 하는데,
+> 루트를 안쪽으로 옮기면 이 벽이 사라져 탐색이 퍼지고 빡빡한 시간지평 안에 goal을
+> 못 맞춘다. 그래서 **루트를 옮기지 않는 `k=1` 방식**을 채택했다.
+>
+> | 방식 | 목표 도달 | accept | 하드실패(accept=0) |
+> |---|---|---|---|
+> | 베이스라인(무수정) | 8/8 | 0.46 | 드물게 발생 |
+> | 루트 스냅(폐기) | 2/8 ⚠️ | 0.55 | 0/8 |
+> | **k=1(채택)** | **10/10** | 0.46 | **0/10** |
+
+### 변경된 파일 (2026-06-08)
+
+| 파일 | 변경 | 효과 |
+|---|---|---|
+| `src/guidance_planner/src/gym_cpp.cpp` | 블라인드 sleep → spinOnce 워밍업 + `/robot_state` 후 정착 | 시작 과도구간 실패 제거 (원인 1, 타이밍) |
+| `src/mpc_planner_stepmap/src/step_map_builder.cpp` | `copyStaticLayer`: `LETHAL_OBSTACLE(254)`만 마킹 | 255/253 제외 → 원인 1 근원 차단 |
+| `src/guidance_planner/src/st_rrt_star_planner.cpp` | `edgeCollisionFree`: `k=0`→`k=1` | 루트 경계 OOB 하드실패 제거 (원인 2) |
+
+---
+
+> 아래 §0~§4는 **2026-06-02 당시의 가설**(좁은 시공간 깔때기 / 샘플링 운)이다.
+> 실측 결과 주 원인이 아님이 밝혀졌으므로 **참고용 기록**으로 보존한다.
+> 단, §E(진단 로깅 — "실패가 시작 직후 transient인지 전 구간 steady-state인지,
+> costmap 점유 여부 확인")의 방향은 실제로 정답을 가리키고 있었다.
 
 ## 0. 가장 중요한 관찰 — "동일한 쉬운 문제"가 23% 실패한다
 

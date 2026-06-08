@@ -179,7 +179,7 @@
     <!-- <goal_inflation value="5.0"/> -->
 </random>
 
-<random_pedestrians value="50"/>
+<random_pedestrians value="2"/>
 
 <!-- <random_pedestrians value="100"/> -->
 

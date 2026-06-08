@@ -197,7 +197,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/people
       Name: Pedestrians
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -213,7 +213,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/guidance_planner/strrt_goal
       Name: STRRT Goal
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -221,7 +221,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/guidance_planner/graph
       Name: Graph
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -229,7 +229,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/guidance_planner/start_and_goals
       Name: Start and Goals
       Namespaces:
-        "": true
+        {}
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -292,25 +292,25 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 7.884670257568359
+        Y: -1.4798974990844727
+        Z: 2.2721433197148144e-06
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.2347966432571411
+      Pitch: 0.5947965979576111
       Target Frame: <Fixed Frame>
-      Yaw: 3.1453990936279297
+      Yaw: 5.515398979187012
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: false
+    collapsed: true
   Height: 2032
-  Hide Left Dock: false
+  Hide Left Dock: true
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000003000000000000055b000006fcfc0200000001fb000000100044006900730070006c0061007900730100000069000006fc0000017800ffffff0000000100000218000006fcfc0200000002fc000000690000053b0000015801000034fa000000010100000002fb0000001200530065006c0065006300740069006f006e0100000000ffffffff000000af00fffffffb0000000a005600690065007700730100000ce8000002180000014f00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000005b0000001b5000000ab00ffffff0000000300000f0000000056fc0100000001fb0000000800540069006d0065010000000000000f000000058200ffffff00000775000006fc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000003000000000000055b000006fcfc0200000001fb000000100044006900730070006c0061007900730000000069000006fc0000017800ffffff0000000100000218000006fcfc0200000002fc000000690000053b0000015801000034fa000000010100000002fb0000001200530065006c0065006300740069006f006e0100000000ffffffff000000af00fffffffb0000000a005600690065007700730100000ce8000002180000014f00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000005b0000001b5000000ab00ffffff000000030000078000000056fc0100000001fb0000000800540069006d00650100000000000007800000058200ffffff0000055c000006fc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -319,6 +319,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 3840
+  Width: 1920
   X: 0
   Y: 54
