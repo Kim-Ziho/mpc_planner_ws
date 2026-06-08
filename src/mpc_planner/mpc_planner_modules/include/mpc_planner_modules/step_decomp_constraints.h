@@ -21,6 +21,8 @@
 #include <mpc_planner_stepmap/step_map_builder.h>
 #include <mpc_planner_stepmap/step_map.h>
 
+#include <mpc_planner_modules/heading_seed_decomp.h>
+
 #include <decomp_util/seed_decomp.h>
 #include <decomp_util/decomp_geometry/geometric_utils.h>
 
@@ -52,7 +54,9 @@ namespace MPCPlanner
 
     int _n_discs{1};
     int _max_constraints;
-    double _range;
+    double _range_long;   // Forward (longitudinal) bbox half-extent, aligned with the seed heading
+    double _range_lat;    // Lateral bbox half-extent
+    double _window_range; // Cell-collection window radius (covers the rotated bbox): hypot(long, lat)
     double _robot_radius;
 
     std::shared_ptr<MPCPlannerStepMap::StepMap> getStepMap(State &state, const RealTimeData &data,
@@ -60,6 +64,10 @@ namespace MPCPlanner
 
     void collectOccupiedCells(const MPCPlannerStepMap::StepMap &map, int gt,
                               const Eigen::Vector2d &seed, vec_Vec2f &out) const;
+
+    // Heading at stage k for bbox alignment: finite-difference of the ego prediction (direction of
+    // travel) with fallback to the predicted psi state, then the current robot psi.
+    double seedHeading(int k, double fallback_psi) const;
 
     void fillDummies(int k);
   };

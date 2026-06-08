@@ -74,7 +74,9 @@ decomp:
 
 # Unified static+dynamic convex constraints from the StepMap (configuration_gmpcc_stepdecomp)
 step_decomp:
-  range: 2.0          # local bounding-box half-width per stage (m)
+  range: 2.0          # fallback bbox half-extent (m), used when range_long/range_lat are absent
+  range_long: 1.5     # forward (longitudinal) bbox half-extent, aligned with the seed heading (m)
+  range_lat: 1.5      # lateral bbox half-extent (m) — narrower keeps the corridor in its topology
   max_constraints: 12 # max halfspaces per stage (per disc)
 
 # Guidance-MPCC reference module

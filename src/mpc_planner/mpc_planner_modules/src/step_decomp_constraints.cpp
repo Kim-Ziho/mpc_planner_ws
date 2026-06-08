@@ -22,8 +22,14 @@ namespace MPCPlanner
 
     _n_discs = 1; // Single robot-center disc (constraints evaluated at the disc position)
     _max_constraints = CONFIG["step_decomp"]["max_constraints"].as<int>();
-    _range = CONFIG["step_decomp"]["range"].as<double>();
     _robot_radius = CONFIG["robot_radius"].as<double>();
+
+    // Heading-aligned bbox: forward (longitudinal) and lateral half-extents. Both default to the
+    // symmetric "range" when the asymmetric keys are absent (backward compatible).
+    const double range = CONFIG["step_decomp"]["range"].as<double>();
+    _range_long = CONFIG["step_decomp"]["range_long"] ? CONFIG["step_decomp"]["range_long"].as<double>() : range;
+    _range_lat = CONFIG["step_decomp"]["range_lat"] ? CONFIG["step_decomp"]["range_lat"].as<double>() : range;
+    _window_range = std::hypot(_range_long, _range_lat); // covers the rotated bbox corners
 
     _occ_pos.reserve(2000);
 
@@ -86,7 +92,7 @@ namespace MPCPlanner
     const Eigen::Vector2d local = map.localFromWorld(seed);
     const double cx = (local.x() + map.halfLength()) / res;
     const double cy = (local.y() + map.halfWidth()) / res;
-    const int window = static_cast<int>(std::ceil((_range + _robot_radius) / res)) + 1;
+    const int window = static_cast<int>(std::ceil((_window_range + _robot_radius) / res)) + 1;
 
     const int gx0 = std::max(0, static_cast<int>(std::floor(cx)) - window);
     const int gx1 = std::min(map.cellsX() - 1, static_cast<int>(std::floor(cx)) + window);
@@ -105,6 +111,35 @@ namespace MPCPlanner
         }
       }
     }
+  }
+
+  double StepDecompConstraints::seedHeading(int k, double fallback_psi) const
+  {
+    // Prefer the direction of travel from the ego prediction (the guidance trajectory): a forward
+    // difference, else a backward difference. Fall back to the predicted psi state, then to the
+    // robot's current psi when the trajectory is degenerate or the warmstart is empty.
+    const double xk = _solver->getEgoPrediction(k, "x");
+    const double yk = _solver->getEgoPrediction(k, "y");
+
+    if (k + 1 < _solver->N)
+    {
+      const double dx = _solver->getEgoPrediction(k + 1, "x") - xk;
+      const double dy = _solver->getEgoPrediction(k + 1, "y") - yk;
+      if (std::hypot(dx, dy) > 1e-3)
+        return std::atan2(dy, dx);
+    }
+    if (k - 1 >= 0)
+    {
+      const double dx = xk - _solver->getEgoPrediction(k - 1, "x");
+      const double dy = yk - _solver->getEgoPrediction(k - 1, "y");
+      if (std::hypot(dx, dy) > 1e-3)
+        return std::atan2(dy, dx);
+    }
+
+    const double psi = _solver->getEgoPrediction(k, "psi");
+    if (psi == psi) // not nan
+      return psi;
+    return fallback_psi;
   }
 
   void StepDecompConstraints::fillDummies(int k)
@@ -140,6 +175,8 @@ namespace MPCPlanner
       return;
     }
 
+    const double robot_psi = state.get("psi");
+
     int max_decomp_constraints = 0;
 
     for (int k = 1; k < _solver->N; k++)
@@ -152,9 +189,12 @@ namespace MPCPlanner
       const int gt = std::min(k, map->cellsT() - 1);
       collectOccupiedCells(*map, gt, seed_pos, _occ_pos);
 
-      // Inflate a convex region around the seed avoiding the occupied cells.
-      SeedDecomp2D seed_decomp(seed);
-      seed_decomp.set_local_bbox(Vec2f(_range, _range));
+      // Inflate a convex region around the seed avoiding the occupied cells. The virtual bbox is
+      // aligned with the direction of travel (heading), giving a corridor long forward / narrow
+      // laterally instead of an axis-parallel square.
+      const double yaw = seedHeading(k, robot_psi);
+      HeadingSeedDecomp2D seed_decomp(seed, yaw);
+      seed_decomp.set_local_bbox(Vec2f(_range_long, _range_lat));
       seed_decomp.set_obs(_occ_pos);
       seed_decomp.dilate(_robot_radius);
 

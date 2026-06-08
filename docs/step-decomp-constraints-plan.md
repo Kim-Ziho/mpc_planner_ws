@@ -12,6 +12,33 @@
 
 ---
 
+## 0. 구현 상태 (Implemented)
+
+본 계획은 구현 완료되었다. 실제 코드와 계획의 차이/구체화 사항:
+
+| 항목 | 상태 | 파일 |
+|---|---|---|
+| `ModuleData.step_map` 공유 필드 (전방선언, 순환의존 회피) | ✅ | `mpc_planner_types/.../module_data.h`, `module_data.cpp` |
+| `GuidanceReference` 튜브 토글(`use_tube`) + StepMap 공유 배선 | ✅ | `mpc_planner_modules/{include,src,scripts}/guidance_reference.*` |
+| `StepDecompConstraints` C++ 런타임 (per-stage decomp, 공유+fallback 빌드) | ✅ | `mpc_planner_modules/{include,src}/step_decomp_constraints.*` |
+| **`HeadingSeedDecomp` 헤딩 정렬 bbox (§2.1)** | ✅ | `mpc_planner_modules/include/.../heading_seed_decomp.h` (신규) |
+| `StepDecompConstraintModule` Python solver-gen | ✅ | `mpc_planner_modules/scripts/step_decomp_constraints.py` |
+| `configuration_gmpcc_stepdecomp` | ✅ | `mpc_planner_rosnavigation/scripts/generate_rosnavigation_solver.py` |
+| 설정 (`step_decomp.range/range_long/range_lat/max_constraints`, `guidance_reference.use_tube`) | ✅ | `mpc_planner_rosnavigation/config/settings.yaml` |
+
+**§2.1 구체화 (실제 구현):**
+- `HeadingSeedDecomp<2>` 가 시드 헤딩 `yaw` 로 가상벽을 회전 → `step_decomp_constraints.cpp` 가
+  `HeadingSeedDecomp2D(seed, yaw)` + `set_local_bbox(Vec2f(_range_long, _range_lat))` 로 **비대칭 회랑** 생성.
+- **헤딩 출처 폴백 체인** (`seedHeading(k, fallback_psi)`): 가이던스 궤적 진행방향(전방차분 → 후방차분,
+  `‖Δ‖>1e-3`) 우선 → 예측 `psi` 상태(non-nan) → 현재 로봇 `psi`. warmstart 가 비거나 초기 tick 에서
+  `psi` 가 불안정해도 회랑 축이 진행 방향을 따른다 (§7-8 대응).
+- **셀 수집 윈도우**: 회전 bbox 모서리를 덮도록 `_window_range = hypot(range_long, range_lat)` 사용
+  (축정렬 가정의 `range` 단일 값 대신).
+- 설정 키 `range_long`/`range_lat` 부재 시 기존 `range` 로 폴백(하위호환). 현재 기본값은 둘 다 `1.5`(대칭에 가까움);
+  전방을 더 늘리려면 `range_long` 을 키운다.
+
+---
+
 ## 1. 현재 구조 (G-MPCC) 와 통합 후 구조
 
 ### 현재 (`configuration_gmpcc`)
@@ -66,16 +93,17 @@ StepMap 점유 셀은 **시간층마다 다르므로**(gt=k 마다 동적 장애
 for (int k = 1; k < N; k++)
 {
     // 1) 시드: stage k 에서 로봇이 있을 위치 (= 가이던스 궤적 = warmstart ego pred)
-    Vec2f seed(_solver->getEgoPrediction(k, "x"),
-               _solver->getEgoPrediction(k, "y"));
+    Vec2f  seed(_solver->getEgoPrediction(k, "x"),
+                _solver->getEgoPrediction(k, "y"));
+    double psi = _solver->getEgoPrediction(k, "psi");   // 시드 헤딩 (bbox 정렬용, §2.1)
 
     // 2) 장애물 점: StepMap 시간층 gt=k 의 점유 셀 중심 (정적+동적 융합)
     int gt = std::min(k, step_map_->cellsT() - 1);
     collectOccupiedCells(gt, seed, _occ_pos);      // bbox 윈도우로 한정 (§5 최적화)
 
-    // 3) 단일 시드 convex decomposition
-    SeedDecomp2D seed_decomp(seed);
-    seed_decomp.set_local_bbox(Vec2f(range, range));
+    // 3) 단일 시드 convex decomposition — 헤딩 정렬 bbox (§2.1)
+    HeadingSeedDecomp2D seed_decomp(seed, psi);
+    seed_decomp.set_local_bbox(Vec2f(range, range));   // (전방, 측방) 반치수
     seed_decomp.set_obs(_occ_pos);
     seed_decomp.dilate(robot_radius);              // 시드 주위 구를 부풀려 polytope 생성
     Polyhedron2D poly = seed_decomp.get_polyhedron();
@@ -99,6 +127,67 @@ for (int k = 1; k < N; k++)
 > **stage-시간 정합**: stage k ↔ 시간 t=k·dt ↔ StepMap 층 gt=k. 시드(ego pred at k)와 장애물층(gt=k)이
 > 같은 시점을 가리키므로 **예측된 동적 장애물 위치**에 대한 회피가 시간적으로 올바르다.
 > 이는 기존 `LinearizedConstraints` 가 `prediction.modes[0][k]` 로 stage 별 장애물을 읽던 것과 동일한 정합성.
+
+---
+
+## 2.1. 헤딩 정렬 bbox — `HeadingSeedDecomp` (신규 헤더)
+
+**문제**: `decomp_util/seed_decomp.h` 의 `SeedDecomp<2>::add_local_bbox()` 는 가상벽을 **월드 축**에
+정렬한다 (`dir = UnitX()`, `dir_h = UnitY()`, `seed_decomp.h:57-58`). 즉 시드 주위 bbox 가 항상
+x/y 축 평행 정사각형이라 **로봇 진행 방향과 무관**하다. 진행 방향으로 길고 측방으로 좁은 회랑을 만들 수 없다.
+
+**기존 decomp-util 거동**: `EllipsoidDecomp` 가 쓰는 `LineSegment<2>::add_local_bbox()` 는
+가상벽을 **경로 방향에 정렬**한다 (`line_segment.h:72-98`):
+```cpp
+Vecf<Dim> dir   = (p2_ - p1_).normalized();   // 진행축 (path 방향)
+Vecf<Dim> dir_h(dir(1), -dir(0));             // 측방축 (진행축에 수직)
+// local_bbox_(0) = 전방 반치수, local_bbox_(1) = 측방 반치수
+```
+→ bbox 가 경로 헤딩을 따라 **회전**한다. `decomp_base.h:27` 주석이 명시: *"x-axis is parallel to the
+line, y-axis is perpendicular to the line"*. 이것이 사용자가 원하는 "기존 decomp-util 처럼 헤딩 고려" 거동이다.
+
+**해결**: `SeedDecomp` 는 단일 점만 가져 진행축이 없으므로, **시드 헤딩 `psi` 를 명시 입력**받아
+가상벽을 회전시키는 경량 변형 `HeadingSeedDecomp<2>` 를 추가한다.
+`SeedDecomp` 를 상속해 `add_local_bbox()` 만 오버라이드한다 (이 메서드는 `DecompBase` 에서 `virtual`
+이고, `dilate()`/`set_obs()` 가 `this->add_local_bbox()` 로 가상 디스패치하므로 — `decomp_base.h:50,88` —
+폴리헤드론 생성과 `points_inside` 사전필터 양쪽에 헤딩 bbox 가 일관 적용됨).
+
+```cpp
+// mpc_planner_modules/include/mpc_planner_modules/heading_seed_decomp.h (신규)
+template <int Dim>
+class HeadingSeedDecomp : public SeedDecomp<Dim>   // Dim==2 만 사용
+{
+public:
+  HeadingSeedDecomp(const Vecf<Dim> &p, double yaw) : SeedDecomp<Dim>(p), yaw_(yaw) {}
+protected:
+  void add_local_bbox(Polyhedron<Dim> &Vs) override
+  {
+    if (this->local_bbox_.norm() == 0) return;
+    // LineSegment 와 동일한 정렬: 진행축 dir, 측방축 dir_h
+    Vecf<Dim> dir(std::cos(yaw_), std::sin(yaw_));
+    Vecf<Dim> dir_h(-std::sin(yaw_), std::cos(yaw_));
+    const Vecf<Dim> &p = this->p_;
+    // 측방 벽 (±측방 반치수 = local_bbox_(1))
+    Vs.add(Hyperplane<Dim>(p + dir_h * this->local_bbox_(1),  dir_h));
+    Vs.add(Hyperplane<Dim>(p - dir_h * this->local_bbox_(1), -dir_h));
+    // 전후방 벽 (±전방 반치수 = local_bbox_(0))
+    Vs.add(Hyperplane<Dim>(p + dir * this->local_bbox_(0),  dir));
+    Vs.add(Hyperplane<Dim>(p - dir * this->local_bbox_(0), -dir));
+  }
+  double yaw_;
+};
+typedef HeadingSeedDecomp<2> HeadingSeedDecomp2D;
+```
+
+- `p_` 는 `SeedDecomp` 의 `protected` 멤버라 그대로 접근 가능 (`seed_decomp.h:83`).
+- `local_bbox_(0)=전방`, `local_bbox_(1)=측방` 의미를 `LineSegment` 와 통일 → §5 윈도우 계산도
+  헤딩 방향으로 전방 길게/측방 짧게 비대칭 설정 가능 (예: `Vec2f(range_long, range_lat)`).
+- **decomp_util 원본은 수정하지 않는다** — 새 헤더만 `mpc_planner_modules` 에 추가해 분리 유지.
+
+> **헤딩 출처**: 시드와 동일하게 warmstart ego prediction 에서 `getEgoPrediction(k, "psi")` 로 읽는다.
+> 가이던스 궤적이 곧 ego pred 이므로 stage k 의 헤딩은 그 시점 로봇 진행 방향과 정합한다.
+> warmstart 가 비었거나 `psi` 가 불안정한 초기 tick 은 인접 stage 차분 `atan2(y_{k+1}-y_k, x_{k+1}-x_k)`
+> 로 대체하는 fallback 검토 (§7-8).
 
 ---
 
@@ -164,9 +253,12 @@ std::shared_ptr<MPCPlannerStepMap::StepMap> step_map{nullptr};
 
 ## 6. 구현 항목
 
-### 6.1 C++ 런타임 — `step_decomp_constraints.{h,cpp}` (신규)
+### 6.1 C++ 런타임 — `step_decomp_constraints.{h,cpp}` + `heading_seed_decomp.h` (신규)
 
 `mpc_planner_modules/{include/mpc_planner_modules,src}/`. `DecompConstraints` 를 본떠 작성.
+
+- **`heading_seed_decomp.h`** (신규, §2.1): `SeedDecomp<2>` 상속 + 헤딩 정렬 `add_local_bbox` 오버라이드.
+  decomp_util 원본 미수정. `step_decomp_constraints.cpp` 가 `HeadingSeedDecomp2D(seed, psi)` 로 사용.
 
 - 상속: `ControllerModule(ModuleType::CONSTRAINT, solver, "step_decomp_constraints")`.
 - 멤버:
@@ -291,6 +383,11 @@ def configuration_gmpcc_stepdecomp(settings):
 
 7. **fallback 자체 빌드 vs 공유 강제** — 공유만 지원하면 코드 단순(의존 ↓), 단 단독 사용 불가.
    현재 표적이 G-MPCC 뿐이면 **공유 강제**(fallback 생략)가 더 깔끔할 수 있음.
+
+8. **시드 헤딩 신뢰도** (§2.1) — warmstart ego pred 가 비었거나 초기 tick 에서 `psi` 가 부정확하면
+   bbox 가 엉뚱한 방향으로 회전해 회랑이 진행 방향을 못 따른다.
+   → 인접 stage 차분(`atan2(Δy, Δx)`)으로 헤딩 대체, 또는 warmstart 무효 시 축정렬 bbox 로 폴백.
+   전방/측방 반치수를 다르게 줄지(`range_long` vs `range_lat`) 결정 필요 — 비대칭이 헤딩 정렬의 실익.
 
 ---
 
