@@ -127,6 +127,7 @@ namespace GuidancePlanner
     double strrt_w_ctrl_;
     double strrt_check_dt_;
     double strrt_path_lat_half_width_;
+    bool   strrt_greedy_goal_connect_;
 
     // Risk-Aware ST-RRT* planner parameters
     int    ra_strrt_max_iter_;

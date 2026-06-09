@@ -37,6 +37,7 @@ guidance_planner:
     w_ctrl:          0.05    # control effort 비용 가중치
     check_dt:        0.05    # edge 충돌 검사 시간 간격 [s]
     path_lat_half_width: 3.0 # reference path 횡방향 ±폭 [m] (균일 샘플링)
+    greedy_goal_connect: true # RRT-Connect식 반복 extend로 goal 직접 연결 (false=기존 동작)
 
   ra_strrt:
     max_iter:                       2000

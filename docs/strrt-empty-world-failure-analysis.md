@@ -231,11 +231,20 @@ goal_radius:  0.7   # 0.5 → 0.7  (착지 허용오차 완화)
 
 `check_dt = 0.05`가 edge를 세분 충돌검사하므로 edge가 길어져도 안전성은 유지된다.
 
-### ⭐ B. greedy goal-connect 추가 — 표준적 견고화 (코드 변경)
+### ⭐ B. greedy goal-connect 추가 — 표준적 견고화 (코드 변경) — ✅ 구현됨
 
 새 노드 추가 후(`st_rrt_star_planner.cpp:418` 이후) goal이 reachable이면 goal로
 직접 steer를 한 번 시도하고, 성공 시 goal 노드를 추가한다. RRT 계열에서 도달
 신뢰도를 끌어올리는 정석.
+
+> **구현 (2026-06-09):** 단일 steer 1회가 아니라 **RRT-Connect식 반복 extend**로
+> 구현했다. 새 노드에서 goal 방향으로 충돌/시간한계/`goal_radius` 도달까지 연속
+> steer하며 중간노드를 스스로 생성해 goal까지 march한다 → root(8m)에서도 4.5m→goal
+> 2-edge 체인이 결정적으로 완성되어 "운 좋은 중간노드 샘플" 의존이 사라진다.
+> `steer_dt_max`는 그대로 두어 기존 탐색 특성을 보존. `st_rrt/greedy_goal_connect`
+> (기본 `true`) 플래그로 on/off 토글 가능(같은 빌드에서 before/after 비교용).
+> 관련 코드: `Plan()` step 8 (`st_rrt_star_planner.cpp`), 폴백 시 기존 단순 goal
+> check로 분기.
 
 ### C. 시간 샘플을 빠른 도달 쪽으로 편향
 

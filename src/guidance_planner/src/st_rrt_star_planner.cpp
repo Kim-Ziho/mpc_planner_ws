@@ -29,6 +29,7 @@ namespace GuidancePlanner
     v_max_ = config->max_velocity_;
     w_max_ = config->hastar_w_max_;
     path_lat_half_width_ = config->strrt_path_lat_half_width_;
+    greedy_goal_connect_ = config->strrt_greedy_goal_connect_;
 
     rng_.seed(static_cast<uint32_t>(config->seed_ >= 0 ? config->seed_ : std::random_device{}()));
   }
@@ -332,8 +333,12 @@ namespace GuidancePlanner
     }
 
     // ── 초기화 ────────────────────────────────────────────────────────────────
+    // greedy goal-connect 가 max_iter_ 를 넘는 추가 노드를 생성할 수 있으므로
+    // reallocation 빈도를 줄이도록 capacity 를 넉넉히 잡는다.
+    const size_t node_cap = static_cast<size_t>(max_iter_) * 2 + 1;
+
     std::vector<RRTNode> nodes;
-    nodes.reserve(static_cast<size_t>(max_iter_) + 1);
+    nodes.reserve(node_cap);
 
     RRTNode root;
     root.x = start_xy.x();
@@ -348,7 +353,7 @@ namespace GuidancePlanner
 
     // ── k-d 트리: nearest / radius 질의 가속 (nodes 와 동기화 유지) ────────────
     SpaceTimeKDTree kd(v_max_);
-    kd.reserve(static_cast<size_t>(max_iter_) + 1);
+    kd.reserve(node_cap);
     kd.insert(root.x, root.y, root.t, 0);
     std::vector<int> nbr; // radius 질의 결과 재사용 버퍼
 
@@ -475,13 +480,67 @@ namespace GuidancePlanner
         }
       }
 
-      // 8) goal check
-      double dist_goal = std::hypot(new_node.x - goal_xy.x(), new_node.y - goal_xy.y());
-      if (dist_goal < goal_radius_ && new_node.cost < best_cost)
+      // 8) greedy goal-connect: RRT-Connect 식으로 goal 방향 반복 extend
+      if (greedy_goal_connect_)
       {
-        best_cost = new_node.cost;
-        best_idx = i_new;
-        t_upper = std::min(t_upper, new_node.t);
+        constexpr int kMaxConnectSteps = 8; // t_horizon/steer_dt_min 자연 상한의 안전 캡
+        int cur = i_new;
+        for (int step = 0; step < kMaxConnectSteps; ++step)
+        {
+          const double cx = nodes[cur].x, cy = nodes[cur].y, ct = nodes[cur].t;
+          const double cc = nodes[cur].cost;
+          const double d_ng = std::hypot(goal_xy.x() - cx, goal_xy.y() - cy);
+
+          if (d_ng < goal_radius_) // 이미 goal 도달
+          {
+            if (cc < best_cost)
+            {
+              best_cost = cc;
+              best_idx = cur;
+              t_upper = std::min(t_upper, ct);
+            }
+            break;
+          }
+
+          const double dt_step =
+              std::max(steer_dt_min_, std::min(steer_dt_max_, d_ng / v_max_));
+          const double t_next = ct + dt_step;
+          if (t_next > t_upper || t_next > t_horizon)
+            break; // 시간 초과 → 폴백
+
+          auto sg = steer(nodes[cur], goal_xy.x(), goal_xy.y(), t_next);
+          if (!sg)
+            break;
+          const double dt_e2 = sg->t - ct;
+          if (!edgeCollisionFree(nodes[cur], sg->v, sg->w, dt_e2))
+            break; // 충돌 → 폴백
+
+          RRTNode gn;
+          gn.x = sg->x;
+          gn.y = sg->y;
+          gn.theta = sg->theta;
+          gn.t = sg->t;
+          gn.v = sg->v;
+          gn.w = sg->w;
+          gn.cost = cc + edgeCost(dt_e2, sg->v, sg->w);
+          gn.parent = cur;
+          nodes.push_back(gn); // 이후 cur 참조 무효 — 인덱스로만 접근
+          const int i_gn = static_cast<int>(nodes.size()) - 1;
+          nodes[cur].children.push_back(i_gn);
+          kd.insert(gn.x, gn.y, gn.t, i_gn);
+          cur = i_gn; // 다음 step 에서 goal 도달 여부 재검사
+        }
+      }
+      else
+      {
+        // (기존 동작) 새 노드가 우연히 goal_radius 안에 떨어졌는지만 검사
+        double dist_goal = std::hypot(new_node.x - goal_xy.x(), new_node.y - goal_xy.y());
+        if (dist_goal < goal_radius_ && new_node.cost < best_cost)
+        {
+          best_cost = new_node.cost;
+          best_idx = i_new;
+          t_upper = std::min(t_upper, new_node.t);
+        }
       }
     }
 

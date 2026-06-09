@@ -94,6 +94,7 @@ private:
   double v_max_, w_max_;
   double check_dt_;
   double path_lat_half_width_;
+  bool   greedy_goal_connect_;
 
   // sample_accept_rate 누적 통계 (Plan() 호출마다 갱신)
   double accept_rate_sum_{0.0};
