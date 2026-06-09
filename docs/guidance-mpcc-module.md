@@ -33,7 +33,7 @@ T-MPC++ 와의 차이:
 | 정적 장애물 제약 | DecompConstraintModule | 기존 모듈 재사용. |
 | 모델 | `ContouringSecondOrderUnicycleModelWithSlack` | DecompConstraints slack + 튜브 제약 slack 수용. |
 | 속도 reference | **상수 (`weights.reference_velocity`)** | `dynamic_velocity_reference=false` → MPCBase 가 `v→v_ref` 비용. guidance 시간 파라미터화 속도 추출은 향후 작업. |
-| 가이던스 미존재 시 | **직전 추종 spline 유지** (startup 한정 roadmap) | guidance 실패 tick 엔 `module_data.path==nullptr` → Contouring 가드가 거짓 → `_spline` 직전 값 그대로. 운행 중엔 **직전 guidance spline 을 계속 추종**(토폴로지 일관성·cmd_vel 안정). 최초 guidance 이전엔 `_spline=roadmap`(전역). `_spline=roadmap` 재설정은 `pathCallback` 의 `isPathTheSame` 가드 때문에 **전역 경로가 바뀔 때만** 발생. 튜브는 그 spline 주위 ego pred(=warmstart)로 회피. |
+| 가이던스 미존재 시 | **직전 guidance spline 유지, 전역 roadmap 미사용** | guidance 실패 tick 엔 `module_data.path==nullptr` → Contouring 가드가 거짓 → `_spline` 직전 값(=마지막 성공 guidance spline) 그대로 추종(토폴로지 일관성·cmd_vel 안정). 튜브는 그 spline 주위 ego pred(=warmstart)로 회피. **최초 guidance 성공 이전(startup)엔 전역 roadmap 으로도 추종하지 않음** — `contouring.external_reference_only=true` 로 Contouring 이 `reference_path` 를 `_spline` 으로 채택하지 않으므로 `_spline=nullptr` 이며 contouring 비활성(weight 0). 전역 roadmap 은 오직 `GuidanceReference::setGoals` 의 goal 시딩용으로만 쓰임. |
 | 종료 판정 | global goal 기반 (node 처리 재사용) | 아래 "알려진 한계" 1번 참조. |
 
 ---
@@ -117,12 +117,16 @@ Planner::solveMPC
 - `setTopologyConstraints(bool use_full_radius=false)` + 멤버 `_topology_full_radius`.
 - `update()` / `projectToSafety()`: `radius = (_use_guidance && !_topology_full_radius) ? 1e-3 : obstacle.radius`.
 
-**`contouring.cpp::update()` (수정)**
-- 초입 가드: `if (module_data.path != nullptr && module_data.path != _spline) { _spline = module_data.path; _closest_segment = 0; }` 이후 `if(!_spline) return;`.
+**`contouring.cpp` (수정)**
+- `update()` 초입 가드: `if (module_data.path != nullptr && module_data.path != _spline) { _spline = module_data.path; _closest_segment = 0; }` 이후 `if(!_spline) return;`.
 - `setSplineParameters()`: `index` 를 `_spline->numSegments()-1` 로 클램프(짧은 guidance path 대비).
+- **`_external_reference_only` 플래그** (config `contouring.external_reference_only`, 기본 `false`):
+  - `onDataReceived("reference_path")`: 플래그가 참이면 **`_spline` 을 전역 reference_path 로부터 만들지 않고 즉시 return**. 따라서 `_spline` 의 유일한 출처는 `update()` 가 채택하는 주입 guidance path. **최초 guidance 성공 전엔 `_spline=nullptr`** → 전역 roadmap 미추종.
+  - `setParameters()`: `_spline==nullptr` 이면 (startup) contour/lag/terminal weight 를 **0** 으로 적재하고 `setSplineParameters()` 건너뜀. 이유: ① null 역참조(`_spline->numSegments()`) 방지, ② 미정의(0,0) reference 로 로봇이 원점으로 끌려가는 것 방지. `update()` 가 early-return 해도 planner 는 `setParameters()` 를 호출하므로 이 가드가 필요.
 
 ### 설정 (`mpc_planner_rosnavigation/config/settings.yaml`)
 - `contouring.add_road_constraints: false` (guidance path 에 정렬된 road bound 없음).
+- `contouring.external_reference_only: true` (전역 roadmap 을 추종 spline 으로 쓰지 않음; `_spline` 은 주입 guidance path 만).
 - 유지: `n_discs:1`, `max_obstacles:12`, `linearized_constraints.add_halfspaces:0`, `contouring.dynamic_velocity_reference:false`, `step_map.enable:true`.
 
 ### 빌드 / 활성화
@@ -139,7 +143,8 @@ Planner::solveMPC
 2. **속도 reference** — 현재 상수. guidance `GetTrajectory()` 속도를 호 길이로 재샘플 → `module_data.path_velocity` 주입하는 동적 속도 reference 가능.
 3. **warmstart** — 현재 매 tick guidance 를 ego pred 에 적재(정확한 선형화 보장, warmstart 이득 일부 포기). 같은 class 유지 시 이전 해 shift 사용하도록 개선 가능(`previously_selected_`).
 4. **하드 제약 infeasibility** — 튜브 제약에 slack 부여(`use_slack=True`)로 완화.
-5. **연속 guidance 실패 → stale spline** — 실패 tick 마다 직전 guidance spline 유지(위 fallback). 한두 tick 은 안정적이나, **여러 tick 연속 실패** 시 로봇이 그 짧은(horizon 길이) spline 끝을 지나면 Contouring 이 마지막 segment 만 클램프 반복(`setSplineParameters`)해 추종 대상이 사실상 사라짐. 연속 실패 카운트가 임계 초과 시 roadmap 으로 명시 복귀하는 로직 검토.
+5. **연속 guidance 실패 → stale spline** — 실패 tick 마다 직전 guidance spline 유지(위 fallback). 한두 tick 은 안정적이나, **여러 tick 연속 실패** 시 로봇이 그 짧은(horizon 길이) spline 끝을 지나면 Contouring 이 마지막 segment 만 클램프 반복(`setSplineParameters`)해 추종 대상이 사실상 사라짐. `external_reference_only=true` 이므로 전역 roadmap 으로의 자동 복귀는 **없음**(의도된 설계). 연속 실패 카운트가 임계 초과 시 roadmap 으로 명시 복귀하는 로직 검토.
+6. **Startup 무동작 구간** — 최초 guidance 성공 전엔 `_spline=nullptr` 로 contouring 비활성(weight 0). 이 구간엔 동적 장애물 튜브(warmstart 기준)·정적 Decomp 만 작동하고 진행 reference 가 없어 로봇이 사실상 정지/감속함. guidance 가 즉시 성공하면 무시 가능하나, 시작 시 PRM 이 여러 tick 실패하면 출발이 지연될 수 있음.
 
 ---
 

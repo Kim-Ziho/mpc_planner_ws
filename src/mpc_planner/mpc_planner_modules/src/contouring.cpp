@@ -22,6 +22,9 @@ namespace MPCPlanner
     _two_way_road = CONFIG["road"]["two_way"].as<bool>();
     _dynamic_velocity_reference = CONFIG["contouring"]["dynamic_velocity_reference"].as<bool>();
 
+    if (CONFIG["contouring"]["external_reference_only"])
+      _external_reference_only = CONFIG["contouring"]["external_reference_only"].as<bool>();
+
     LOG_INITIALIZED();
   }
 
@@ -89,6 +92,23 @@ namespace MPCPlanner
       }
     }
 
+    // No tracking spline yet (G-MPCC startup before the first guidance succeeds): zero the contouring
+    // weights so the MPC does not pull the robot toward an undefined (zero) reference, and skip the
+    // spline parameters to avoid dereferencing a null _spline.
+    if (_spline == nullptr)
+    {
+      setSolverParameterContour(k, _solver->_params, 0.);
+      setSolverParameterLag(k, _solver->_params, 0.);
+      setSolverParameterTerminalAngle(k, _solver->_params, 0.);
+      setSolverParameterTerminalContouring(k, _solver->_params, 0.);
+      if (_dynamic_velocity_reference)
+      {
+        setSolverParameterVelocity(k, _solver->_params, velocity_weight);
+        setSolverParameterReferenceVelocity(k, _solver->_params, reference_velocity);
+      }
+      return;
+    }
+
     {
       setSolverParameterContour(k, _solver->_params, contouring_weight);
       setSolverParameterLag(k, _solver->_params, lag_weight);
@@ -148,6 +168,12 @@ namespace MPCPlanner
     if (data_name == "reference_path")
     {
       LOG_MARK("Received Reference Path");
+
+      // G-MPCC: do not adopt the global reference_path as the tracking spline. _spline is supplied
+      // exclusively by the injected guidance path (module_data.path) in update(); until the first
+      // guidance succeeds, contouring stays inactive instead of falling back to the global roadmap.
+      if (_external_reference_only)
+        return;
 
       // Construct a spline from the given points
       if (data.reference_path.s.empty())

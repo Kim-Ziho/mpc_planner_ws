@@ -61,6 +61,7 @@ contouring:
   num_segments: 8
   preview: 0.0
   add_road_constraints: false # G-MPCC: reference is the guidance spline, which has no aligned road bounds
+  external_reference_only: true # G-MPCC: never track the global roadmap; _spline comes only from the injected guidance path
 
 t-mpc:
   use_t-mpc++: true

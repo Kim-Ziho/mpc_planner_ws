@@ -34,6 +34,11 @@ namespace MPCPlanner
 
     bool _add_road_constraints{false}, _two_way_road{false}, _dynamic_velocity_reference{false};
 
+    // G-MPCC: when true, the global reference_path is never adopted as the tracking spline. The only
+    // source of _spline is an upstream module injecting module_data.path (the best guidance). Until the
+    // first guidance succeeds, _spline stays null and contouring is inactive (no global-path fallback).
+    bool _external_reference_only{false};
+
     void constructRoadConstraints(const RealTimeData &data, ModuleData &module_data);
     void constructRoadConstraintsFromCenterline(const RealTimeData &data, ModuleData &module_data);
     void constructRoadConstraintsFromBounds(const RealTimeData &data, ModuleData &module_data);
