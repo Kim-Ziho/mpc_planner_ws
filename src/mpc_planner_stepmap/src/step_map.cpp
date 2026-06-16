@@ -323,6 +323,50 @@ namespace MPCPlannerStepMap
     return occupancy_[idx(gx, gy, gt)];
   }
 
+  double StepMap::costWorldInterp(const Eigen::Vector2d &world_point, double time_seconds) const
+  {
+    if (!valid())
+      return 1.0; // 밖=점유 관례 유지
+
+    const double gt_f = (time_scale_ > 1e-9) ? time_seconds / time_scale_ : 0.0;
+    const Eigen::Vector3d g = gridCoordinateFromWorld(world_point, gt_f);
+
+    // 셀 중심 보간: occupancy_ 는 셀 중심(연속좌표 정수+0.5) 샘플로 간주하므로 x,y 에
+    // half-cell offset 을 준다. 시간축은 layer = time/time_scale 가 곧 정수 샘플(layer
+    // height = time_scale·index)이라 offset 없음.
+    const double fx = g.x() - 0.5;
+    const double fy = g.y() - 0.5;
+    const double ft = g.z();
+
+    const int i0 = static_cast<int>(std::floor(fx));
+    const int j0 = static_cast<int>(std::floor(fy));
+    const int k0 = static_cast<int>(std::floor(ft));
+    const double ax = fx - static_cast<double>(i0);
+    const double ay = fy - static_cast<double>(j0);
+    const double at = ft - static_cast<double>(k0);
+
+    auto sample = [&](int i, int j, int k) -> double {
+      if (i < 0 || i >= cells_x_ || j < 0 || j >= cells_y_ || k < 0 || k >= cells_t_)
+        return 1.0; // 격자 밖 코너 = 점유
+      return occupancy_[idx(i, j, k)];
+    };
+
+    // bilinear(x,y) × linear(t)
+    auto bilinear = [&](int k) -> double {
+      const double c00 = sample(i0, j0, k);
+      const double c10 = sample(i0 + 1, j0, k);
+      const double c01 = sample(i0, j0 + 1, k);
+      const double c11 = sample(i0 + 1, j0 + 1, k);
+      const double c0 = c00 * (1.0 - ax) + c10 * ax;
+      const double c1 = c01 * (1.0 - ax) + c11 * ax;
+      return c0 * (1.0 - ay) + c1 * ay;
+    };
+
+    const double b0 = bilinear(k0);
+    const double b1 = bilinear(k0 + 1);
+    return b0 * (1.0 - at) + b1 * at;
+  }
+
   void StepMap::setCostCell(int gx, int gy, int gt, double cost)
   {
     if (!insideGrid(gx, gy, gt))

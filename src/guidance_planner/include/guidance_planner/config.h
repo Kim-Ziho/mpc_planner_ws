@@ -139,6 +139,11 @@ namespace GuidancePlanner
     double strrt_corridor_p_explore_;    // 전역 exploration 샘플 비율
     double strrt_corridor_dt_win_minus_; // corridor 시각 창 과거측 [s]
     double strrt_corridor_dt_win_plus_;  // corridor 시각 창 미래측 [s]
+    double strrt_corridor_w_risk_;       // risk 적응형 튜브 폭 증가 게인 [m] (W=w_base+w_risk·p)
+    double strrt_corridor_w_max_;        // 튜브 반폭 상한 [m]
+    // risk-aware edge cost (soft risk 적분)
+    double strrt_risk_w_risk_;           // risk 적분 비용 가중치
+    double strrt_risk_tau_soft_;         // p < tau_soft 는 risk 적분에서 무시 (가우시안 꼬리)
 
     // Risk-Aware ST-RRT* planner parameters
     int    ra_strrt_max_iter_;

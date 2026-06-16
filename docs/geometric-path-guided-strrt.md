@@ -285,7 +285,13 @@ risk cost·감속·폭에만 **보간** 사용 (param 문서 §2.2 ⚠️).
      `guidance_planner.yaml`(`st_rrt/corridor/*`, `st_rrt/prm_period`).
    - 미구현(후속): 멀티골 terminal(§4.1, 현재는 corridor 끝점 단일 goal), corridor-tail progress
      terminal.
-2. **PR-2 risk 필드**: `costWorldInterp`(①) + edge risk 적분 cost(②) + 적응형 폭(§3.3).
+2. **PR-2 risk 필드** — ✅ **구현 완료 (빌드 통과)**: `StepMap::costWorldInterp`(시공간 trilinear
+   보간 ①) + `edgeEvaluate`(hard 충돌 비보간 + soft risk 적분 `∫φ·dl` ②) + edge cost 에 `w_risk·risk`
+   항 + corridor 샘플링 적응형 폭 `W=w_base+w_risk·p`(§3.3). hard/soft 분리 원칙 유지.
+   - 구현 파일: `step_map.{h,cpp}`(`costWorldInterp`), `st_rrt_star_planner.{h,cpp}`(`edgeEvaluate`/
+     `riskDensity`/`edgeCost(+risk)`/적응형 폭), `config.{h,cpp}`, `guidance_planner.yaml`
+     (`st_rrt/corridor/{w_risk,w_max}`, `st_rrt/risk/{w_risk,tau_soft}`).
+   - **다음: 실측으로 w_risk·tau_soft 튜닝** (보행자 회피 거동·평활성 확인).
 3. **PR-3 risk 감속**: steer v_cap(③) + 비대칭 시각 창(§3.2). best 선택을 risk-aware cost 로.
 4. **PR-4 arc-spline**: `reconstructPath` (v,w,θ) 보존 + `ArcSpline2D` + G-MPCC 배선 교체(cubic 제거).
 5. **PR-5 (옵션)** 멀티 corridor 병렬 refine(§4.3).

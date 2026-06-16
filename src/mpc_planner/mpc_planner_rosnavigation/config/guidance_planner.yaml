@@ -44,6 +44,11 @@ guidance_planner:
       p_explore:     0.15    # 전역 exploration 샘플 비율 (corridor 밖 우회·완전성)
       dt_win_minus:  0.3     # corridor 시각 창 과거측 [s]
       dt_win_plus:   0.8     # corridor 시각 창 미래측 [s] (감속 여유로 더 넓게)
+      w_risk:        1.5     # risk 적응형 튜브 폭 게인 [m] (W = w_base + w_risk·p, p=점유확률)
+      w_max:         3.0     # 튜브 반폭 상한 [m]
+    risk:
+      w_risk:        2.0     # edge risk 적분(∫φ·dl) 비용 가중치
+      tau_soft:      0.2     # 점유확률 p < tau_soft 는 risk 적분에서 무시 (가우시안 꼬리)
 
   ra_strrt:
     max_iter:                       2000

@@ -56,7 +56,14 @@ private:
   std::optional<SteerResult> steer(const RRTNode &from,
                                    double x_to, double y_to, double t_to) const;
 
-  bool edgeCollisionFree(const RRTNode &from, double v, double w, double dt) const;
+  /** @brief 엣지를 스윕하며 hard 충돌 검사 + soft risk 적분을 동시에 수행.
+   *  @param risk_integral [out] ∫φ(p)·dl  (충돌 시 값 미정의)
+   *  @return 충돌 없으면 true */
+  bool edgeEvaluate(const RRTNode &from, double v, double w, double dt,
+                    double &risk_integral) const;
+
+  /** @brief 점유확률 p → risk 밀도 φ. p<tau_soft 는 0, 그 외 -log(max(ε,1-p)). */
+  double riskDensity(double p) const;
 
   struct SampleContext
   {
@@ -71,7 +78,7 @@ private:
 
   double timeAwareDist(const RRTNode &a, double x, double y, double t) const;
 
-  double edgeCost(double dt, double v, double w) const;
+  double edgeCost(double dt, double v, double w, double risk_integral) const;
 
   GeometricPath reconstructPath(const std::vector<RRTNode> &nodes, int goal_idx);
 
@@ -98,6 +105,11 @@ private:
   double corridor_p_explore_;
   double corridor_dt_win_minus_;
   double corridor_dt_win_plus_;
+  double corridor_w_risk_;   // risk 적응형 튜브 폭 게인
+  double corridor_w_max_;    // 튜브 폭 상한
+  // risk-aware edge cost
+  double risk_w_risk_;       // risk 적분 비용 가중치
+  double risk_tau_soft_;     // soft 무시 임계
 
   // sample_accept_rate 누적 통계 (Plan() 호출마다 갱신)
   double accept_rate_sum_{0.0};

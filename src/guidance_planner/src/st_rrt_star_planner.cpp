@@ -34,6 +34,10 @@ namespace GuidancePlanner
     corridor_p_explore_ = config->strrt_corridor_p_explore_;
     corridor_dt_win_minus_ = config->strrt_corridor_dt_win_minus_;
     corridor_dt_win_plus_ = config->strrt_corridor_dt_win_plus_;
+    corridor_w_risk_ = config->strrt_corridor_w_risk_;
+    corridor_w_max_ = config->strrt_corridor_w_max_;
+    risk_w_risk_ = config->strrt_risk_w_risk_;
+    risk_tau_soft_ = config->strrt_risk_tau_soft_;
 
     rng_.seed(static_cast<uint32_t>(config->seed_ >= 0 ? config->seed_ : std::random_device{}()));
   }
@@ -110,9 +114,19 @@ namespace GuidancePlanner
 
   // ── Edge 충돌 검사 ────────────────────────────────────────────────────────────
 
-  bool STRRTStarPlanner::edgeCollisionFree(const RRTNode &from,
-                                           double v, double w, double dt) const
+  double STRRTStarPlanner::riskDensity(double p) const
   {
+    if (p < risk_tau_soft_)
+      return 0.0;
+    // φ(p) = -log(1-p), p→1 에서 clamp (hard 충돌이 이미 점유 셀을 거부하므로 보통 작음)
+    return -std::log(std::max(1e-3, 1.0 - p));
+  }
+
+  bool STRRTStarPlanner::edgeEvaluate(const RRTNode &from,
+                                      double v, double w, double dt,
+                                      double &risk_integral) const
+  {
+    risk_integral = 0.0;
     if (!step_map_ || !step_map_->valid())
       return true;
 
@@ -124,6 +138,7 @@ namespace GuidancePlanner
     // 루트의 모든 엣지가 거부되고 계획이 실패한다(sample_accept_rate=0). k=1 부터
     // 검사하면 이 하드 실패가 사라지고, 루트를 옮기지 않으므로 뒤/옆으로 가는
     // 엣지는 여전히 k>=1 스윕 점에서 거부되어 기존 탐색 특성이 보존된다.
+    const double dl = v * (dt / static_cast<double>(n_steps)); // 호길이 증분 (v 상수)
     for (int k = 1; k <= n_steps; ++k)
     {
       double tau = static_cast<double>(k) / n_steps * dt;
@@ -134,8 +149,13 @@ namespace GuidancePlanner
       int layer = static_cast<int>(std::round(t_abs / Config::DT));
       layer = std::max(0, std::min(layer, step_map_->cellsT() - 1));
 
+      // hard 충돌: 비보간(보수적) — 정적 장애물 침식 방지
       if (step_map_->isOccupiedWorld(Eigen::Vector2d(x, y), layer))
         return false;
+
+      // soft risk: 시공간 보간 점유확률 → φ(p)·dl 누적 (호길이 적분)
+      const double p = step_map_->costWorldInterp(Eigen::Vector2d(x, y), t_abs);
+      risk_integral += riskDensity(p) * dl;
     }
     return true;
   }
@@ -181,20 +201,27 @@ namespace GuidancePlanner
     //   AABB 밖 또는 시각 창이 t_upper 를 넘으면 reject 후 재시도.
     const PathCorridor &cor = *ctx.corridor;
     std::uniform_real_distribution<double> sd(0.0, cor.length());
-    std::uniform_real_distribution<double> ld(-corridor_w_base_, corridor_w_base_);
 
     for (int retry = 0; retry < 16; ++retry)
     {
       const double u = sd(rng_);
       const Eigen::Vector2d p = cor.point(u);
       const Eigen::Vector2d n = cor.normal(u);
+      const double tp = cor.time(u);
+
+      // risk 적응형 튜브 폭: corridor 자체가 risk-blind 이므로, 위험 구간에서 폭을
+      // 넓혀 STRRT 가 옆으로 비켜설 샘플을 충분히 받게 한다 (도크 §3.3).
+      double p_risk = 0.0;
+      if (step_map_ && step_map_->valid())
+        p_risk = step_map_->costWorldInterp(p, tp);
+      const double W = std::min(corridor_w_max_, corridor_w_base_ + corridor_w_risk_ * p_risk);
+
+      std::uniform_real_distribution<double> ld(-W, W);
       const Eigen::Vector2d xy = p + ld(rng_) * n;
 
       if (xy.x() < ctx.x_min || xy.x() > ctx.x_max ||
           xy.y() < ctx.y_min || xy.y() > ctx.y_max)
         continue; // AABB 밖
-
-      const double tp = cor.time(u);
       // corridor 시각 근방 창. 미래측을 넓게(감속 여유) — risk 감속 시 같은 지점에
       // corridor 보다 늦게 도달하는 것을 허용한다.
       const double t_lo = std::max(steer_dt_min_, tp - corridor_dt_win_minus_);
@@ -224,9 +251,9 @@ namespace GuidancePlanner
 
   // ── 비용 ──────────────────────────────────────────────────────────────────────
 
-  double STRRTStarPlanner::edgeCost(double dt, double v, double w) const
+  double STRRTStarPlanner::edgeCost(double dt, double v, double w, double risk_integral) const
   {
-    return w_time_ * dt + w_ctrl_ * (v * v + 5.0 * w * w) * dt;
+    return w_time_ * dt + w_ctrl_ * (v * v + 5.0 * w * w) * dt + risk_w_risk_ * risk_integral;
   }
 
   // ── 경로 재구성 ────────────────────────────────────────────────────────────────
@@ -379,12 +406,13 @@ namespace GuidancePlanner
 
       double dt_e = st->t - nodes[i_near].t;
 
-      // 4) 충돌 검사
-      if (!edgeCollisionFree(nodes[i_near], st->v, st->w, dt_e))
+      // 4) 충돌 검사 + risk 적분
+      double risk_near = 0.0;
+      if (!edgeEvaluate(nodes[i_near], st->v, st->w, dt_e, risk_near))
         continue;
 
       // 5) choose-parent: NEIGHBOR_RADIUS 내 후보 중 최저 cost
-      double ec_near = edgeCost(dt_e, st->v, st->w);
+      double ec_near = edgeCost(dt_e, st->v, st->w, risk_near);
       int best_par = i_near;
       double best_par_cost = nodes[i_near].cost + ec_near;
       double bv = st->v, bw = st->w;
@@ -406,10 +434,11 @@ namespace GuidancePlanner
           continue;
         if (std::hypot(cand->x - st->x, cand->y - st->y) > match_tol_)
           continue;
-        if (!edgeCollisionFree(nj, cand->v, cand->w, cand->t - nj.t))
+        double risk_j = 0.0;
+        if (!edgeEvaluate(nj, cand->v, cand->w, cand->t - nj.t, risk_j))
           continue;
 
-        double c = nj.cost + edgeCost(cand->t - nj.t, cand->v, cand->w);
+        double c = nj.cost + edgeCost(cand->t - nj.t, cand->v, cand->w, risk_j);
         if (c < best_par_cost)
         {
           best_par_cost = c;
@@ -455,10 +484,11 @@ namespace GuidancePlanner
           continue;
         if (std::hypot(cand->x - nj.x, cand->y - nj.y) > match_tol_)
           continue;
-        if (!edgeCollisionFree(new_node, cand->v, cand->w, cand->t - new_node.t))
+        double risk_rw = 0.0;
+        if (!edgeEvaluate(new_node, cand->v, cand->w, cand->t - new_node.t, risk_rw))
           continue;
 
-        double c = new_node.cost + edgeCost(cand->t - new_node.t, cand->v, cand->w);
+        double c = new_node.cost + edgeCost(cand->t - new_node.t, cand->v, cand->w, risk_rw);
         if (c < nj.cost)
         {
           // 기존 부모에서 자식 링크 제거
@@ -508,7 +538,8 @@ namespace GuidancePlanner
           if (!sg)
             break;
           const double dt_e2 = sg->t - ct;
-          if (!edgeCollisionFree(nodes[cur], sg->v, sg->w, dt_e2))
+          double risk_g = 0.0;
+          if (!edgeEvaluate(nodes[cur], sg->v, sg->w, dt_e2, risk_g))
             break; // 충돌 → 폴백
 
           RRTNode gn;
@@ -518,7 +549,7 @@ namespace GuidancePlanner
           gn.t = sg->t;
           gn.v = sg->v;
           gn.w = sg->w;
-          gn.cost = cc + edgeCost(dt_e2, sg->v, sg->w);
+          gn.cost = cc + edgeCost(dt_e2, sg->v, sg->w, risk_g);
           gn.parent = cur;
           nodes.push_back(gn); // 이후 cur 참조 무효 — 인덱스로만 접근
           const int i_gn = static_cast<int>(nodes.size()) - 1;

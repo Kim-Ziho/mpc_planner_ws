@@ -138,6 +138,10 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/st_rrt/corridor/p_explore",    strrt_corridor_p_explore_,    0.15);
     retrieveParameter(node, "guidance_planner/st_rrt/corridor/dt_win_minus", strrt_corridor_dt_win_minus_, 0.3);
     retrieveParameter(node, "guidance_planner/st_rrt/corridor/dt_win_plus",  strrt_corridor_dt_win_plus_,  0.8);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/w_risk",       strrt_corridor_w_risk_,       1.5);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/w_max",        strrt_corridor_w_max_,        3.0);
+    retrieveParameter(node, "guidance_planner/st_rrt/risk/w_risk",           strrt_risk_w_risk_,           2.0);
+    retrieveParameter(node, "guidance_planner/st_rrt/risk/tau_soft",         strrt_risk_tau_soft_,         0.2);
 
     // Risk-Aware ST-RRT*
     retrieveParameter(node, "guidance_planner/ra_strrt/max_iter",            ra_strrt_max_iter_,            2000);

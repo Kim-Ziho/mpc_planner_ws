@@ -28,6 +28,16 @@ namespace MPCPlannerStepMap
     bool isSegmentOccupiedWorld(const Eigen::Vector2d &start_world, double start_time,
                                 const Eigen::Vector2d &end_world, double end_time) const;
 
+    /**
+     * @brief 시공간 trilinear 보간 점유확률 (soft risk 필드).
+     * @param world_point  질의 위치 (world frame)
+     * @param time_seconds 질의 시각 [s] (내부에서 layer = time_seconds / time_scale)
+     * @return 보간된 점유확률 p ∈ [0,1]. 격자 밖 코너는 1.0(점유)로 처리해 경계에서
+     *         보수적. hard 충돌 판정(isOccupiedWorld)과 달리 ramp 가 매끄러워 risk
+     *         gradient/감속/튜브폭 결정에 쓰기 적합하다. (충돌 거부에는 쓰지 말 것)
+     */
+    double costWorldInterp(const Eigen::Vector2d &world_point, double time_seconds) const;
+
     bool valid() const { return cells_x_ > 0 && cells_y_ > 0 && cells_t_ > 0; }
 
     double resolution() const { return resolution_; }
