@@ -82,29 +82,26 @@ strrt_planner_.Plan(start_, orientation_, v, goal_xy,
                     ra_spline_start_);
 ```
 
-### 2.2 변경 후 — PRM 5Hz 비동기 / STRRT 20Hz (확정, §9.0)
+### 2.2 변경 후 — PRM·STRRT 동일 프레임 동기 (확정, §9.0)
 
-PRM 을 STRRT 와 **같은 프레임에 묶지 않는다.** PRM 은 **독립 5Hz** 로 best geometric path(corridor)를
-갱신하고, STRRT 는 매 20Hz 루프에서 **가장 최근 corridor 를 읽어** refine 한다.
+매 프레임 PRM 을 먼저 돌려 best geometric path 를 corridor 로 만들고, **같은 프레임에서 바로 이어서**
+STRRT 가 그 주변을 샘플링한다 (PRM → corridor → STRRT, 한 스레드 순차).
 
 ```cpp
-// ── PRM 경로 (5Hz, 비동기) ─────────────────────────────────────
-// Visibility-PRM on StepMap (이미 구현됨, 커밋 201dedb)
+// ── PRM corridor (매 프레임) ───────────────────────────────────
 prm_.SetStepMap(step_map_);
 prm_.LoadData(...); Graph& g = prm_.Update();
-// graph_search → paths_ 정렬 → best = paths_[0]
-latest_corridor_ = PathCorridor(best_path);   // 공유 멤버로 보관 (생성 프레임 포함)
+// graph_search → best = min PathSelectionCost
+PathCorridor corridor(best_path);   // 매 프레임 새로 만드는 로컬 값 (캐싱 없음)
 
-// ── STRRT 경로 (20Hz) ─────────────────────────────────────────
-strrt_planner_.Plan(start_, orientation_, v,
-                    latest_corridor_,   // ← 최근 corridor 재사용 (시공간!)
-                    goals_);            // ← 멀티골 (soft terminal set)
+// ── STRRT (이어서, 같은 프레임) ───────────────────────────────
+strrt_planner_.Plan(start_, orientation_, v, goal_xy /*= corridor 끝점*/,
+                    corridor_valid ? &corridor : nullptr);
 ```
 
-- **20Hz 예산에서 PRM 비용 제거**: graph search 가 STRRT 프레임에서 빠진다. corridor 는 4 프레임에
-  1회만 갱신 → STRRT 입장에서 충분히 안정.
-- **corridor 미존재(cold start)/stale 시 폴백**: PRM 이 아직 안 돌았거나 갱신이 너무 오래되면
-  (a) corridor 없이 기존 roadmap-band 샘플링으로 폴백. → graceful degradation.
+- **PRM 못 만들면 폴백**: corridor 무효 시 STRRT 는 균일 샘플링(`p_explore` 분기)으로 폴백.
+- **부하**: graph search 가 매 20Hz 프레임에 포함된다. 예산(50ms) 초과 시 `n_paths` 축소 또는
+  별도 스레드 비동기 재고(§9.1).
 - **1차 범위**: best **1개 corridor** refinement 로 feasibility 우선 검증(§9.0). 멀티 위상은 §4.3 후순위.
 
 ### 2.3 corridor 표현 — `PathCorridor` (cubic 불필요)
@@ -277,12 +274,12 @@ risk cost·감속·폭에만 **보간** 사용 (param 문서 §2.2 ⚠️).
 ## 8. 단계별 구현 (PR 분할)
 
 1. **PR-1 corridor 주입 (risk 없이)** — ✅ **구현 완료 (빌드 통과)**: PRM best path → `PathCorridor`
-   → §3 의 (A)(B)(C) 3-way 샘플링(W 고정 `corridor/w_base`, risk 항 0). PRM 5Hz 비동기(`prm_period`).
+   → §3 의 (A)(B)(C) 3-way 샘플링(W 고정 `corridor/w_base`, risk 항 0). PRM·STRRT 동일 프레임 동기.
    goal 은 corridor 끝점으로 설정. **다음: gym/rosnavigation 에서 accept rate·평활성 실측 검증**
    (단서 ②의 시공간 샘플 효과 확인).
    - 구현 파일: `path_corridor.h`(신규), `st_rrt_star_planner.{h,cpp}`(sampleState 3-way, Plan
-     시그니처 corridor*), `global_guidance.{h,cpp}`(PRM 5Hz 갱신 + corridor 캐싱), `config.{h,cpp}`,
-     `guidance_planner.yaml`(`st_rrt/corridor/*`, `st_rrt/prm_period`).
+     시그니처 corridor*), `global_guidance.{h,cpp}`(매 프레임 PRM→corridor→STRRT), `config.{h,cpp}`,
+     `guidance_planner.yaml`(`st_rrt/corridor/*`).
    - 미구현(후속): 멀티골 terminal(§4.1, 현재는 corridor 끝점 단일 goal), corridor-tail progress
      terminal.
 2. **PR-2 risk 필드** — ✅ **구현 완료 (빌드 통과)**: `StepMap::costWorldInterp`(시공간 trilinear
@@ -324,23 +321,24 @@ risk cost·감속·폭에만 **보간** 사용 (param 문서 §2.2 ⚠️).
 
 ### 9.0 확정된 설계 결정 (사용자 피드백 반영)
 
-- **✅ PRM 비동기 5Hz 구동.** PRM 선행을 STRRT(20Hz) 와 같은 프레임에 묶지 않는다. PRM 을
-  **독립 5Hz** 로 돌려 best geometric path(corridor)를 갱신하고, STRRT 는 매 20Hz 루프에서 **가장
-  최근 corridor 를 재사용**한다. → ① PRM 그래프 탐색 비용이 20Hz 예산(50ms)에서 빠짐(§2.2 의
-  "PRM 선행 비용" 우려 해소), ② corridor 는 4 프레임에 1회만 바뀌므로 STRRT 입장에서 충분히
-  안정적. 구현: PRM 결과를 `latest_corridor_` 로 보관(생성 timestamp/프레임 포함), STRRT 분기는
-  이것을 읽기만. corridor 미존재(초기 몇 프레임)면 §2.2 (a) roadmap-band 폴백.
+- **✅ PRM·STRRT 동일 프레임 동기 실행 (현재 구현).** 매 프레임(`Update()`) PRM 을 먼저 돌려 best
+  geometric path 를 시공간 corridor 로 만들고, **바로 이어서 STRRT 가 그 주변을 샘플링**한다
+  (PRM → corridor → STRRT, 한 스레드 순차). corridor 는 매 프레임 새로 생성되는 로컬 값이며 캐싱/
+  프레임 카운터 없음. PRM 이 corridor 를 못 만들면 STRRT 는 균일 샘플링으로 폴백.
+  - *이력*: 초기엔 "PRM 5Hz 비동기/스로틀" 을 적었으나, 같은 프레임 동기 실행으로 확정·구현 변경.
+    그래프 탐색 비용이 매 20Hz 프레임에 포함되므로, 부하가 예산(50ms)을 깨면 `n_paths` 축소 또는
+    별도 스레드 비동기를 재고한다(§9.1).
 - **✅ corridor 시간 일관성은 후순위.** 프레임 간 위상 매칭/스무딩은 **지금 구현하지 않는다.**
   먼저 **단일 geometric path 1개를 refinement** 하는 경로로 *feasibility 자체*를 검증한다(코어 가설
-  우선). 5Hz corridor 갱신이 위상을 가끔 바꿔 STRRT 출력이 튀더라도, 1차 목표는 "corridor-guided
+  우선). 매 프레임 corridor 갱신이 위상을 가끔 바꿔 STRRT 출력이 튀더라도, 1차 목표는 "corridor-guided
   STRRT 가 feasible·smooth 궤적을 만드는가"이지 프레임 간 연속성이 아니다. 일관성은 feasibility
   확인 후 별도 단계(§4.3 멀티 corridor / 위상 매칭)에서 다룬다.
 
 ### 9.1 남은 열린 질문
 
-- [ ] **PRM 5Hz ↔ STRRT 20Hz 동기화 디테일**: corridor 를 어떻게 보관/전달할지(공유 멤버 vs 콜백),
-      PRM 이 아직 한 번도 안 돌았을 때(cold start) 폴백 시점, corridor staleness 상한(예: 마지막
-      갱신이 N 프레임 넘으면 폴백).
+- [ ] **PRM 매 프레임 부하**: PRM(graph search) + STRRT 가 한 20Hz 프레임(50ms)에 같이 들어가는지
+      실측 필요. 초과 시 `n_paths` 축소, 또는 PRM 을 별도 스레드로 분리해 corridor 만 swap 하는
+      비동기로 전환(double-buffer + StepMap/obstacle 스냅샷 복사).
 - [ ] **튜브 폭 W_base vs exploration 비율**: 좁은 튜브+높은 explore vs 넓은 튜브+낮은 explore 중
       어느 쪽이 risk-escape 와 평활의 균형이 좋은지 — 실측 튜닝 대상.
 - [ ] **멀티골 terminal 기준**: corridor tail 진행도(`u_term`) vs goals_ radius vs 둘 다 — 우선순위.

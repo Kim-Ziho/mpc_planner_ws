@@ -182,10 +182,6 @@ namespace GuidancePlanner
     std::shared_ptr<RosTools::Spline2D> ra_reference_path_;
     double ra_spline_start_{0.0};
 
-    // STRRT corridor-guided 샘플링 — PRM best path 를 5Hz 비동기로 갱신해 재사용
-    PathCorridor latest_corridor_;
-    bool latest_corridor_valid_{false};
-    int  prm_frame_counter_{0};
 
     std::unique_ptr<Reconfigure> reconfigure_;
 

@@ -393,55 +393,47 @@ namespace GuidancePlanner
           return false;
         }
 
-        // ── PRM corridor 5Hz 비동기 갱신 ───────────────────────────────────────
-        //   prm_period_ 프레임마다(또는 corridor 부재 시) Visibility-PRM 을 돌려
-        //   best geometric path 를 시공간 corridor 로 캐싱한다. STRRT 는 매 프레임
-        //   가장 최근 corridor 를 재사용 → graph search 비용을 20Hz 예산에서 분리.
+        // ── PRM corridor 갱신 (STRRT 와 같은 프레임에서 동기 실행) ─────────────────
+        //   매 프레임 Visibility-PRM 을 돌려 best geometric path 를 시공간 corridor 로
+        //   만들고, 바로 이어서 STRRT 가 그 주변을 샘플링한다 (PRM → corridor → STRRT).
+        PathCorridor corridor;
+        bool corridor_valid = false;
         {
-          const int prm_period = std::max(1, config_->strrt_prm_period_);
-          const bool refresh = (!latest_corridor_valid_) ||
-                               (prm_frame_counter_ % prm_period == 0);
-          prm_frame_counter_++;
+          prm_.SetStepMap(step_map_);
+          prm_.LoadData(obstacles_, static_obstacles_, start_, orientation_,
+                        start_velocity_, goals_);
+          Graph &graph = prm_.Update();
 
-          if (refresh)
+          std::vector<GeometricPath> cand;
+          std::vector<std::vector<GeometricPath>> cur(graph.goal_nodes_.size());
+          for (size_t g = 0; g < graph.goal_nodes_.size(); g++)
           {
-            prm_.SetStepMap(step_map_);
-            prm_.LoadData(obstacles_, static_obstacles_, start_, orientation_,
-                          start_velocity_, goals_);
-            Graph &graph = prm_.Update();
+            std::vector<Node *> L = {graph.start_node_};
+            graph_search_.Search(graph, config_->n_paths_, L, cur[g], graph.goal_nodes_[g]);
+          }
+          for (auto &cp : cur)
+            for (auto &p : cp)
+              cand.push_back(p);
 
-            std::vector<GeometricPath> cand;
-            std::vector<std::vector<GeometricPath>> cur(graph.goal_nodes_.size());
-            for (size_t g = 0; g < graph.goal_nodes_.size(); g++)
-            {
-              std::vector<Node *> L = {graph.start_node_};
-              graph_search_.Search(graph, config_->n_paths_, L, cur[g], graph.goal_nodes_[g]);
-            }
-            for (auto &cp : cur)
-              for (auto &p : cp)
-                cand.push_back(p);
-
-            if (!cand.empty())
-            {
-              auto best_it = std::min_element(cand.begin(), cand.end(),
-                  [&](const GeometricPath &a, const GeometricPath &b)
-                  { return PathSelectionCost(a) < PathSelectionCost(b); });
-              latest_corridor_ = PathCorridor(*best_it); // 노드 위치/시각을 값으로 복사
-              latest_corridor_valid_ = latest_corridor_.valid();
-            }
-            else
-            {
-              latest_corridor_valid_ = false;
-              PRM_LOG("STRRT: PRM produced no corridor — fallback to uniform sampling");
-            }
+          if (!cand.empty())
+          {
+            auto best_it = std::min_element(cand.begin(), cand.end(),
+                [&](const GeometricPath &a, const GeometricPath &b)
+                { return PathSelectionCost(a) < PathSelectionCost(b); });
+            corridor = PathCorridor(*best_it); // 노드 위치/시각을 값으로 복사
+            corridor_valid = corridor.valid();
+          }
+          else
+          {
+            PRM_LOG("STRRT: PRM produced no corridor — fallback to uniform sampling");
           }
         }
 
         // goal: corridor 끝점 우선(= STRRT 가 추종할 위상의 종착점), 없으면 best grid goal
         Eigen::Vector2d goal_xy;
-        if (latest_corridor_valid_)
+        if (corridor_valid)
         {
-          goal_xy = latest_corridor_.point(latest_corridor_.length());
+          goal_xy = corridor.point(corridor.length());
         }
         else
         {
@@ -470,7 +462,7 @@ namespace GuidancePlanner
 
         auto opt_path = strrt_planner_.Plan(start_, orientation_,
                                              start_velocity_.norm(), goal_xy,
-                                             latest_corridor_valid_ ? &latest_corridor_ : nullptr);
+                                             corridor_valid ? &corridor : nullptr);
         prm_benchmarker.stop();
 
         if (!opt_path.has_value())
