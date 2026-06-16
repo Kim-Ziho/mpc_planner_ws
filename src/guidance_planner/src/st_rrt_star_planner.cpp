@@ -299,6 +299,9 @@ namespace GuidancePlanner
     }
     std::reverse(chain.begin(), chain.end());
 
+    // (v,w) 호 시퀀스를 조밀 평가해 arc reference 궤적 구성 (cubic 왜곡 제거)
+    buildArcTrajectory(nodes, chain);
+
     path_nodes_.clear();
     for (size_t i = 0; i < chain.size(); ++i)
     {
@@ -336,6 +339,64 @@ namespace GuidancePlanner
       ptrs.push_back(&n);
 
     return GeometricPath(ptrs);
+  }
+
+  // ── Arc reference 궤적 구성 ─────────────────────────────────────────────────────
+
+  void STRRTStarPlanner::buildArcTrajectory(const std::vector<RRTNode> &nodes,
+                                            const std::vector<int> &chain)
+  {
+    ArcTrajectory &tr = last_arc_traj_;
+    tr.xs.clear();
+    tr.ys.clear();
+    tr.ks.clear();
+    tr.ss.clear();
+    tr.valid = false;
+    if (chain.size() < 2)
+      return;
+
+    auto push = [&](double x, double y, double k, double s) {
+      tr.xs.push_back(x);
+      tr.ys.push_back(y);
+      tr.ks.push_back(k);
+      tr.ss.push_back(s);
+    };
+
+    const double inv_dt = 1.0 / Config::DT;
+    double s_acc = 0.0;
+    double last_x = nodes[chain[0]].x;
+    double last_y = nodes[chain[0]].y;
+    push(last_x, last_y, nodes[chain[0]].t * inv_dt, 0.0); // root
+
+    for (size_t i = 1; i < chain.size(); ++i)
+    {
+      const RRTNode &prev = nodes[chain[i - 1]];
+      const RRTNode &cur = nodes[chain[i]];
+      const double dt = cur.t - prev.t;
+      if (dt <= 1e-9)
+        continue;
+      // 엣지 컨트롤은 자식 노드에 저장됨 (parent→cur 를 cur.v,cur.w 로 적분)
+      const double v = cur.v, w = cur.w;
+      const int n_sub = std::max(1, static_cast<int>(std::ceil(dt / check_dt_)));
+      for (int j = 1; j <= n_sub; ++j)
+      {
+        const double tau = static_cast<double>(j) / n_sub * dt;
+        double x = prev.x, y = prev.y, th = prev.theta;
+        unicycleStep(x, y, th, v, w, tau);
+        s_acc += std::hypot(x - last_x, y - last_y);
+        push(x, y, (prev.t + tau) * inv_dt, s_acc);
+        last_x = x;
+        last_y = y;
+      }
+    }
+
+    // goal k=N 홀드: MPC trajectory 가 0..N 을 덮도록 (도착이 horizon 보다 이르면)
+    const double k_goal = static_cast<double>(Config::N);
+    if (!tr.ks.empty() && tr.ks.back() < k_goal - 1e-6)
+      push(tr.xs.back(), tr.ys.back(), k_goal, tr.ss.back()); // 위치/호길이 유지
+
+    // tk::spline 안정 최소 점수. s-dedup(goal-hold 등) 후에도 >=4 가 남도록 여유.
+    tr.valid = tr.xs.size() >= 5;
   }
 
   // ── Plan() 메인 루프 ───────────────────────────────────────────────────────────

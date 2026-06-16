@@ -599,13 +599,25 @@ namespace GuidancePlanner
       PRM_LOG("======== Cubic Splines ==========");
       {
         PROFILE_SCOPE("Cubic Splines");
+        // STRRT: (v,w) 호를 닫힌 식으로 평가한 arc reference 를 직접 사용 (cubic 피팅 우회).
+        const auto &arc_traj = strrt_planner_.GetLastArcTrajectory();
+        const bool use_arc_ref = (config_->algorithm_ == "STRRT") && arc_traj.valid &&
+                                 paths_.size() == 1;
         for (size_t i = 0; i < paths_.size(); i++)
         {
           auto &path = paths_[i];
-          splines_.emplace_back(path, config_.get(), start_velocity_);
-          if (config_->optimize_splines_ && config_->algorithm_ != "HybridAStar" &&
-              config_->algorithm_ != "STRRT" && config_->algorithm_ != "RiskAwareSTRRT")
-            splines_.back().Optimize(obstacles_);
+          if (use_arc_ref)
+          {
+            splines_.emplace_back(arc_traj.xs, arc_traj.ys, arc_traj.ks, arc_traj.ss,
+                                  config_.get());
+          }
+          else
+          {
+            splines_.emplace_back(path, config_.get(), start_velocity_);
+            if (config_->optimize_splines_ && config_->algorithm_ != "HybridAStar" &&
+                config_->algorithm_ != "STRRT" && config_->algorithm_ != "RiskAwareSTRRT")
+              splines_.back().Optimize(obstacles_);
+          }
         }
       }
 

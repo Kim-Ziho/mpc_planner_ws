@@ -28,6 +28,39 @@ CubicSpline3D::CubicSpline3D(const GeometricPath &path, Config *config, const Ei
   PRM_LOG("CubicSpline created");
 }
 
+CubicSpline3D::CubicSpline3D(const std::vector<double> &xs, const std::vector<double> &ys,
+                             const std::vector<double> &ks, const std::vector<double> &ss,
+                             Config *config)
+    : config_(config)
+{
+  acceleration_weights_computed_ = false;
+  acceleration_weight_ = 0.;
+
+  // trajectory: (x,y) over time-index k (k 는 buildArcTrajectory 에서 strictly-increasing 보장)
+  trajectory_spline_ = std::make_shared<RosTools::Spline2D>(xs, ys, ks);
+
+  // path: (x,y) over 호길이 s — tk::spline 은 strictly-increasing 파라미터를 요구하므로
+  // 정지/goal-hold 로 인한 동일 s 샘플을 필터링한다.
+  std::vector<double> px, py, ps;
+  px.reserve(xs.size());
+  py.reserve(ys.size());
+  ps.reserve(ss.size());
+  double last_s = -1.0e9;
+  for (size_t i = 0; i < ss.size(); ++i)
+  {
+    if (ss[i] > last_s + 1e-4)
+    {
+      px.push_back(xs[i]);
+      py.push_back(ys[i]);
+      ps.push_back(ss[i]);
+      last_s = ss[i];
+    }
+  }
+  path_spline_ = std::make_shared<RosTools::Spline2D>(px, py, ps);
+
+  PRM_LOG("CubicSpline created from arc samples");
+}
+
 void CubicSpline3D::defineSplineFromControlpoints()
 {
   x_ = tk::spline();

@@ -301,7 +301,18 @@ risk cost·감속·폭에만 **보간** 사용 (param 문서 §2.2 ⚠️).
      `guidance_planner.yaml`(`st_rrt/risk/{v_min_ratio,beta}`).
    - 시너지: 감속된 v 가 엣지 reference 속도가 되어 PR-4 arc-spline v 프로파일에 직결(보행자
      근처 자동 감속), 연장 dt 가 `w_time·dt` 를 키워 risk 적분과 이중 일관.
-4. **PR-4 arc-spline**: `reconstructPath` (v,w,θ) 보존 + `ArcSpline2D` + G-MPCC 배선 교체(cubic 제거).
+4. **PR-4 arc reference** — ✅ **구현 완료 (빌드 통과)**: `reconstructPath` 가 chain 의 각 (v,w) 호를
+   닫힌 식(`unicycleStep`)으로 **조밀 평가**해 `ArcTrajectory{xs,ys,ks,ss}` 구성. `CubicSpline3D` 에
+   조밀 arc 샘플로부터 `trajectory_spline_`(시간 k)·`path_spline_`(호길이 s)를 **직접 구성**하는
+   생성자 추가 → sparse 노드 cubic 피팅의 왜곡 제거. `GetPath()/GetTrajectory()` 외부 인터페이스
+   유지하여 **G-MPCC/Contouring 배선 무변경**(Contouring 은 closest segment 윈도우만 슬라이딩으로
+   소비, segment 수 증가 안전). risk 감속된 v 가 k 타이밍에 그대로 반영.
+   - 구현 파일: `st_rrt_star_planner.{h,cpp}`(`ArcTrajectory`/`buildArcTrajectory`/getter),
+     `cubic_spline.{h,cpp}`(arc-샘플 생성자), `global_guidance.cpp`(STRRT 단일경로 시 arc reference
+     사용, 아니면 기존 cubic fallback).
+   - **참고**: 진정한 `ArcSpline2D`(tk::spline 완전 제거, 닫힌 식 `getPoint/findClosestPoint`)는
+     `RosTools::Spline2D` 를 mpc_planner 전반에서 교체해야 해 범위가 큼 → 후속. 현재는 arc 를
+     닫힌 식으로 평가한 **조밀 샘플**을 Spline2D 컨테이너에 담아 피팅 왜곡을 제거(실용적 동치).
 5. **PR-5 (옵션)** 멀티 corridor 병렬 refine(§4.3).
 
 각 PR 은 독립 검증 가능 — PR-1 만으로도 "corridor-guided STRRT" 의 핵심 가설(샘플 효율·평활)을

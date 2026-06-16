@@ -33,6 +33,20 @@ public:
                                     const Eigen::Vector2d &goal_xy,
                                     const PathCorridor *corridor = nullptr);
 
+  /** @brief (v,w) 호 시퀀스를 닫힌 식으로 조밀 평가한 reference 궤적.
+   *  cubic 이 sparse 노드를 피팅해 왜곡하는 대신, arc 위 샘플을 그대로 담아
+   *  MPC reference(GetPath: 호길이 s, GetTrajectory: 시간 k)로 쓴다. */
+  struct ArcTrajectory
+  {
+    std::vector<double> xs, ys; // 위치 샘플
+    std::vector<double> ks;     // 시간-index k (= t/DT)
+    std::vector<double> ss;     // 누적 호길이 [m]
+    bool valid{false};
+  };
+
+  /** @brief 마지막 Plan() 의 arc reference 궤적 (reconstructPath 에서 채움) */
+  const ArcTrajectory &GetLastArcTrajectory() const { return last_arc_traj_; }
+
 private:
   struct RRTNode
   {
@@ -82,12 +96,17 @@ private:
 
   GeometricPath reconstructPath(const std::vector<RRTNode> &nodes, int goal_idx);
 
+  /** @brief chain(root→goal)의 각 (v,w) 호를 조밀 평가해 last_arc_traj_ 채움 */
+  void buildArcTrajectory(const std::vector<RRTNode> &nodes,
+                          const std::vector<int> &chain);
+
   static void unicycleStep(double &x, double &y, double &theta,
                            double v, double w, double dt);
 
   Config *config_{nullptr};
   std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
   std::list<Node> path_nodes_;
+  ArcTrajectory last_arc_traj_;
 
   int    max_iter_;
   double steer_dt_min_, steer_dt_max_;

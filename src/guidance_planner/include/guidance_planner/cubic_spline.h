@@ -163,6 +163,15 @@ namespace GuidancePlanner
         /** @brief Initialize a Cubic Spline from an existing path (i.e., initial control points are on the path) */
         CubicSpline3D(const GeometricPath &path, Config *config, const Eigen::Vector2d &current_velocity);
 
+        /** @brief 조밀 arc 샘플로부터 직접 reference 구성 (control-point 피팅/최적화 없음).
+         *  trajectory_spline_: (x,y) over k, path_spline_: (x,y) over 호길이 s.
+         *  STRRT 의 (v,w) 호를 닫힌 식으로 평가한 점들이라 sparse 노드 cubic 피팅의
+         *  왜곡이 없다. s 는 strictly-increasing 으로 필터링해 구성한다.
+         *  @param xs,ys 위치 샘플  @param ks 시간-index(=t/DT)  @param ss 누적 호길이 */
+        CubicSpline3D(const std::vector<double> &xs, const std::vector<double> &ys,
+                      const std::vector<double> &ks, const std::vector<double> &ss,
+                      Config *config);
+
         CubicSpline3D(const CubicSpline3D &other) = default;
 
         /** @brief Static function when an empty trajectory is needed */
