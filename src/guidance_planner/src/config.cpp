@@ -133,6 +133,11 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/st_rrt/check_dt",        strrt_check_dt_,        0.05);
     retrieveParameter(node, "guidance_planner/st_rrt/path_lat_half_width", strrt_path_lat_half_width_, 3.0);
     retrieveParameter(node, "guidance_planner/st_rrt/greedy_goal_connect", strrt_greedy_goal_connect_, true);
+    retrieveParameter(node, "guidance_planner/st_rrt/prm_period",            strrt_prm_period_,            4);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/w_base",       strrt_corridor_w_base_,       0.8);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/p_explore",    strrt_corridor_p_explore_,    0.15);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/dt_win_minus", strrt_corridor_dt_win_minus_, 0.3);
+    retrieveParameter(node, "guidance_planner/st_rrt/corridor/dt_win_plus",  strrt_corridor_dt_win_plus_,  0.8);
 
     // Risk-Aware ST-RRT*
     retrieveParameter(node, "guidance_planner/ra_strrt/max_iter",            ra_strrt_max_iter_,            2000);

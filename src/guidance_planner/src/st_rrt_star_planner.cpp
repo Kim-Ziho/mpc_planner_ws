@@ -1,10 +1,10 @@
 #include <guidance_planner/st_rrt_star_planner.h>
+#include <guidance_planner/path_corridor.h>
 #include <guidance_planner/space_time_kdtree.h>
 #include <guidance_planner/types/connection.h>
 #include <guidance_planner/types/space_time_point.h>
 
 #include <ros_tools/logging.h>
-#include <ros_tools/spline.h>
 
 #include <algorithm>
 #include <cmath>
@@ -30,6 +30,10 @@ namespace GuidancePlanner
     w_max_ = config->hastar_w_max_;
     path_lat_half_width_ = config->strrt_path_lat_half_width_;
     greedy_goal_connect_ = config->strrt_greedy_goal_connect_;
+    corridor_w_base_ = config->strrt_corridor_w_base_;
+    corridor_p_explore_ = config->strrt_corridor_p_explore_;
+    corridor_dt_win_minus_ = config->strrt_corridor_dt_win_minus_;
+    corridor_dt_win_plus_ = config->strrt_corridor_dt_win_plus_;
 
     rng_.seed(static_cast<uint32_t>(config->seed_ >= 0 ? config->seed_ : std::random_device{}()));
   }
@@ -142,9 +146,10 @@ namespace GuidancePlanner
   STRRTStarPlanner::sampleState(const SampleContext &ctx) const
   {
     std::uniform_real_distribution<double> uni01(0.0, 1.0);
+    const double r = uni01(rng_);
 
-    // ── (1) goal-bias 모드: goal 근방, 단 AABB 안으로 clamp ────────────────────
-    if (uni01(rng_) < goal_bias_)
+    // ── (A) goal-bias 모드: goal 근방, 단 AABB 안으로 clamp ────────────────────
+    if (r < goal_bias_)
     {
       if (ctx.t_min_goal >= ctx.t_upper)
         return std::nullopt;
@@ -155,8 +160,11 @@ namespace GuidancePlanner
       return Sample{x, y, gt_dist(rng_)};
     }
 
-    // ── (2) reference path 가 없으면 AABB 전체 균일 샘플 (기존 동작) ───────────
-    if (!ctx.reference_path || ctx.max_s <= ctx.cur_s)
+    // ── (B) 전역 exploration / corridor 폴백: AABB 전체 균일 샘플 ───────────────
+    //   corridor 가 없거나(폴백) exploration 비율에 당첨되면 균일 샘플로 완전성·
+    //   risk-escape 를 보존한다.
+    const bool use_corridor = (ctx.corridor != nullptr) && ctx.corridor->valid();
+    if (!use_corridor || r < goal_bias_ + corridor_p_explore_)
     {
       std::uniform_real_distribution<double> xd(ctx.x_min, ctx.x_max);
       std::uniform_real_distribution<double> yd(ctx.y_min, ctx.y_max);
@@ -167,34 +175,34 @@ namespace GuidancePlanner
       return Sample{xd(rng_), yd(rng_), td(rng_)};
     }
 
-    // ── (3) AABB ∩ along-reference-path 샘플 ────────────────────────────────
-    //   s ∈ [cur_s, max_s], lat ∈ [-W, W], position = ref(s) + lat·n(s)
-    //   AABB 밖이면 reject 후 재시도. t_lower = (s - cur_s) / v_max
-    std::uniform_real_distribution<double> sd(ctx.cur_s, ctx.max_s);
-    std::uniform_real_distribution<double> ld(-path_lat_half_width_, path_lat_half_width_);
+    // ── (C) corridor 시공간 튜브 샘플 ──────────────────────────────────────────
+    //   u ∈ [0, L], position = corridor(u) + lat·n(u),  lat ∈ [-W, W]
+    //   시각은 corridor 자신의 시각 t_p(u) 근방 창에서 추출 (시공간 일관 샘플).
+    //   AABB 밖 또는 시각 창이 t_upper 를 넘으면 reject 후 재시도.
+    const PathCorridor &cor = *ctx.corridor;
+    std::uniform_real_distribution<double> sd(0.0, cor.length());
+    std::uniform_real_distribution<double> ld(-corridor_w_base_, corridor_w_base_);
 
     for (int retry = 0; retry < 16; ++retry)
     {
-      const double s = sd(rng_);
-      const double lat = ld(rng_);
-
-      Eigen::Vector2d p = ctx.reference_path->getPoint(s);
-      Eigen::Vector2d n = ctx.reference_path->getOrthogonal(s);
-      Eigen::Vector2d xy = p + lat * n;
+      const double u = sd(rng_);
+      const Eigen::Vector2d p = cor.point(u);
+      const Eigen::Vector2d n = cor.normal(u);
+      const Eigen::Vector2d xy = p + ld(rng_) * n;
 
       if (xy.x() < ctx.x_min || xy.x() > ctx.x_max ||
           xy.y() < ctx.y_min || xy.y() > ctx.y_max)
-        continue; // AABB 밖 — 교집합 조건 위반
+        continue; // AABB 밖
 
-      // 도달 가능 최소 시각: start → 해당 s 까지 ref 곡선거리(≈ s - cur_s) / v_max
-      // 횡방향 오프셋의 추가 거리는 무시(작은 lat 가정). 보수적으로 약간의 여유는
-      // steer_dt_min_ 로 보장.
-      const double s_offset = s - ctx.cur_s;
-      const double t_lower = std::max(steer_dt_min_, s_offset / std::max(1e-3, v_max_));
-      if (t_lower >= ctx.t_upper)
+      const double tp = cor.time(u);
+      // corridor 시각 근방 창. 미래측을 넓게(감속 여유) — risk 감속 시 같은 지점에
+      // corridor 보다 늦게 도달하는 것을 허용한다.
+      const double t_lo = std::max(steer_dt_min_, tp - corridor_dt_win_minus_);
+      const double t_hi = std::min(ctx.t_upper, tp + corridor_dt_win_plus_);
+      if (t_lo >= t_hi)
         continue;
 
-      std::uniform_real_distribution<double> td(t_lower, ctx.t_upper);
+      std::uniform_real_distribution<double> td(t_lo, t_hi);
       return Sample{xy.x(), xy.y(), td(rng_)};
     }
     return std::nullopt;
@@ -282,8 +290,7 @@ namespace GuidancePlanner
                          double start_theta,
                          double start_speed,
                          const Eigen::Vector2d &goal_xy,
-                         const std::shared_ptr<RosTools::Spline2D> &reference_path,
-                         double spline_start)
+                         const PathCorridor *corridor)
   {
     if (!step_map_ || !step_map_->valid())
     {
@@ -310,19 +317,8 @@ namespace GuidancePlanner
       ctx.y_max = std::max(c00.y(), cNN.y());
     }
 
-    // ── reference path 기반 s 범위 산정 ───────────────────────────────────────
-    ctx.reference_path = reference_path;
-    ctx.cur_s = spline_start;
-    if (reference_path)
-    {
-      const double s_reach = spline_start + v_max_ * t_horizon;
-      const double s_lim = reference_path->parameterLength();
-      ctx.max_s = std::min(s_reach, s_lim);
-    }
-    else
-    {
-      ctx.max_s = spline_start; // disables path-band branch in sampleState
-    }
+    // ── corridor 주입 (시공간 튜브 샘플링 가이드) ─────────────────────────────
+    ctx.corridor = (corridor && corridor->valid()) ? corridor : nullptr;
 
     if (t_min_goal >= t_horizon)
     {

@@ -133,6 +133,12 @@ namespace GuidancePlanner
     double strrt_check_dt_;
     double strrt_path_lat_half_width_;
     bool   strrt_greedy_goal_connect_;
+    // corridor-guided 샘플링 (PRM best path 주변 시공간 튜브)
+    int    strrt_prm_period_;            // PRM corridor 갱신 주기 [frames] (20Hz/4 ≈ 5Hz)
+    double strrt_corridor_w_base_;       // 튜브 기본 반폭 [m]
+    double strrt_corridor_p_explore_;    // 전역 exploration 샘플 비율
+    double strrt_corridor_dt_win_minus_; // corridor 시각 창 과거측 [s]
+    double strrt_corridor_dt_win_plus_;  // corridor 시각 창 미래측 [s]
 
     // Risk-Aware ST-RRT* planner parameters
     int    ra_strrt_max_iter_;

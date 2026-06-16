@@ -8,6 +8,7 @@
 #include <guidance_planner/hybrid_astar_planner.h>
 #include <guidance_planner/st_rrt_star_planner.h>
 #include <guidance_planner/risk_aware_strrt_planner.h>
+#include <guidance_planner/path_corridor.h>
 
 #include <guidance_planner/types/types.h>
 
@@ -180,6 +181,11 @@ namespace GuidancePlanner
     // Risk-Aware STRRT — cached reference for tube-based goal sampling
     std::shared_ptr<RosTools::Spline2D> ra_reference_path_;
     double ra_spline_start_{0.0};
+
+    // STRRT corridor-guided 샘플링 — PRM best path 를 5Hz 비동기로 갱신해 재사용
+    PathCorridor latest_corridor_;
+    bool latest_corridor_valid_{false};
+    int  prm_frame_counter_{0};
 
     std::unique_ptr<Reconfigure> reconfigure_;
 

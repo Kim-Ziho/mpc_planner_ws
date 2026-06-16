@@ -12,10 +12,10 @@
 #include <random>
 #include <vector>
 
-namespace RosTools { class Spline2D; }
-
 namespace GuidancePlanner
 {
+
+struct PathCorridor;
 
 class STRRTStarPlanner
 {
@@ -25,13 +25,13 @@ public:
   void Reset();
 
   /** @brief StepMap 기반 단일 최적 경로 탐색 (ST-RRT*)
+   *  @param corridor PRM best path 시공간 corridor (nullptr 이면 corridor 없이 탐색)
    *  @return 성공 시 GeometricPath, 실패 시 std::nullopt */
   std::optional<GeometricPath> Plan(const Eigen::Vector2d &start_xy,
                                     double start_theta,
                                     double start_speed,
                                     const Eigen::Vector2d &goal_xy,
-                                    const std::shared_ptr<RosTools::Spline2D> &reference_path = nullptr,
-                                    double spline_start = 0.0);
+                                    const PathCorridor *corridor = nullptr);
 
 private:
   struct RRTNode
@@ -64,9 +64,7 @@ private:
     Eigen::Vector2d goal_xy;
     double t_min_goal;
     double x_min, x_max, y_min, y_max;
-    std::shared_ptr<RosTools::Spline2D> reference_path;
-    double cur_s;
-    double max_s;
+    const PathCorridor *corridor{nullptr};
   };
 
   std::optional<Sample> sampleState(const SampleContext &ctx) const;
@@ -95,6 +93,11 @@ private:
   double check_dt_;
   double path_lat_half_width_;
   bool   greedy_goal_connect_;
+  // corridor-guided 샘플링 파라미터
+  double corridor_w_base_;
+  double corridor_p_explore_;
+  double corridor_dt_win_minus_;
+  double corridor_dt_win_plus_;
 
   // sample_accept_rate 누적 통계 (Plan() 호출마다 갱신)
   double accept_rate_sum_{0.0};

@@ -1,5 +1,5 @@
 guidance_planner:
-  algorithm: PRM  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
+  algorithm: STRRT  # PRM (기본) | AStar | HybridAStar | STRRT | RiskAwareSTRRT
 
   astar:
     num_headings: 16    # 헤딩 이산화 bin 수 (22.5°/bin)
@@ -38,6 +38,12 @@ guidance_planner:
     check_dt:        0.05    # edge 충돌 검사 시간 간격 [s]
     path_lat_half_width: 3.0 # reference path 횡방향 ±폭 [m] (균일 샘플링)
     greedy_goal_connect: true # RRT-Connect식 반복 extend로 goal 직접 연결 (false=기존 동작)
+    prm_period:      4       # PRM corridor 갱신 주기 [frames] (20Hz/4 ≈ 5Hz)
+    corridor:
+      w_base:        0.8     # 튜브 기본 반폭 [m]
+      p_explore:     0.15    # 전역 exploration 샘플 비율 (corridor 밖 우회·완전성)
+      dt_win_minus:  0.3     # corridor 시각 창 과거측 [s]
+      dt_win_plus:   0.8     # corridor 시각 창 미래측 [s] (감속 여유로 더 넓게)
 
   ra_strrt:
     max_iter:                       2000
