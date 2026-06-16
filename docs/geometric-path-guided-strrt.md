@@ -292,7 +292,15 @@ risk cost·감속·폭에만 **보간** 사용 (param 문서 §2.2 ⚠️).
      `riskDensity`/`edgeCost(+risk)`/적응형 폭), `config.{h,cpp}`, `guidance_planner.yaml`
      (`st_rrt/corridor/{w_risk,w_max}`, `st_rrt/risk/{w_risk,tau_soft}`).
    - **다음: 실측으로 w_risk·tau_soft 튜닝** (보행자 회피 거동·평활성 확인).
-3. **PR-3 risk 감속**: steer v_cap(③) + 비대칭 시각 창(§3.2). best 선택을 risk-aware cost 로.
+3. **PR-3 risk 감속** — ✅ **구현 완료 (빌드 통과)**: steer 단계 risk 비례 속도 상한
+   `v_cap=max(v_min, v_max·(1−p̄)^β)`(③, 중점 시공간 보간 p̄). 감속 시 (a) 도착시각 연장
+   `dt'=d/v`, (b) `steer_dt_max_` 초과분은 공간 step 축소로 흡수, w 는 최종 dt 로 재계산.
+   비대칭 시각 창(§3.2)은 PR-1 에서 이미 적용. best 선택은 PR-2 의 risk 적분 cost 가 node.cost 로
+   전파되어 **이미 risk-aware**(추가 변경 불요).
+   - 구현 파일: `st_rrt_star_planner.{h,cpp}`(steer v_cap), `config.{h,cpp}`,
+     `guidance_planner.yaml`(`st_rrt/risk/{v_min_ratio,beta}`).
+   - 시너지: 감속된 v 가 엣지 reference 속도가 되어 PR-4 arc-spline v 프로파일에 직결(보행자
+     근처 자동 감속), 연장 dt 가 `w_time·dt` 를 키워 risk 적분과 이중 일관.
 4. **PR-4 arc-spline**: `reconstructPath` (v,w,θ) 보존 + `ArcSpline2D` + G-MPCC 배선 교체(cubic 제거).
 5. **PR-5 (옵션)** 멀티 corridor 병렬 refine(§4.3).
 

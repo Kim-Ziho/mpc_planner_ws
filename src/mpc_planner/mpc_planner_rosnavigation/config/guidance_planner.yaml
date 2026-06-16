@@ -49,6 +49,8 @@ guidance_planner:
     risk:
       w_risk:        2.0     # edge risk 적분(∫φ·dl) 비용 가중치
       tau_soft:      0.2     # 점유확률 p < tau_soft 는 risk 적분에서 무시 (가우시안 꼬리)
+      v_min_ratio:   0.2     # 감속 바닥 v_min = v_min_ratio·v_max (로봇 freeze 방지)
+      beta:          1.5     # 감속 곡률 g(p)=(1-p)^β (클수록 위험 시 급감속)
 
   ra_strrt:
     max_iter:                       2000

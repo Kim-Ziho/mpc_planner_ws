@@ -38,6 +38,8 @@ namespace GuidancePlanner
     corridor_w_max_ = config->strrt_corridor_w_max_;
     risk_w_risk_ = config->strrt_risk_w_risk_;
     risk_tau_soft_ = config->strrt_risk_tau_soft_;
+    risk_v_min_ratio_ = config->strrt_risk_v_min_ratio_;
+    risk_beta_ = config->strrt_risk_beta_;
 
     rng_.seed(static_cast<uint32_t>(config->seed_ >= 0 ? config->seed_ : std::random_device{}()));
   }
@@ -94,8 +96,34 @@ namespace GuidancePlanner
     double psi = std::atan2(dy, dx);
     double dpsi = std::atan2(std::sin(psi - from.theta), std::cos(psi - from.theta));
 
-    double w = std::max(-w_max_, std::min(w_max_, dpsi / dt));
     double v = std::max(0.0, std::min(v_max_, d / dt));
+
+    // ── risk 비례 감속 ────────────────────────────────────────────────────────
+    //   엣지 대표 risk p_bar(중점 시공간 보간)로 속도 상한 v_cap 을 낮춘다. 이는
+    //   cost 가 아니라 constraint 로 넣어야 한다(시간적분 cost 로 풀면 "위험한 곳에
+    //   오래 머물수록 비싸다"가 역으로 가속을 유도하는 역설 — param 문서 §2.3).
+    //   감속 시 같은 변위 d 를 더 늦게 도달 → (a) 도착시각 연장 dt'=d/v, 단 steer_dt_max_
+    //   초과분은 (b) 공간 step 축소(dt 클램프)로 흡수. 연장된 dt 가 w_time·dt 를 키워
+    //   "위험 구간은 느려서 비싸다"가 risk 적분과 이중으로 일관되게 작동한다.
+    if (step_map_ && step_map_->valid())
+    {
+      const double xm = from.x + 0.5 * dx;
+      const double ym = from.y + 0.5 * dy;
+      const double tm = from.t + 0.5 * dt;
+      const double p_bar = step_map_->costWorldInterp(Eigen::Vector2d(xm, ym), tm);
+      const double v_min = risk_v_min_ratio_ * v_max_;
+      const double v_cap =
+          std::max(v_min, v_max_ * std::pow(std::max(0.0, 1.0 - p_bar), risk_beta_));
+      if (v_cap < v && v_cap > 1e-6)
+      {
+        v = v_cap;
+        // (a) 도착시각 연장, (b) steer_dt_max_ 초과분은 공간 step 축소로 흡수
+        dt = std::min(steer_dt_max_, std::max(steer_dt_min_, d / v));
+      }
+    }
+
+    // w 는 최종 dt 기준으로 (재)계산 — 감속으로 dt 가 바뀌면 곡률도 갱신해야 일관
+    double w = std::max(-w_max_, std::min(w_max_, dpsi / dt));
 
     double x_new = from.x;
     double y_new = from.y;

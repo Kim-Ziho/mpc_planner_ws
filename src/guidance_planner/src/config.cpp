@@ -142,6 +142,8 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/st_rrt/corridor/w_max",        strrt_corridor_w_max_,        3.0);
     retrieveParameter(node, "guidance_planner/st_rrt/risk/w_risk",           strrt_risk_w_risk_,           2.0);
     retrieveParameter(node, "guidance_planner/st_rrt/risk/tau_soft",         strrt_risk_tau_soft_,         0.2);
+    retrieveParameter(node, "guidance_planner/st_rrt/risk/v_min_ratio",      strrt_risk_v_min_ratio_,      0.2);
+    retrieveParameter(node, "guidance_planner/st_rrt/risk/beta",             strrt_risk_beta_,             1.5);
 
     // Risk-Aware ST-RRT*
     retrieveParameter(node, "guidance_planner/ra_strrt/max_iter",            ra_strrt_max_iter_,            2000);

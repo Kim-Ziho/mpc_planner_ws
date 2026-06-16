@@ -144,6 +144,9 @@ namespace GuidancePlanner
     // risk-aware edge cost (soft risk 적분)
     double strrt_risk_w_risk_;           // risk 적분 비용 가중치
     double strrt_risk_tau_soft_;         // p < tau_soft 는 risk 적분에서 무시 (가우시안 꼬리)
+    // risk 비례 감속 (steer 속도 상한)
+    double strrt_risk_v_min_ratio_;      // v_min = v_min_ratio·v_max (로봇 freeze 방지 바닥)
+    double strrt_risk_beta_;             // g(p)=(1-p)^β 감속 곡률 (클수록 급감속)
 
     // Risk-Aware ST-RRT* planner parameters
     int    ra_strrt_max_iter_;

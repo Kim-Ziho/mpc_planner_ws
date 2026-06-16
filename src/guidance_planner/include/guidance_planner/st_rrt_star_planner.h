@@ -110,6 +110,9 @@ private:
   // risk-aware edge cost
   double risk_w_risk_;       // risk 적분 비용 가중치
   double risk_tau_soft_;     // soft 무시 임계
+  // risk 비례 감속 (steer 속도 상한)
+  double risk_v_min_ratio_;
+  double risk_beta_;
 
   // sample_accept_rate 누적 통계 (Plan() 호출마다 갱신)
   double accept_rate_sum_{0.0};
