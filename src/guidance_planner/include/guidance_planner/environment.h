@@ -43,6 +43,15 @@ namespace GuidancePlanner
 
   public:
     virtual void SetStepMap(const std::shared_ptr<MPCPlannerStepMap::StepMap> &step_map);
+
+    /** @brief When enabled, collisions/visibility are evaluated using ONLY the StepMap
+     *  occupied cells; raw dynamic/static obstacle data is ignored. */
+    void SetStepMapOnly(bool enable) { step_map_only_ = enable; }
+    bool StepMapOnly() const { return step_map_only_; }
+
+    /** @brief StepMap cell resolution [m], or < 0 if no valid StepMap is set. */
+    double StepMapResolution() const;
+
     virtual void LoadObstacles(const std::vector<Obstacle> &dynamic_obstacles, const std::vector<Halfspace> &static_obstacles);
     virtual void SetPosition(const Eigen::Vector2d &pos) { (void)pos; };
 
@@ -66,6 +75,7 @@ namespace GuidancePlanner
     std::vector<Obstacle> dynamic_obstacles_;
     std::vector<Halfspace> static_obstacles_;
     std::shared_ptr<MPCPlannerStepMap::StepMap> step_map_;
+    bool step_map_only_ = false;
 
     /** @brief Various implementations of visibility checks */
     virtual bool IsVisibleRayCast(const SpaceTimePoint &point_one, const SpaceTimePoint &point_two); // Fast for constant velocity prediction

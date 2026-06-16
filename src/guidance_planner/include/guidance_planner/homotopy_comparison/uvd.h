@@ -7,7 +7,16 @@ namespace GuidancePlanner
 {
   class UVD : public HomotopyComparison
   {
+  public:
     virtual bool AreEquivalent(const GeometricPath &a, const GeometricPath &b, Environment &environment, bool compute_all = false) override;
+
+    // Longitudinal samples along the paths. If <= 0, the count is derived per-comparison
+    // from the StepMap resolution so consecutive transversal checks stay within one cell
+    // (anti-tunneling). Set from Config::uvd_samples_.
+    int samples_ = -1;
+
+  private:
+    int ResolveSampleCount(const GeometricPath &a, const GeometricPath &b, Environment &environment) const;
   };
 } // namespace Homotopy
 

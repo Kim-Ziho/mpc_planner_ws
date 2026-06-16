@@ -16,6 +16,8 @@
 
 #include <mpc_planner_stepmap/step_map.h>
 
+#include <limits>
+
 #include <omp.h>
 
 namespace GuidancePlanner
@@ -1008,6 +1010,25 @@ namespace GuidancePlanner
     RosTools::ROSLine &path_line = path_visuals.getNewLine();
     path_line.setScale(0.15, 0.15, 0.15);
 
+    // Dedicated thicker line for the best graph path (gold).
+    RosTools::ROSLine &best_line = path_visuals.getNewLine();
+    best_line.setScale(0.3, 0.3, 0.3);
+    best_line.setColor(1.0, 0.84, 0.0, 1.0);
+
+    // Find the "best" graph path: the one ending at the lowest-cost goal (far ahead and
+    // close to the reference path) — i.e. the goal-preference heuristic.
+    int best_idx = -1;
+    double best_goal_cost = std::numeric_limits<double>::max();
+    for (size_t i = 0; i < outputs_.size(); i++)
+    {
+      double goal_cost = Goal::FindGoalWithNode(*prm_.GetGoals(), outputs_[i].path.path.GetEnd()).cost;
+      if (goal_cost < best_goal_cost)
+      {
+        best_goal_cost = goal_cost;
+        best_idx = (int)i;
+      }
+    }
+
     // Visualize the path for each output
     for (size_t i = 0; i < outputs_.size(); i++)
     {
@@ -1016,9 +1037,12 @@ namespace GuidancePlanner
       if (path_nr != -1 && path_nr != (int)i)
         continue;
 
-      /*if (previous_outputs_[i].previously_selected_)
-        path_line.setColorInt(4, 1., RosTools::Colormap::BRUNO);
-      else*/
+      if ((int)i == best_idx) // Best graph path: highlighted, thick gold
+      {
+        VisualizePath(best_line, path.path);
+        continue;
+      }
+
       path_line.setColorInt(outputs_[i].color_, config_->n_paths_, 0.75);
 
       VisualizePath(path_line, path.path);

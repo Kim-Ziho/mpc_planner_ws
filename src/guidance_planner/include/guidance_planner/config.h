@@ -53,6 +53,7 @@ namespace GuidancePlanner
     int path_after_samples_;
     double prefer_goal_over_smoothness_;
     double max_velocity_, max_acceleration_;
+    bool velocity_aware_sampling_; // Restrict PRM samples to the space-time set reachable from the start at max_velocity_
 
     double winding_pass_threshold_;
 
@@ -65,6 +66,10 @@ namespace GuidancePlanner
     // Topology
     std::string topology_comparison_function_;
     std::string connection_type_;
+    int uvd_samples_; // Longitudinal samples for UVD comparison. <= 0 => derive from StepMap resolution
+
+    // StepMap-only mode: ignore dynamic/static obstacle data and rely solely on the StepMap
+    bool step_map_only_;
 
     // Connection Filters
     bool enable_forward_filter_;

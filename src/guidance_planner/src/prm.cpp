@@ -33,6 +33,7 @@ namespace GuidancePlanner
 
     environment_ = std::make_shared<Environment>();
     environment_->Init();
+    environment_->SetStepMapOnly(config_->step_map_only_);
 
     sampler_ = std::make_shared<Sampler>(config_); // Default: Uniform sampling
     if (SpaceTimePoint::numStates() == 3)
@@ -48,6 +49,7 @@ namespace GuidancePlanner
     if (config_->topology_comparison_function_ == "UVD")
     {
       topology_comparison_.reset(new UVD());
+      ((UVD *)topology_comparison_.get())->samples_ = config_->uvd_samples_;
       LOG_VALUE("Topology Comparison", "UVD");
     }
     else if (config_->topology_comparison_function_ == "None")
@@ -531,6 +533,14 @@ namespace GuidancePlanner
 
   double PRM::GetHomotopicCost(const GeometricPath &a, const GeometricPath &b)
   {
+    // GetCost is only defined for the Homology comparison. Guard against an invalid
+    // cast when another comparison function (e.g. UVD) is active.
+    if (config_->topology_comparison_function_ != "Homology")
+    {
+      LOG_WARN_THROTTLE(5000, "GetHomotopicCost is only available with the Homology comparison function; returning 0.");
+      return 0.;
+    }
+
     // debug_benchmarker_->start();
     double homology_cost = reinterpret_cast<Homology *>(topology_comparison_.get())->GetCost(a, b, *environment_);
     // debug_benchmarker_->stop();

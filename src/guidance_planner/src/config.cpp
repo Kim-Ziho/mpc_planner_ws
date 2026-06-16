@@ -44,10 +44,13 @@ namespace GuidancePlanner
     retrieveParameter(node, "guidance_planner/sampling/n_samples", n_samples_);
     retrieveParameter(node, "guidance_planner/sampling/timeout", timeout_);
     retrieveParameter(node, "guidance_planner/sampling/margin", sample_margin_, 0.);
+    retrieveParameter(node, "guidance_planner/sampling/velocity_aware", velocity_aware_sampling_, false);
 
     retrieveParameter(node, "guidance_planner/homotopy/n_paths", n_paths_);
     retrieveParameter(node, "guidance_planner/homotopy/track_selected_homology_only", track_selected_homology_only_);
     retrieveParameter(node, "guidance_planner/homotopy/comparison_function", topology_comparison_function_, std::string("Homology"));
+    retrieveParameter(node, "guidance_planner/homotopy/uvd/samples", uvd_samples_, -1); // <= 0 => derive from StepMap resolution
+    retrieveParameter(node, "guidance_planner/step_map_only", step_map_only_, false);
     retrieveParameter(node, "guidance_planner/homotopy/winding/pass_threshold", winding_pass_threshold_, 0.25);
     retrieveParameter(node, "guidance_planner/homotopy/winding/use_non_passing", Config::use_non_passing_, false);
     retrieveParameter(node, "guidance_planner/homotopy/use_learning", use_learning, false);

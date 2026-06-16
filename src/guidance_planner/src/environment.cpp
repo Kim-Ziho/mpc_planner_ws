@@ -20,6 +20,13 @@ namespace GuidancePlanner
     step_map_ = step_map;
   }
 
+  double Environment::StepMapResolution() const
+  {
+    if (step_map_ && step_map_->valid())
+      return step_map_->resolution();
+    return -1.0;
+  }
+
   bool Environment::InCollision(const SpaceTimePoint &point, double with_margin)
   {
     if (step_map_ && step_map_->valid())
@@ -28,6 +35,9 @@ namespace GuidancePlanner
       if (step_map_->isOccupiedWorld(point.Pos(), layer))
         return true;
     }
+
+    if (step_map_only_) // StepMap is the sole collision model: skip raw obstacle data
+      return false;
 
     for (auto &obstacle : dynamic_obstacles_)
     {
@@ -63,6 +73,9 @@ namespace GuidancePlanner
       if (step_map_->isSegmentOccupiedWorld(point_one.Pos(), point_one.Time(), point_two.Pos(), point_two.Time()))
         return false;
     }
+
+    if (step_map_only_) // StepMap is the sole visibility model: skip raw obstacle data
+      return true;
 
     // Skip the search if the two points are close (assumes the points themselves are not in collision)
     // if (dynamic_obstacles_.size() > 0 && RosTools::dist(point_one.Pos(), point_two.Pos()) < 2. * dynamic_obstacles_[0].radius_)
@@ -137,6 +150,8 @@ namespace GuidancePlanner
 
   void Environment::ProjectToFreeSpace(Eigen::Vector2d &point, int k, double with_margin)
   {
+    if (step_map_only_) // No raw-obstacle projection model in StepMap-only mode; keep the point as-is
+      return;
 
     // Projecting in 2D from obstacles
     for (auto &obstacle : dynamic_obstacles_)
@@ -328,6 +343,9 @@ namespace GuidancePlanner
       if (step_map_->isOccupiedWorld(point.Pos(), layer))
         return true;
     }
+
+    if (step_map_only_) // StepMap is the sole collision model: skip the obstacle grid
+      return false;
 
     const std::vector<SingleObstacle> &cur_grid_obstacles = grid_.ObstaclesAt(point);
     // std::cout << "number of obstacles there: " << cur_grid_obstacles.size() << std::endl;

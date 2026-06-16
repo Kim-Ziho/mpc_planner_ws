@@ -59,6 +59,7 @@ namespace GuidancePlanner
         RosTools::RandomGenerator random_generator_; // Used to generate samples
 
         SpaceTimePoint::PVector min_, max_, range_;
+        SpaceTimePoint::PVector start_pos_; // Start position, used for velocity-aware (reachable set) sampling
 
         std::vector<Sample> samples_;
 

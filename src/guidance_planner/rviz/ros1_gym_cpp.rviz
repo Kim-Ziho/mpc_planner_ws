@@ -193,17 +193,25 @@ Visualization Manager:
       Queue Size: 10
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /gym_cpp/people
       Name: Pedestrians
       Namespaces:
         {}
       Queue Size: 100
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /gym_cpp/guidance_planner/trajectories
       Name: Trajectories
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /gym_cpp/guidance_planner/geometric_paths
+      Name: Geometric Paths
       Namespaces:
         "": true
       Queue Size: 100
@@ -221,7 +229,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/guidance_planner/graph
       Name: Graph
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -229,7 +237,7 @@ Visualization Manager:
       Marker Topic: /gym_cpp/guidance_planner/start_and_goals
       Name: Start and Goals
       Namespaces:
-        {}
+        "": true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -249,13 +257,13 @@ Visualization Manager:
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /gym_cpp/step_map/guidance_planner/step_map
       Name: StepMap
       Namespaces:
-        step_map: true
+        {}
       Queue Size: 100
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 255; 255; 255
@@ -284,7 +292,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 17.235010147094727
+      Distance: 26.041778564453125
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -292,25 +300,25 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 7.884670257568359
-        Y: -1.4798974990844727
-        Z: 2.2721433197148144e-06
+        X: 3.8817687034606934
+        Y: -0.052533477544784546
+        Z: -5.888796295039356e-07
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5947965979576111
+      Pitch: 0.32979634404182434
       Target Frame: <Fixed Frame>
-      Yaw: 5.515398979187012
+      Yaw: 3.15039324760437
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: true
+    collapsed: false
   Height: 2032
-  Hide Left Dock: true
+  Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000003000000000000055b000006fcfc0200000001fb000000100044006900730070006c0061007900730000000069000006fc0000017800ffffff0000000100000218000006fcfc0200000002fc000000690000053b0000015801000034fa000000010100000002fb0000001200530065006c0065006300740069006f006e0100000000ffffffff000000af00fffffffb0000000a005600690065007700730100000ce8000002180000014f00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000005b0000001b5000000ab00ffffff000000030000078000000056fc0100000001fb0000000800540069006d00650100000000000007800000058200ffffff0000055c000006fc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000003000000000000055b000006fcfc0200000001fb000000100044006900730070006c0061007900730100000069000006fc0000017800ffffff0000000100000218000006fcfc0200000002fc000000690000053b0000015801000034fa000000010100000002fb0000001200530065006c0065006300740069006f006e0100000000ffffffff000000af00fffffffb0000000a005600690065007700730100000ce8000002180000014f00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000005b0000001b5000000ab00ffffff0000000300000f0000000056fc0100000001fb0000000800540069006d0065010000000000000f000000058200ffffff00000775000006fc00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -319,6 +327,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1920
+  Width: 3840
   X: 0
   Y: 54

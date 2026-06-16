@@ -4,6 +4,8 @@
 #include <ros_tools/visuals.h>
 
 #include <functional>
+#include <algorithm>
+#include <cmath>
 
 namespace GuidancePlanner
 {
@@ -42,6 +44,8 @@ namespace GuidancePlanner
 
     void Sampler::SetRange(const SpaceTimePoint::PVector &start, const std::vector<Goal> &goals)
     {
+        start_pos_ = start;
+
         min_ = start;
         max_ = start;
 
@@ -101,12 +105,33 @@ namespace GuidancePlanner
     {
         Sample &sample = samples_[sample_index];
 
-        // Sample positions uniformly
-        for (int i = 0; i < SpaceTimePoint::numPositions(); i++)
-            sample.point(i) = min_(i) + random_generator_.Double() * range_(i);
+        // Sample time first [DISCRETE TIME]
+        const int time_index = random_generator_.Int(Config::N - 2) + 1;
 
-        // Sample time [DISCRETE TIME]
-        sample.point.SetTime(random_generator_.Int(Config::N - 2) + 1);
+        if (config_->velocity_aware_sampling_)
+        {
+            // Restrict to the space-time reachable set: a disc of radius
+            // v_max * (t * DT) centred on the start. Sampling directly within
+            // this disc (instead of rejecting) avoids wasting samples at small t.
+            const double reachable_radius = config_->max_velocity_ * time_index * Config::DT;
+            const double angle = 2.0 * M_PI * random_generator_.Double();
+            const double radius = reachable_radius * std::sqrt(random_generator_.Double());
+
+            sample.point(0) = start_pos_(0) + radius * std::cos(angle);
+            sample.point(1) = start_pos_(1) + radius * std::sin(angle);
+
+            // Keep the relevant region (between start and goals): reject outside the box
+            sample.success = (sample.point(0) >= min_(0) && sample.point(0) <= max_(0) &&
+                              sample.point(1) >= min_(1) && sample.point(1) <= max_(1));
+        }
+        else
+        {
+            // Sample positions uniformly
+            for (int i = 0; i < SpaceTimePoint::numPositions(); i++)
+                sample.point(i) = min_(i) + random_generator_.Double() * range_(i);
+        }
+
+        sample.point.SetTime(time_index);
 
         return sample;
     }
@@ -123,13 +148,32 @@ namespace GuidancePlanner
         }
         Sample &sample = samples_[sample_index];
 
-        // Sample along the longitudinal and lateral position on the path
-        double s = min_s + random_generator_.Double() * range_s;
-        double y_dev = min_lat + random_generator_.Double() * range_lat;
-        auto &point = reference_path->getPoint(s) + reference_path->getOrthogonal(s) * y_dev;
+        // Sample time first [DISCRETE TIME]
+        const int time_index = random_generator_.Int(Config::N - 2) + 1;
 
-        sample.point = SpaceTimePoint(point(0), point(1),
-                                      random_generator_.Int(Config::N - 2) + 1);
+        double effective_range_s = range_s;
+        if (config_->velocity_aware_sampling_)
+        {
+            // Limit how far ahead along the path we may sample given the time
+            // budget and the maximum velocity (space-time reachable set).
+            const double reachable_arc = config_->max_velocity_ * time_index * Config::DT;
+            effective_range_s = std::min(range_s, reachable_arc);
+        }
+
+        // Sample along the longitudinal and lateral position on the path
+        double s = min_s + random_generator_.Double() * effective_range_s;
+        double y_dev = min_lat + random_generator_.Double() * range_lat;
+        const Eigen::Vector2d point = reference_path->getPoint(s) + reference_path->getOrthogonal(s) * y_dev;
+
+        sample.point = SpaceTimePoint(point(0), point(1), time_index);
+
+        if (config_->velocity_aware_sampling_)
+        {
+            // Full Euclidean reachability check (the lateral deviation also costs distance)
+            const double reachable_radius = config_->max_velocity_ * time_index * Config::DT;
+            if ((point - start_pos_).norm() > reachable_radius)
+                sample.success = false;
+        }
 
         return sample;
     }

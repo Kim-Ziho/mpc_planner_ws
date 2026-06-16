@@ -222,13 +222,13 @@ Visualization Manager:
               Queue Size: 100
               Value: false
             - Class: rviz/MarkerArray
-              Enabled: false
-              Marker Topic: /rosnavigation_planner/guidance_planner/geometric_paths
+              Enabled: true
+              Marker Topic: /move_base/guidance_planner/geometric_paths
               Name: Geometric Paths
               Namespaces:
-                {}
+                "": true
               Queue Size: 100
-              Value: false
+              Value: true
             - Class: rviz/MarkerArray
               Enabled: true
               Marker Topic: /move_base/guidance_planner/trajectories
