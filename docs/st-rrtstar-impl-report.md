@@ -265,60 +265,83 @@ catkin build guidance_planner
 
 ## 10. 알려진 한계 및 향후 개선
 
-### 10.1 20Hz 미달성 원인 분석
+> **갱신 노트 (2026-06-30):** 초기 보고서(§7.1 벤치마크 시점)는 brute-force nearest /
+> 선형 rewire / risk-blind 비용을 전제로 작성되었으나, 이후 다음 항목이 **이미
+> 구현·반영**되었다. §10.1·§10.2 는 현재 코드(`st_rrt_star_planner.cpp`,
+> `space_time_kdtree.h`) 기준으로 재작성한 것이다.
+>
+> | 구 보고서의 "향후 과제" | 현재 상태 | 근거 코드 |
+> |---|---|---|
+> | KD-tree nearest (O(n)→O(log n)) | **완료** | `SpaceTimeKDTree::nearestTimeAware` (`space_time_kdtree.h:62`) |
+> | rewire 공간 버킷 제한 | **완료** | `kd.radiusXY(...)` (`st_rrt_star_planner.cpp:509, 557`) |
+> | Risk-as-cost (soft 충돌 회피) | **완료** | `edgeEvaluate` risk 적분 + `edgeCost` risk 항 (`:153, :282`) |
+>
+> 추가로 **risk 비례 감속**(steer `v_cap`, `:108`), **corridor-guided 시공간 튜브
+> 샘플링**(`:226`), **greedy goal-connect**(RRT-Connect 식, `:598`),
+> **arc reference 궤적**(`buildArcTrajectory`, `:346`)이 신규 도입되었다.
 
-실측 기준 평균 34.4ms로 20Hz 예산(50ms) 안에 들어오지만, **안정적인 실시간 보장이 어려운** 이유:
+### 10.1 현재 남아 있는 실시간성 리스크
 
-#### (1) 마진 부족 — 최대 43.3ms, 여유 6.7ms
-- 10회 샘플에서 최대 43.3ms까지 관측됨. 반복 횟수가 늘거나 트리가 깊어지면 초과 가능.
-- ROS 스케줄링 지연(callback queue 경합, 스레드 컨텍스트 전환) 수 ms를 감안하면 실질 여유는 더 적음.
-- `max_iter = 3000` 고정이므로 조기 종료가 일어나지 않는 경우(장애물 밀집 환경) 항상 최대 이터레이션을 소모.
+§7.1 벤치마크(평균 34.4ms / 최대 43.3ms)는 **KD-tree 도입 이전** 측정값이므로
+현재 성능을 대표하지 못한다. nearest/rewire 가 O(log n) 으로 바뀐 만큼 **재측정이
+필요**하며, 아래는 알고리즘 구조상 여전히 남아 있는 리스크다.
 
-#### (2) O(n) nearest-neighbor — 가장 큰 병목
-- 매 이터레이션마다 트리 전체 노드(최대 3000개)를 순회해 최근접 노드 탐색.
-- 3000 노드 × 이터레이션당 O(n) → 총 O(n²) 연산. 트리 성장에 따라 후반부 이터레이션에서 급격히 느려짐.
-- 이것이 Guidance Planning 최대값(33.0ms)이 평균(23.6ms)보다 40% 큰 이유로 추정.
+#### (1) `max_iter` 고정 — 경성 마감(hard deadline) 미보장 *(미해결)*
+- 메인 루프가 여전히 `for (iter = 0; iter < max_iter_; ++iter)` 형태(`:477`).
+- 장애물 밀집 등으로 조기 종료(첫 해 발견 시 `t_upper` 축소)가 늦어지면 항상 최대
+  이터레이션을 소모 → wall-clock 이 입력 분포에 따라 변동.
+- greedy goal-connect 가 `max_iter` 외 추가 노드를 생성할 수 있어(`node_cap = max_iter*2+1`)
+  최악 케이스의 상한이 더 커질 여지가 있음.
 
-#### (3) O(n) rewire 순회
-- rewire 단계에서 트리 노드 전체를 순회 후 `neighbor_radius`로 필터.
-- 실제 rewire 횟수는 적지만, 트리 크기에 비례한 순회 비용 자체가 누적됨.
+#### (2) 샘플링 t_lower 단순화 *(미해결)*
+- `sampleState` 의 전역 exploration 분기에서 `t_lower = steer_dt_min_` 고정(`:219`).
+- start 에서 물리적으로 도달 불가능한 (이른) 시각의 샘플이 생성되어, KD-tree nearest 의
+  reachability cone(`d ≤ v_max·dt`) 필터에서 `INF` 로 버려진다 → 무효 샘플 비율 증가,
+  동일 이터레이션 대비 트리 커버리지 저하.
+- (단, KD-tree 가 무효 샘플의 nearest 질의 자체는 O(log n) 으로 싸게 처리하므로 영향은
+  구 보고서 추정보다 작다.)
 
-#### (4) 비효율적 샘플링 (t_lower 단순화)
-- `sampleState` 에서 t_lower를 `steer_dt_min` 고정으로 사용.
-- 실제로 도달 불가능한 시공간 샘플(start에서 해당 위치까지 물리적으로 불가능한 시각)이 nearest 탐색에서 `-inf`로 필터되기 전에 이미 생성됨 → 무효 샘플 비율 증가 → 동일 이터레이션 수 대비 트리 커버리지 저하.
+#### (3) radius 질의의 시간축 비가지치기 *(구조적 한계)*
+- `radiusXY` 는 평면거리(x,y) 기준이라 시간축(axis=2)에서는 가지치기 불가 → 해당 분기는
+  좌우 양쪽 모두 방문(`space_time_kdtree.h:172`).
+- 트리가 시간축으로 깊어질수록 radius 질의 1회의 방문 노드 수가 증가. 실측상 병목은
+  아니나 트리가 매우 커지면 누적될 수 있음.
 
-#### (5) ~10.8ms 고정 오버헤드 (ST-RRT\* 외부)
-- StepMap 갱신, 스플라인 피팅, `OutputTrajectory` 조립, ROS 메시지 직렬화 등이 전체 루프의 31%를 차지.
-- 이 부분은 `max_iter` 조정과 무관하게 상수 비용으로 남음.
+#### (4) ST-RRT\* 외부 고정 오버헤드 *(미해결)*
+- StepMap 갱신, arc 궤적/스플라인 조립, `OutputTrajectory` 조립, ROS 직렬화 등은
+  `max_iter` 조정과 무관한 상수 비용. 전체 루프에서 차지하는 비중은 재측정 필요.
 
-### 10.2 우선순위별 개선 방안
+### 10.2 우선순위별 개선 방안 (현재 미적용 항목)
 
 | 우선순위 | 개선 | 기대 효과 |
 |----------|------|-----------|
-| ★★★ | **KD-tree nearest** (`nanoflann`) | O(n) → O(log n). 후반부 이터레이션 병목 해소 → 최대값 분산 감소 |
-| ★★★ | **이터레이션 시간 예산제** (`max_iter` 대신 `max_time_ms`) | 50ms 예산 내에서 가능한 만큼만 확장 → 경성 마감 보장 |
-| ★★ | **t_lower 동적 계산** | start 거리 기반 최소 도달 시각 계산 → 유효 샘플 비율 향상 → 동일 예산에서 더 좋은 경로 |
-| ★★ | **rewire를 공간 버킷으로 제한** | `neighbor_radius` 이내 노드만 직접 인덱싱 → O(n) 순회 제거 |
+| ★★★ | **이터레이션 시간 예산제** (`max_iter` 대신 `max_time_ms`) | 50ms 예산 내에서 가능한 만큼만 확장 → 경성 마감 보장 (§10.1-(1)) |
+| ★★ | **t_lower 동적 계산** | start 거리 기반 최소 도달 시각으로 하한 설정 → 유효 샘플 비율 향상 (§10.1-(2)) |
 | ★ | **Bidirectional ST-RRT\*** (Grothe et al., ICRA 2022) | 양방향 확장으로 수렴 이터레이션 수 감소 |
 | ★ | **비동기 플래너 패턴** | 5~10Hz ST-RRT\* 백그라운드 + 20Hz 이전 경로 재사용 → 경성 실시간 보장 |
-| — | **Risk-as-cost** | `cellCost()` 누적 → soft 충돌 회피 (성능과 무관, 품질 개선) |
+
+> KD-tree nearest / rewire 공간 버킷 / Risk-as-cost 는 §10 갱신 노트대로 **이미
+> 반영**되어 본 표에서 제외했다.
 
 ### 10.3 단기 권장 조치 (코드 변경 최소화)
 
-1. **`max_iter` → 시간 기반 종료 조건**으로 교체:
+1. **`max_iter` → 시간 기반 종료 조건**으로 교체 (남은 ★★★ 항목):
    ```cpp
-   // 현재
-   for (int iter = 0; iter < config_->strrt_max_iter_; iter++) { ... }
+   // 현재 (st_rrt_star_planner.cpp:477)
+   for (int iter = 0; iter < max_iter_; ++iter) { ... }
 
    // 개선안
    auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(35);
-   while (std::chrono::steady_clock::now() < deadline) { ... }
+   for (int iter = 0; iter < max_iter_ &&
+        std::chrono::steady_clock::now() < deadline; ++iter) { ... }
    ```
-   `max_iter` 파라미터를 fallback 상한으로 유지하면 기존 파라미터 호환성 유지.
+   `max_iter` 를 fallback 상한으로 유지하면 기존 파라미터 호환성 유지. greedy
+   goal-connect 의 추가 노드까지 포함한 wall-clock 을 경계 안에 가둘 수 있다.
 
-2. **`nanoflann` KD-tree 도입** (헤더 온리, 의존성 최소):
-   - `RRTNode` x, y, t를 3D 포인트로 등록.
-   - `findNearest()` O(log n) 대체.
-   - 노드 추가 시 `addPoints()` 호출 — 재빌드 불필요.
+2. **t_lower 동적 하한**: `sampleState` 전역 분기에서 샘플 (x,y) 까지의 root 거리
+   `d0` 로부터 `t_lower = max(steer_dt_min_, d0 / v_max_)` 로 설정 → reachability cone
+   에서 버려질 샘플을 생성 단계에서 차단.
 
-3. **목표 도달 후 조기 반복 감소**: 첫 해 발견 시 `t_upper` 축소만 하는 현재 방식 대신, `remaining_budget`을 절반으로 줄여 빠른 루프 탈출을 유도.
+3. **KD-tree 도입 효과 재측정**: §7.1 벤치마크를 현재 코드로 재실행하여 nearest/rewire
+   O(log n) 전환의 실제 이득(특히 최대값 분산 감소)을 정량화. 이를 근거로 `max_iter`
+   상향 여지 또는 시간 예산값을 결정.
